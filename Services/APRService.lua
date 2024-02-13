@@ -22,6 +22,7 @@ APRService.APRS_DISCONNECT_REASON_USER_REQUESTED        = APRSERVICE_APRS_DISCON
 APRService.APRS_DISCONNECT_REASON_CONNECTION_LOST       = APRSERVICE_APRS_DISCONNECT_REASON_CONNECTION_LOST;
 APRService.APRS_DISCONNECT_REASON_AUTHENTICATION_FAILED = APRSERVICE_APRS_DISCONNECT_REASON_AUTHENTICATION_FAILED;
 
+-- @return service
 function APRService.Init(config)
 	return aprservice_init(config);
 end
@@ -91,6 +92,7 @@ end
 
 APRService.Config = {};
 
+-- @return config
 function APRService.Config.Init()
 	return aprservice_config_init();
 end

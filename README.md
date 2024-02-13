@@ -137,7 +137,7 @@ make -C APRService/APRService -e COMPILER=GNU PLATFORM=LINUX
 
 ```sh
 # Install dependencies
-# - You need to install git and Lua 5.4 for your distribution
+# - You need to install git and the Lua 5.4 c development packages for your distribution
 
 # Clone AbstractionLayer and set temporary environment variable
 

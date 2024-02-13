@@ -29,83 +29,83 @@ APRService.APRS_DISCONNECT_REASON_CONNECTION_LOST
 APRService.APRS_DISCONNECT_REASON_AUTHENTICATION_FAILED
 
 -- @return service
-function APRService.Init(config) end
-function APRService.Deinit(service) end
-function APRService.IsRunning(service) end
-function APRService.Run(service, tick_rate, flags) end
-function APRService.Stop(service) end
+function APRService.Init(config)
+function APRService.Deinit(service)
+function APRService.IsRunning(service)
+function APRService.Run(service, tick_rate, flags)
+function APRService.Stop(service)
 
 function APRService.APRS.IsConnected(service)
-function APRService.APRS.IS.Connect(service, remote_host, remote_port, passcode) end
-function APRService.APRS.KISS.Tcp.Connect(service, remote_host, remote_port) end
-function APRService.APRS.KISS.Serial.Connect(service, device) end
-function APRService.APRS.Disconnect(service) end
+function APRService.APRS.IS.Connect(service, remote_host, remote_port, passcode)
+function APRService.APRS.KISS.Tcp.Connect(service, remote_host, remote_port)
+function APRService.APRS.KISS.Serial.Connect(service, device)
+function APRService.APRS.Disconnect(service)
 -- @return encoding_failed, connection_closed
-function APRService.APRS.SendMessage(service, destination, content) end
+function APRService.APRS.SendMessage(service, destination, content)
 -- @return encoding_failed, connection_closed
-function APRService.APRS.SendPosition(service, altitude, latitude, longitude, comment) end
+function APRService.APRS.SendPosition(service, altitude, latitude, longitude, comment)
 -- @return encoding_failed, connection_closed
-function APRService.APRS.SendTelemetry(service, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8) end
+function APRService.APRS.SendTelemetry(service, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8)
 -- @param callback(service)
 -- @return encoding_failed, connection_closed
-function APRService.APRS.BeginSendMessage(service, destination, content, callback) end
+function APRService.APRS.BeginSendMessage(service, destination, content, callback)
 
 -- @return config
-function APRService.Config.Init() end
-function APRService.Config.Deinit(config) end
-function APRService.Config.APRS.IsMonitorModeEnabled(config) end
-function APRService.Config.APRS.EnableMonitorMode(config, value) end
-function APRService.Config.APRS.GetPath(config) end
-function APRService.Config.APRS.SetPath(config, value) end
-function APRService.Config.APRS.GetStation(config) end
-function APRService.Config.APRS.SetStation(config, value) end
-function APRService.Config.APRS.GetSymbolTable(config) end
-function APRService.Config.APRS.SetSymbolTable(config, value) end
-function APRService.Config.APRS.GetSymbolTableKey(config) end
-function APRService.Config.APRS.SetSymbolTableKey(config, value) end
+function APRService.Config.Init()
+function APRService.Config.Deinit(config)
+function APRService.Config.APRS.IsMonitorModeEnabled(config)
+function APRService.Config.APRS.EnableMonitorMode(config, value)
+function APRService.Config.APRS.GetPath(config)
+function APRService.Config.APRS.SetPath(config, value)
+function APRService.Config.APRS.GetStation(config)
+function APRService.Config.APRS.SetStation(config, value)
+function APRService.Config.APRS.GetSymbolTable(config)
+function APRService.Config.APRS.SetSymbolTable(config, value)
+function APRService.Config.APRS.GetSymbolTableKey(config)
+function APRService.Config.APRS.SetSymbolTableKey(config, value)
 -- @param handler(service, type)
-function APRService.Config.Events.SetOnConnect(config, handler) end
+function APRService.Config.Events.SetOnConnect(config, handler)
 -- @param handler(service, reason)
-function APRService.Config.Events.SetOnDisconnect(config, handler) end
+function APRService.Config.Events.SetOnDisconnect(config, handler)
 -- @param handler(service, value)
-function APRService.Config.Events.SetOnSend(config, handler) end
+function APRService.Config.Events.SetOnSend(config, handler)
 -- @param handler(service, value)
-function APRService.Config.Events.SetOnReceive(config, handler) end
+function APRService.Config.Events.SetOnReceive(config, handler)
 -- @param handler(service, station, tocall, path, content)
-function APRService.Config.Events.SetOnSendPacket(config, handler) end
+function APRService.Config.Events.SetOnSendPacket(config, handler)
 -- @param handler(service, station, tocall, path, content)
-function APRService.Config.Events.SetOnReceivePacket(config, handler) end
+function APRService.Config.Events.SetOnReceivePacket(config, handler)
 -- @param handler(service, station, path, destination, content)
-function APRService.Config.Events.SetOnSendMessage(config, handler) end
+function APRService.Config.Events.SetOnSendMessage(config, handler)
 -- @param handler(service, station, path, destination, content)
-function APRService.Config.Events.SetOnReceiveMessage(config, handler) end
+function APRService.Config.Events.SetOnReceiveMessage(config, handler)
 -- @param handler(service, station, path, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
-function APRService.Config.Events.SetOnSendPosition(config, handler) end
+function APRService.Config.Events.SetOnSendPosition(config, handler)
 -- @param handler(service, station, path, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
-function APRService.Config.Events.SetOnReceivePosition(config, handler) end
+function APRService.Config.Events.SetOnReceivePosition(config, handler)
 -- @param handler(service, station, tocall, path, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8)
-function APRService.Config.Events.SetOnSendTelemetry(config, handler) end
+function APRService.Config.Events.SetOnSendTelemetry(config, handler)
 -- @param handler(service, station, tocall, path, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8)
-function APRService.Config.Events.SetOnReceiveTelemetry(config, handler) end
+function APRService.Config.Events.SetOnReceiveTelemetry(config, handler)
 -- @param handler(service, station, tocall, path, content, type)
-function APRService.Config.Events.SetOnReceiveInvalidPacket(config, handler) end
+function APRService.Config.Events.SetOnReceiveInvalidPacket(config, handler)
 
-function APRService.Events.GetCount(service) end
-function APRService.Events.Clear(service) end
+function APRService.Events.GetCount(service)
+function APRService.Events.Clear(service)
 -- @param handler(service)
-function APRService.Events.Schedule(service, seconds, handler) end
+function APRService.Events.Schedule(service, seconds, handler)
 
-function APRService.Console.SetTitle(value) end
+function APRService.Console.SetTitle(value)
 -- @return success, char
-function APRService.Console.Read() end
+function APRService.Console.Read()
 -- @return success, string
-function APRService.Console.ReadLine() end
-function APRService.Console.Write(value) end
-function APRService.Console.WriteLine(value) end
+function APRService.Console.ReadLine()
+function APRService.Console.Write(value)
+function APRService.Console.WriteLine(value)
 
-function APRService.Commands.Execute(service, sender, message) end
+function APRService.Commands.Execute(service, sender, message)
 -- @param handler(service, sender, command_name, command_params)
-function APRService.Commands.Register(service, name, handler) end
+function APRService.Commands.Register(service, name, handler)
 ```
 
 ### Dependencies

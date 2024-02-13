@@ -117,8 +117,14 @@ lua_aprservice*        lua_aprservice_init(lua_aprservice_config* lua_config)
 	});
 	aprservice_aprs_on_disconnect on_disconnect_detour([](aprservice* service, AL::uint8 reason, void* param)
 	{
-		if (auto lua_service = reinterpret_cast<lua_aprservice*>(param); lua_service->aprs_events.on_disconnect)
-			lua_service->aprs_events.on_disconnect(lua_service, reason);
+		if (auto lua_service = reinterpret_cast<lua_aprservice*>(param))
+		{
+			for (auto it = lua_service->aprs_begin_send_message_contexts.begin(); it != lua_service->aprs_begin_send_message_contexts.end(); )
+			{ delete *it; lua_service->aprs_begin_send_message_contexts.Erase(it++); }
+
+			if (lua_service->aprs_events.on_disconnect)
+				lua_service->aprs_events.on_disconnect(lua_service, reason);
+		}
 	});
 
 	aprservice_aprs_on_send on_send_detour([](aprservice* service, const AL::String& value, void* param)

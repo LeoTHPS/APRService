@@ -42,9 +42,7 @@ function APRService.APRS.KISS.Serial.Connect(service, device)
 function APRService.APRS.Disconnect(service)
 -- @param filter(service, station, tocall, path, content)->bool
 -- @param callback(service, station, tocall, path, content)
--- @return packet_monitor
 function APRService.APRS.AddPacketMonitor(service, filter, callback)
-function APRService.APRS.RemovePacketMonitor(service, packet_monitor)
 -- @return encoding_failed, connection_closed
 function APRService.APRS.SendMessage(service, destination, content)
 -- @return encoding_failed, connection_closed

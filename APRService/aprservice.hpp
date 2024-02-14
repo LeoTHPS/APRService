@@ -45,6 +45,8 @@ typedef void(*aprservice_event_handler)(aprservice* service, void* param);
 typedef void(*aprservice_command_handler)(aprservice* service, const AL::String& sender, const AL::String& command_name, const AL::String& command_params, void* param);
 
 typedef void(*aprservice_aprs_message_callback)(aprservice* service, void* param);
+typedef bool(*aprservice_aprs_packet_filter_callback)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& content, void* param);
+typedef void(*aprservice_aprs_packet_monitor_callback)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& content, void* param);
 
 typedef void(*aprservice_aprs_on_connect)(aprservice* service, AL::uint8 type, void* param);
 typedef void(*aprservice_aprs_on_disconnect)(aprservice* service, AL::uint8 reason, void* param);
@@ -118,6 +120,8 @@ bool        aprservice_aprs_connect_is(aprservice* service, const AL::String& re
 bool        aprservice_aprs_connect_kiss_tcp(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port);
 bool        aprservice_aprs_connect_kiss_serial(aprservice* service, const AL::String& device);
 void        aprservice_aprs_disconnect(aprservice* service);
+void*       aprservice_aprs_add_packet_monitor(aprservice* service, aprservice_aprs_packet_filter_callback filter, aprservice_aprs_packet_monitor_callback callback, void* param);
+void        aprservice_aprs_remove_packet_monitor(aprservice* service, void* packet_monitor);
 // @return 0 on connection closed
 // @return -1 on encoding error
 int         aprservice_aprs_send_message(aprservice* service, const AL::String& destination, const AL::String& content);

@@ -17,6 +17,8 @@ typedef AL::Lua54::Function<void(lua_aprservice* lua_service)>                  
 typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& sender, const AL::String& command_name, const AL::String& command_params)>                                                                                                                                                                                                                      lua_aprservice_command_handler;
 
 typedef AL::Lua54::Function<void(lua_aprservice* lua_service)>                                                                                                                                                                                                                                                                                                                  lua_aprservice_aprs_message_callback;
+typedef AL::Lua54::Function<bool(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& content)>                                                                                                                                                                                                          lua_aprservice_aprs_packet_filter_callback;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& content)>                                                                                                                                                                                                          lua_aprservice_aprs_packet_monitor_callback;
 
 typedef AL::Lua54::Function<void(lua_aprservice* lua_service, AL::uint8 type)>                                                                                                                                                                                                                                                                                                  lua_aprservice_aprs_on_connect;
 typedef AL::Lua54::Function<void(lua_aprservice* lua_service, AL::uint8 reason)>                                                                                                                                                                                                                                                                                                lua_aprservice_aprs_on_disconnect;
@@ -77,6 +79,14 @@ struct lua_aprservice_config
 	lua_aprservice_aprs_config aprs;
 };
 
+struct lua_aprservice_aprs_add_packet_monitor_context
+{
+	lua_aprservice_aprs_packet_filter_callback  filter;
+	lua_aprservice_aprs_packet_monitor_callback callback;
+	lua_aprservice*                             lua_service;
+	void*                                       packet_monitor;
+};
+
 struct lua_aprservice_aprs_begin_send_message_context
 {
 	lua_aprservice_aprs_message_callback callback;
@@ -95,6 +105,7 @@ struct lua_aprservice_commands_register_context
 	lua_aprservice*                lua_service;
 };
 
+typedef AL::Collections::UnorderedSet<lua_aprservice_aprs_add_packet_monitor_context*> lua_aprservice_aprs_add_packet_monitor_contexts;
 typedef AL::Collections::UnorderedSet<lua_aprservice_aprs_begin_send_message_context*> lua_aprservice_aprs_begin_send_message_contexts;
 typedef AL::Collections::UnorderedSet<lua_aprservice_events_schedule_context*>         lua_aprservice_events_schedule_contexts;
 typedef AL::Collections::UnorderedSet<lua_aprservice_commands_register_context*>       lua_aprservice_commands_register_contexts;
@@ -103,6 +114,7 @@ struct lua_aprservice
 {
 	aprservice*                                     service;
 	lua_aprservice_aprs_event_handlers              aprs_events;
+	lua_aprservice_aprs_add_packet_monitor_contexts aprs_add_packet_monitor_contexts;
 	lua_aprservice_aprs_begin_send_message_contexts aprs_begin_send_message_contexts;
 	lua_aprservice_events_schedule_contexts         events_schedule_contexts;
 	lua_aprservice_commands_register_contexts       commands_register_contexts;
@@ -252,6 +264,9 @@ void                   lua_aprservice_deinit(lua_aprservice* lua_service)
 	for (auto it = lua_service->aprs_begin_send_message_contexts.begin(); it != lua_service->aprs_begin_send_message_contexts.end(); )
 	{ delete *it; lua_service->aprs_begin_send_message_contexts.Erase(it++); }
 
+	for (auto it = lua_service->aprs_add_packet_monitor_contexts.begin(); it != lua_service->aprs_add_packet_monitor_contexts.end(); )
+	{ delete *it; lua_service->aprs_add_packet_monitor_contexts.Erase(it++); }
+
 	delete lua_service;
 }
 bool                   lua_aprservice_is_running(lua_aprservice* lua_service)
@@ -286,6 +301,42 @@ bool                   lua_aprservice_aprs_connect_kiss_serial(lua_aprservice* l
 void                   lua_aprservice_aprs_disconnect(lua_aprservice* lua_service)
 {
 	aprservice_aprs_disconnect(lua_service->service);
+}
+void*                  lua_aprservice_aprs_add_packet_monitor(lua_aprservice* lua_service, lua_aprservice_aprs_packet_filter_callback filter, lua_aprservice_aprs_packet_monitor_callback callback)
+{
+	auto context = new lua_aprservice_aprs_add_packet_monitor_context
+	{
+		.filter      = AL::Move(filter),
+		.callback    = AL::Move(callback),
+		.lua_service = lua_service
+	};
+
+	aprservice_aprs_packet_filter_callback filter_detour([](aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& content, void* param)
+	{
+		auto context = reinterpret_cast<const lua_aprservice_aprs_add_packet_monitor_context*>(param);
+
+		return context->filter(context->lua_service, station, tocall, path, content);
+	});
+
+	aprservice_aprs_packet_monitor_callback callback_detour([](aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& content, void* param)
+	{
+		auto context = reinterpret_cast<const lua_aprservice_aprs_add_packet_monitor_context*>(param);
+
+		context->callback(context->lua_service, station, tocall, path, content);
+	});
+
+	context->packet_monitor = aprservice_aprs_add_packet_monitor(lua_service->service, filter_detour, callback_detour, context);
+
+	return context;
+}
+void                   lua_aprservice_aprs_remove_packet_monitor(lua_aprservice* lua_service, void* packet_monitor)
+{
+	auto context = reinterpret_cast<lua_aprservice_aprs_add_packet_monitor_context*>(packet_monitor);
+
+	aprservice_aprs_remove_packet_monitor(lua_service->service, context->packet_monitor);
+	lua_service->aprs_add_packet_monitor_contexts.Remove(context);
+
+	delete context;
 }
 // @return encoding_failed, connection_closed
 auto                   lua_aprservice_aprs_send_message(lua_aprservice* lua_service, const AL::String& destination, const AL::String& content)
@@ -603,6 +654,8 @@ void            aprservice_lua_register_globals(aprservice_lua* lua)
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_connect_kiss_tcp,                       "aprservice_aprs_connect_kiss_tcp");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_connect_kiss_serial,                    "aprservice_aprs_connect_kiss_serial");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_disconnect,                             "aprservice_aprs_disconnect");
+	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_add_packet_monitor,                     "aprservice_aprs_add_packet_monitor");
+	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_remove_packet_monitor,                  "aprservice_aprs_remove_packet_monitor");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_send_message,                           "aprservice_aprs_send_message");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_send_position,                          "aprservice_aprs_send_position");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_send_telemetry,                         "aprservice_aprs_send_telemetry");

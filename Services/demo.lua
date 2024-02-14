@@ -2,18 +2,23 @@ require('APRService');
 
 local aprs_is_config =
 {
-	['Host']     = 'noam.aprs2.net',
-	['Port']     = 14580,
-	['Passcode'] = 0
+	['Host']              = 'noam.aprs2.net',
+	['Port']              = 14580,
+	['Path']              = 'WIDE1-1',
+	['Callsign']          = 'N0CALL',
+	['Passcode']          = 0,
+	['SymbolTable']       = '/',
+	['SymbolTableKey']    = 'k',
+	['EnableMonitorMode'] = false
 };
 
 local config = APRService.Config.Init();
 
-APRService.Config.APRS.SetPath(config, 'WIDE1-1');
-APRService.Config.APRS.SetStation(config, 'N0CALL');
-APRService.Config.APRS.SetSymbolTable(config, '/');
-APRService.Config.APRS.SetSymbolTableKey(config, 'k');
-APRService.Config.APRS.EnableMonitorMode(config, true);
+APRService.Config.APRS.SetPath(config, aprs_is_config['Path']);
+APRService.Config.APRS.SetStation(config, aprs_is_config['Callsign']);
+APRService.Config.APRS.SetSymbolTable(config, aprs_is_config['SymbolTable']);
+APRService.Config.APRS.SetSymbolTableKey(config, aprs_is_config['SymbolTableKey']);
+APRService.Config.APRS.EnableMonitorMode(config, aprs_is_config['EnableMonitorMode']);
 
 APRService.Config.Events.SetOnConnect(config, function(service, type)
 	if type == APRService.APRS_CONNECTION_TYPE_APRS_IS then
@@ -56,6 +61,12 @@ APRService.Config.Events.SetOnReceiveTelemetry(config, function(service, station
 end);
 
 local service = APRService.Init(config);
+
+APRService.APRS.AddPacketMonitor(
+	service,
+	function(service, station, tocall, path, content) return station ~= aprs_is_config['Callsign']; end,
+	function(service, station, tocall, path, content) APRService.Console.WriteLine(string.format('[Monitor] %s>%s,%s:%s', station, tocall, path, content)); end
+);
 
 APRService.Commands.Register(service, 'echo', function(service, sender, command_name, command_params)
 	APRService.APRS.SendMessage(service, sender, command_params);

@@ -26,6 +26,8 @@ bool             aprservice_aprs_connect_kiss_tcp(aprservice_aprs* aprs, const A
 bool             aprservice_aprs_connect_kiss_serial(aprservice_aprs* aprs, const AL::String& device);
 void             aprservice_aprs_disconnect(aprservice_aprs* aprs);
 bool             aprservice_aprs_update(aprservice_aprs* aprs, AL::TimeSpan delta);
+void*            aprservice_aprs_add_packet_monitor(aprservice_aprs* aprs, aprservice_aprs_packet_filter_callback filter, aprservice_aprs_packet_monitor_callback callback, void* param);
+void             aprservice_aprs_remove_packet_monitor(aprservice_aprs* aprs, void* packet_monitor);
 // @return 0 on connection closed
 // @return -1 on encoding error
 int              aprservice_aprs_send_message(aprservice_aprs* aprs, const AL::String& destination, const AL::String& content);
@@ -154,6 +156,14 @@ bool        aprservice_aprs_connect_kiss_serial(aprservice* service, const AL::S
 void        aprservice_aprs_disconnect(aprservice* service)
 {
 	aprservice_aprs_disconnect(service->aprs);
+}
+void*       aprservice_aprs_add_packet_monitor(aprservice* service, aprservice_aprs_packet_filter_callback filter, aprservice_aprs_packet_monitor_callback callback, void* param)
+{
+	return aprservice_aprs_add_packet_monitor(service->aprs, filter, callback, param);
+}
+void        aprservice_aprs_remove_packet_monitor(aprservice* service, void* packet_monitor)
+{
+	aprservice_aprs_remove_packet_monitor(service->aprs, packet_monitor);
 }
 // @return 0 on connection closed
 // @return -1 on encoding error

@@ -477,6 +477,9 @@ AL::uint32             lua_aprservice_events_get_count(lua_aprservice* lua_servi
 void                   lua_aprservice_events_clear(lua_aprservice* lua_service)
 {
 	aprservice_events_clear(lua_service->service);
+
+	for (auto it = lua_service->events_schedule_contexts.begin(); it != lua_service->events_schedule_contexts.end(); )
+	{ delete *it; lua_service->events_schedule_contexts.Erase(it++); }
 }
 void                   lua_aprservice_events_schedule(lua_aprservice* lua_service, AL::uint32 seconds, lua_aprservice_event_handler handler)
 {

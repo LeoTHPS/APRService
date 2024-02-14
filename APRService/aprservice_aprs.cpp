@@ -310,7 +310,7 @@ bool             aprservice_aprs_update(aprservice_aprs* aprs, AL::TimeSpan delt
 
 	return true;
 }
-void*            aprservice_aprs_add_packet_monitor(aprservice_aprs* aprs, aprservice_aprs_packet_filter_callback filter, aprservice_aprs_packet_monitor_callback callback, void* param)
+void             aprservice_aprs_add_packet_monitor(aprservice_aprs* aprs, aprservice_aprs_packet_filter_callback filter, aprservice_aprs_packet_monitor_callback callback, void* param)
 {
 	AL::APRS::ClientPacketFilterCallback filter_detour([aprs, filter, param](const AL::APRS::Packet& packet)
 	{
@@ -322,11 +322,7 @@ void*            aprservice_aprs_add_packet_monitor(aprservice_aprs* aprs, aprse
 		callback(aprs->service, packet.GetSender(), packet.GetToCall(), AL::APRS::DigiPath_ToString(packet.GetPath()), packet.GetContent(), param);
 	});
 
-	return aprs->client.AddPacketMonitor(AL::Move(filter_detour), AL::Move(callback_detour));
-}
-void             aprservice_aprs_remove_packet_monitor(aprservice_aprs* aprs, void* packet_monitor)
-{
-	aprs->client.RemovePacketMonitor(packet_monitor);
+	aprs->client.AddPacketMonitor(AL::Move(filter_detour), AL::Move(callback_detour));
 }
 // @return 0 on connection closed
 // @return -1 on encoding error

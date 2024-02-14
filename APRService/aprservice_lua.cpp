@@ -84,7 +84,6 @@ struct lua_aprservice_aprs_add_packet_monitor_context
 	lua_aprservice_aprs_packet_filter_callback  filter;
 	lua_aprservice_aprs_packet_monitor_callback callback;
 	lua_aprservice*                             lua_service;
-	void*                                       packet_monitor;
 };
 
 struct lua_aprservice_aprs_begin_send_message_context
@@ -302,7 +301,7 @@ void                   lua_aprservice_aprs_disconnect(lua_aprservice* lua_servic
 {
 	aprservice_aprs_disconnect(lua_service->service);
 }
-void*                  lua_aprservice_aprs_add_packet_monitor(lua_aprservice* lua_service, lua_aprservice_aprs_packet_filter_callback filter, lua_aprservice_aprs_packet_monitor_callback callback)
+void                   lua_aprservice_aprs_add_packet_monitor(lua_aprservice* lua_service, lua_aprservice_aprs_packet_filter_callback filter, lua_aprservice_aprs_packet_monitor_callback callback)
 {
 	auto context = new lua_aprservice_aprs_add_packet_monitor_context
 	{
@@ -325,18 +324,7 @@ void*                  lua_aprservice_aprs_add_packet_monitor(lua_aprservice* lu
 		context->callback(context->lua_service, station, tocall, path, content);
 	});
 
-	context->packet_monitor = aprservice_aprs_add_packet_monitor(lua_service->service, filter_detour, callback_detour, context);
-
-	return context;
-}
-void                   lua_aprservice_aprs_remove_packet_monitor(lua_aprservice* lua_service, void* packet_monitor)
-{
-	auto context = reinterpret_cast<lua_aprservice_aprs_add_packet_monitor_context*>(packet_monitor);
-
-	aprservice_aprs_remove_packet_monitor(lua_service->service, context->packet_monitor);
-	lua_service->aprs_add_packet_monitor_contexts.Remove(context);
-
-	delete context;
+	aprservice_aprs_add_packet_monitor(lua_service->service, filter_detour, callback_detour, context);
 }
 // @return encoding_failed, connection_closed
 auto                   lua_aprservice_aprs_send_message(lua_aprservice* lua_service, const AL::String& destination, const AL::String& content)
@@ -655,7 +643,6 @@ void            aprservice_lua_register_globals(aprservice_lua* lua)
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_connect_kiss_serial,                    "aprservice_aprs_connect_kiss_serial");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_disconnect,                             "aprservice_aprs_disconnect");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_add_packet_monitor,                     "aprservice_aprs_add_packet_monitor");
-	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_remove_packet_monitor,                  "aprservice_aprs_remove_packet_monitor");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_send_message,                           "aprservice_aprs_send_message");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_send_position,                          "aprservice_aprs_send_position");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_send_telemetry,                         "aprservice_aprs_send_telemetry");

@@ -71,13 +71,8 @@ end
 
 -- @param filter(service, station, tocall, path, content)->bool
 -- @param callback(service, station, tocall, path, content)
--- @return packet_monitor
 function APRService.APRS.AddPacketMonitor(service, filter, callback)
-	return aprservice_aprs_add_packet_monitor(service, filter, callback);
-end
-
-function APRService.APRS.RemovePacketMonitor(service, packet_monitor)
-	aprservice_aprs_remove_packet_monitor(service, packet_monitor);
+	aprservice_aprs_add_packet_monitor(service, filter, callback);
 end
 
 -- @return encoding_failed, connection_closed

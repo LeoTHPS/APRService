@@ -120,8 +120,7 @@ bool        aprservice_aprs_connect_is(aprservice* service, const AL::String& re
 bool        aprservice_aprs_connect_kiss_tcp(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port);
 bool        aprservice_aprs_connect_kiss_serial(aprservice* service, const AL::String& device);
 void        aprservice_aprs_disconnect(aprservice* service);
-void*       aprservice_aprs_add_packet_monitor(aprservice* service, aprservice_aprs_packet_filter_callback filter, aprservice_aprs_packet_monitor_callback callback, void* param);
-void        aprservice_aprs_remove_packet_monitor(aprservice* service, void* packet_monitor);
+void        aprservice_aprs_add_packet_monitor(aprservice* service, aprservice_aprs_packet_filter_callback filter, aprservice_aprs_packet_monitor_callback callback, void* param);
 // @return 0 on connection closed
 // @return -1 on encoding error
 int         aprservice_aprs_send_message(aprservice* service, const AL::String& destination, const AL::String& content);

@@ -4,6 +4,7 @@ CXX          ?= g++
 SOURCE_FILES  = main.cpp
 SOURCE_FILES += aprservice.cpp
 SOURCE_FILES += aprservice_lua.cpp
+SOURCE_FILES += aprservice_math.cpp
 SOURCE_FILES += aprservice_aprs.cpp
 SOURCE_FILES += aprservice_events.cpp
 SOURCE_FILES += aprservice_console.cpp

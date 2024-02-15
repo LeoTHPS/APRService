@@ -509,6 +509,11 @@ void                   lua_aprservice_config_events_set_on_receive_invalid_packe
 	lua_config->aprs.events.on_receive_invalid_packet = AL::Move(handler);
 }
 
+AL::Float              lua_aprservice_math_get_distance_between_points(AL::Float latitude1, AL::Float longitude1, AL::Float latitude2, AL::Float longitude2, AL::uint8 measurement_type)
+{
+	return aprservice_math_get_distance_between_points(latitude1, longitude1, latitude2, longitude2, measurement_type);
+}
+
 AL::uint32             lua_aprservice_events_get_count(lua_aprservice* lua_service)
 {
 	return aprservice_events_get_count(lua_service->service);
@@ -612,6 +617,11 @@ void            aprservice_lua_register_globals(aprservice_lua* lua)
 	aprservice_lua_register_global(lua, APRSERVICE_FLAG_NONE);
 	aprservice_lua_register_global(lua, APRSERVICE_FLAG_STOP_ON_APRS_DISCONNECT);
 
+	aprservice_lua_register_global(lua, APRSERVICE_MEASUREMENT_TYPE_FEET);
+	aprservice_lua_register_global(lua, APRSERVICE_MEASUREMENT_TYPE_MILES);
+	aprservice_lua_register_global(lua, APRSERVICE_MEASUREMENT_TYPE_METERS);
+	aprservice_lua_register_global(lua, APRSERVICE_MEASUREMENT_TYPE_KILOMETERS);
+
 	aprservice_lua_register_global(lua, APRSERVICE_APRS_PACKET_TYPE_UNKNOWN);
 	aprservice_lua_register_global(lua, APRSERVICE_APRS_PACKET_TYPE_MESSAGE);
 	aprservice_lua_register_global(lua, APRSERVICE_APRS_PACKET_TYPE_POSITION);
@@ -673,6 +683,8 @@ void            aprservice_lua_register_globals(aprservice_lua* lua)
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_send_telemetry,         "aprservice_config_events_set_on_send_telemetry");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_receive_telemetry,      "aprservice_config_events_set_on_receive_telemetry");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_receive_invalid_packet, "aprservice_config_events_set_on_receive_invalid_packet");
+
+	aprservice_lua_register_global_function_ex(lua, lua_aprservice_math_get_distance_between_points,            "aprservice_math_get_distance_between_points");
 
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_events_get_count,                            "aprservice_events_get_count");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_events_clear,                                "aprservice_events_clear");

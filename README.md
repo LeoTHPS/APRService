@@ -9,6 +9,11 @@
 APRService.FLAGS_NONE
 APRService.FLAGS_STOP_ON_APRS_DISCONNECT
 
+APRService.MEASUREMENT_TYPE_FEET
+APRService.MEASUREMENT_TYPE_MILES
+APRService.MEASUREMENT_TYPE_METERS
+APRService.MEASUREMENT_TYPE_KILOMETERS
+
 APRService.APRS_PACKET_TYPE_UNKNOWN
 APRService.APRS_PACKET_TYPE_MESSAGE
 APRService.APRS_PACKET_TYPE_POSITION
@@ -92,6 +97,8 @@ function APRService.Config.Events.SetOnSendTelemetry(config, handler)
 function APRService.Config.Events.SetOnReceiveTelemetry(config, handler)
 -- @param handler(service, station, tocall, path, content, type)
 function APRService.Config.Events.SetOnReceiveInvalidPacket(config, handler)
+
+function APRService.Math.GetDistanceBetweenPoints(latitude1, longitude1, latitude2, longitude2, measurement_type)
 
 function APRService.Events.GetCount(service)
 function APRService.Events.Clear(service)

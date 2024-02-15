@@ -3,6 +3,11 @@ APRService = {};
 APRService.FLAGS_NONE                                   = APRSERVICE_FLAG_NONE;
 APRService.FLAGS_STOP_ON_APRS_DISCONNECT                = APRSERVICE_FLAG_STOP_ON_APRS_DISCONNECT;
 
+APRService.MEASUREMENT_TYPE_FEET                        = APRSERVICE_MEASUREMENT_TYPE_FEET;
+APRService.MEASUREMENT_TYPE_MILES                       = APRSERVICE_MEASUREMENT_TYPE_MILES;
+APRService.MEASUREMENT_TYPE_METERS                      = APRSERVICE_MEASUREMENT_TYPE_METERS;
+APRService.MEASUREMENT_TYPE_KILOMETERS                  = APRSERVICE_MEASUREMENT_TYPE_KILOMETERS;
+
 APRService.APRS_PACKET_TYPE_UNKNOWN                     = APRSERVICE_APRS_PACKET_TYPE_UNKNOWN;
 APRService.APRS_PACKET_TYPE_MESSAGE                     = APRSERVICE_APRS_PACKET_TYPE_MESSAGE;
 APRService.APRS_PACKET_TYPE_POSITION                    = APRSERVICE_APRS_PACKET_TYPE_POSITION;
@@ -203,6 +208,12 @@ end
 -- @param handler(service, station, tocall, path, content, type)
 function APRService.Config.Events.SetOnReceiveInvalidPacket(config, handler)
 	aprservice_config_events_set_on_receive_invalid_packet(config, handler);
+end
+
+APRService.Math = {};
+
+function APRService.Math.GetDistanceBetweenPoints(latitude1, longitude1, latitude2, longitude2, measurement_type)
+	return aprservice_math_get_distance_between_points(tonumber(latitude1), tonumber(longitude1), tonumber(latitude2), tonumber(longitude2), measurement_type);
 end
 
 APRService.Events = {};

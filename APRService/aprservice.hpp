@@ -7,6 +7,14 @@ enum APRSERVICE_FLAGS : AL::uint8
 	APRSERVICE_FLAG_STOP_ON_APRS_DISCONNECT = 0x01
 };
 
+enum APRSERVICE_MEASUREMENT_TYPES : AL::uint8
+{
+	APRSERVICE_MEASUREMENT_TYPE_FEET,
+	APRSERVICE_MEASUREMENT_TYPE_MILES,
+	APRSERVICE_MEASUREMENT_TYPE_METERS,
+	APRSERVICE_MEASUREMENT_TYPE_KILOMETERS
+};
+
 enum APRSERVICE_APRS_PACKET_TYPES : AL::uint8
 {
 	APRSERVICE_APRS_PACKET_TYPE_UNKNOWN,
@@ -133,6 +141,8 @@ int         aprservice_aprs_send_telemetry(aprservice* service, const AL::uint8(
 // @return 0 on connection closed
 // @return -1 on encoding error
 int         aprservice_aprs_begin_send_message(aprservice* service, const AL::String& destination, const AL::String& content, aprservice_aprs_message_callback callback, void* param);
+
+AL::Float   aprservice_math_get_distance_between_points(AL::Float latitude1, AL::Float longitude1, AL::Float latitude2, AL::Float longitude2, AL::uint8 measurement_type);
 
 AL::uint32  aprservice_events_get_count(aprservice* service);
 void        aprservice_events_clear(aprservice* service);

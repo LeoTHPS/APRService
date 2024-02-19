@@ -77,7 +77,7 @@ APRService.Events.Schedule(service, 5, function(service)
 end);
 
 if APRService.APRS.IS.Connect(service, aprs_is_config['Host'], aprs_is_config['Port'], aprs_is_config['Passcode']) then
-	APRService.Run(service, 5, APRService.FLAGS_STOP_ON_APRS_DISCONNECT);
+	APRService.Run(service, 5, APRService.FLAG_STOP_ON_APRS_DISCONNECT);
 end
 
 APRService.Deinit(service);

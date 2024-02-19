@@ -30,6 +30,10 @@ function APRService.Modules.SQLite3.Database.ExecuteQuery(database, query)
 	return aprservice_lua_module_sqlite3_database_execute_query(database, tostring(query));
 end
 
+function APRService.Modules.SQLite3.Database.ExecuteNonQuery(database, query)
+	return aprservice_lua_module_sqlite3_database_execute_non_query(database, tostring(query));
+end
+
 APRService.Modules.SQLite3.QueryResult = {};
 
 function APRService.Modules.SQLite3.QueryResult.GetSize(query_result)

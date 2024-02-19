@@ -76,6 +76,22 @@ aprservice_lua_module_sqlite3_database_query_result*     aprservice_lua_module_s
 
 	return query_result;
 }
+bool                                                     aprservice_lua_module_sqlite3_database_execute_non_query(aprservice_lua_module_sqlite3_database* database, const AL::String& query)
+{
+	try
+	{
+		database->Query(query.GetCString());
+	}
+	catch (const AL::Exception& exception)
+	{
+		aprservice_console_write_line(AL::String::Format("Error executing query: %s", query.GetCString()));
+		aprservice_console_write_exception(exception);
+
+		return false;
+	}
+
+	return true;
+}
 AL::uint32                                               aprservice_lua_module_sqlite3_database_query_result_get_size(aprservice_lua_module_sqlite3_database_query_result* query_result)
 {
 	return static_cast<AL::uint32>(query_result->GetSize());
@@ -145,6 +161,7 @@ aprservice_lua_module_sqlite3* aprservice_lua_module_sqlite3_init(aprservice_lua
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_sqlite3_database_open);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_sqlite3_database_close);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_sqlite3_database_execute_query);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_sqlite3_database_execute_non_query);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_sqlite3_database_query_result_get_size);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_sqlite3_database_query_result_get_row);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_sqlite3_database_query_result_release);

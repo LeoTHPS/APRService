@@ -6,8 +6,8 @@
 ### Lua API
 
 ```lua
-APRService.FLAGS_NONE
-APRService.FLAGS_STOP_ON_APRS_DISCONNECT
+APRService.FLAG_NONE
+APRService.FLAG_STOP_ON_APRS_DISCONNECT
 
 APRService.MEASUREMENT_TYPE_FEET
 APRService.MEASUREMENT_TYPE_MILES
@@ -45,8 +45,8 @@ function APRService.APRS.IS.Connect(service, remote_host, remote_port, passcode)
 function APRService.APRS.KISS.Tcp.Connect(service, remote_host, remote_port)
 function APRService.APRS.KISS.Serial.Connect(service, device)
 function APRService.APRS.Disconnect(service)
--- @param filter(service, station, tocall, path, content)->bool
--- @param callback(service, station, tocall, path, content)
+-- @param filter(service, station, tocall, path, igate, content)->bool
+-- @param callback(service, station, tocall, path, igate, content)
 function APRService.APRS.AddPacketMonitor(service, filter, callback)
 -- @return encoding_failed, connection_closed
 function APRService.APRS.SendMessage(service, destination, content)
@@ -79,23 +79,23 @@ function APRService.Config.Events.SetOnDisconnect(config, handler)
 function APRService.Config.Events.SetOnSend(config, handler)
 -- @param handler(service, value)
 function APRService.Config.Events.SetOnReceive(config, handler)
--- @param handler(service, station, tocall, path, content)
+-- @param handler(service, station, tocall, path, igate, content)
 function APRService.Config.Events.SetOnSendPacket(config, handler)
--- @param handler(service, station, tocall, path, content)
+-- @param handler(service, station, tocall, path, igate, content)
 function APRService.Config.Events.SetOnReceivePacket(config, handler)
--- @param handler(service, station, path, destination, content)
+-- @param handler(service, station, path, igate, destination, content)
 function APRService.Config.Events.SetOnSendMessage(config, handler)
--- @param handler(service, station, path, destination, content)
+-- @param handler(service, station, path, igate, destination, content)
 function APRService.Config.Events.SetOnReceiveMessage(config, handler)
--- @param handler(service, station, path, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
+-- @param handler(service, station, path, igate, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
 function APRService.Config.Events.SetOnSendPosition(config, handler)
--- @param handler(service, station, path, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
+-- @param handler(service, station, path, igate, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
 function APRService.Config.Events.SetOnReceivePosition(config, handler)
--- @param handler(service, station, tocall, path, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8)
+-- @param handler(service, station, tocall, path, igate, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8)
 function APRService.Config.Events.SetOnSendTelemetry(config, handler)
--- @param handler(service, station, tocall, path, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8)
+-- @param handler(service, station, tocall, path, igate, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8)
 function APRService.Config.Events.SetOnReceiveTelemetry(config, handler)
--- @param handler(service, station, tocall, path, content, type)
+-- @param handler(service, station, tocall, path, igate, content, type)
 function APRService.Config.Events.SetOnReceiveInvalidPacket(config, handler)
 
 function APRService.Math.GetDistanceBetweenPoints(latitude1, longitude1, latitude2, longitude2, measurement_type)

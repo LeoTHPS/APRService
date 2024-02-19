@@ -134,6 +134,7 @@ function APRService.Modules.SQLite3.Database.Open(path, flags)
 function APRService.Modules.SQLite3.Database.Close(database)
 -- @return query_result
 function APRService.Modules.SQLite3.Database.ExecuteQuery(database, query)
+function APRService.Modules.SQLite3.Database.ExecuteNonQuery(database, query)
 function APRService.Modules.SQLite3.QueryResult.GetSize(query_result)
 -- @return query_result_row
 function APRService.Modules.SQLite3.QueryResult.GetRow(query_result, index)

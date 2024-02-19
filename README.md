@@ -156,7 +156,7 @@ function APRService.Modules.SQLite3.QueryResult.Row.GetColumn(query_result_row, 
 ```sh
 # Install dependencies
 
-apt install git liblua5.4-dev
+apt install git liblua5.4-dev libsqlite3-dev
 
 # Clone AbstractionLayer and set temporary environment variable
 
@@ -173,7 +173,7 @@ make -C APRService/APRService -e COMPILER=GNU PLATFORM=LINUX
 
 ```sh
 # Install dependencies
-# - You need to install git and the Lua 5.4 c development packages for your distribution
+# - You need to install git, SQLite3 and Lua 5.4 c development packages for your distribution
 
 # Clone AbstractionLayer and set temporary environment variable
 
@@ -191,7 +191,7 @@ make -C APRService/APRService -e COMPILER=GNU PLATFORM=LINUX
 ```sh
 # Install dependencies
 
-pacman -S git mingw-w64-x86_64-lua
+pacman -S git mingw-w64-x86_64-lua mingw-w64-x86_64-sqlite3
 
 # Clone AbstractionLayer and set temporary environment variable
 

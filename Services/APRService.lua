@@ -255,6 +255,8 @@ function APRService.Console.WriteLine(value)
 	return aprservice_console_write_line(tostring(value));
 end
 
+APRService.Modules = {};
+
 APRService.Commands = {};
 
 function APRService.Commands.Execute(service, sender, message)

@@ -4,6 +4,8 @@ CXX          ?= g++
 SOURCE_FILES  = main.cpp
 SOURCE_FILES += aprservice.cpp
 SOURCE_FILES += aprservice_lua.cpp
+SOURCE_FILES += aprservice_lua_modules.cpp
+SOURCE_FILES += aprservice_lua_module_sqlite3.cpp
 SOURCE_FILES += aprservice_aprs.cpp
 SOURCE_FILES += aprservice_math.cpp
 SOURCE_FILES += aprservice_events.cpp
@@ -27,6 +29,7 @@ ifdef PLATFORM
 	ifeq ($(PLATFORM), LINUX)
 		LDLIBS += -lpthread
 		LDLIBS += -llua5.4
+		LDLIBS += -lsqlite3
 	endif
 
 	ifeq ($(PLATFORM), WINDOWS)
@@ -34,6 +37,7 @@ ifdef PLATFORM
 		LDLIBS += -lwsock32 -lws2_32 -lIphlpapi
 		LDLIBS += -lshlwapi
 		LDLIBS += -llua
+		LDLIBS += -lsqlite3
 	endif
 endif
 

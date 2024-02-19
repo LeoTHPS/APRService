@@ -1,4 +1,5 @@
 #include "aprservice.hpp"
+#include "aprservice_lua.hpp"
 
 #include <AL/Lua54/Lua.hpp>
 
@@ -6,9 +7,12 @@
 
 #include <AL/Collections/UnorderedSet.hpp>
 
+struct aprservice_lua_modules;
+
 struct aprservice_lua
 {
-	AL::Lua54::Lua state;
+	AL::Lua54::Lua          state;
+	aprservice_lua_modules* modules;
 };
 
 struct lua_aprservice;
@@ -119,7 +123,7 @@ struct lua_aprservice
 	lua_aprservice_commands_register_contexts       commands_register_contexts;
 };
 
-lua_aprservice*        lua_aprservice_init(lua_aprservice_config* lua_config)
+lua_aprservice*         lua_aprservice_init(lua_aprservice_config* lua_config)
 {
 	aprservice_aprs_on_connect on_connect_detour([](aprservice* service, AL::uint8 type, void* param)
 	{
@@ -250,7 +254,7 @@ lua_aprservice*        lua_aprservice_init(lua_aprservice_config* lua_config)
 
 	return lua_service;
 }
-void                   lua_aprservice_deinit(lua_aprservice* lua_service)
+void                    lua_aprservice_deinit(lua_aprservice* lua_service)
 {
 	aprservice_deinit(lua_service->service);
 
@@ -268,40 +272,40 @@ void                   lua_aprservice_deinit(lua_aprservice* lua_service)
 
 	delete lua_service;
 }
-bool                   lua_aprservice_is_running(lua_aprservice* lua_service)
+bool                    lua_aprservice_is_running(lua_aprservice* lua_service)
 {
 	return aprservice_is_running(lua_service->service);
 }
-void                   lua_aprservice_run(lua_aprservice* lua_service, AL::uint32 tick_rate, AL::uint8 flags)
+void                    lua_aprservice_run(lua_aprservice* lua_service, AL::uint32 tick_rate, AL::uint8 flags)
 {
 	aprservice_run(lua_service->service, tick_rate, flags);
 }
-void                   lua_aprservice_stop(lua_aprservice* lua_service)
+void                    lua_aprservice_stop(lua_aprservice* lua_service)
 {
 	aprservice_stop(lua_service->service);
 }
 
-bool                   lua_aprservice_aprs_is_connected(lua_aprservice* lua_service)
+bool                    lua_aprservice_aprs_is_connected(lua_aprservice* lua_service)
 {
 	return aprservice_aprs_is_connected(lua_service->service);
 }
-bool                   lua_aprservice_aprs_connect_is(lua_aprservice* lua_service, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode)
+bool                    lua_aprservice_aprs_connect_is(lua_aprservice* lua_service, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode)
 {
 	return aprservice_aprs_connect_is(lua_service->service, remote_host, remote_port, passcode);
 }
-bool                   lua_aprservice_aprs_connect_kiss_tcp(lua_aprservice* lua_service, const AL::String& remote_host, AL::uint16 remote_port)
+bool                    lua_aprservice_aprs_connect_kiss_tcp(lua_aprservice* lua_service, const AL::String& remote_host, AL::uint16 remote_port)
 {
 	return aprservice_aprs_connect_kiss_tcp(lua_service->service, remote_host, remote_port);
 }
-bool                   lua_aprservice_aprs_connect_kiss_serial(lua_aprservice* lua_service, const AL::String& device, AL::uint32 speed)
+bool                    lua_aprservice_aprs_connect_kiss_serial(lua_aprservice* lua_service, const AL::String& device, AL::uint32 speed)
 {
 	return aprservice_aprs_connect_kiss_serial(lua_service->service, device, speed);
 }
-void                   lua_aprservice_aprs_disconnect(lua_aprservice* lua_service)
+void                    lua_aprservice_aprs_disconnect(lua_aprservice* lua_service)
 {
 	aprservice_aprs_disconnect(lua_service->service);
 }
-void                   lua_aprservice_aprs_add_packet_monitor(lua_aprservice* lua_service, lua_aprservice_aprs_packet_filter_callback filter, lua_aprservice_aprs_packet_monitor_callback callback)
+void                    lua_aprservice_aprs_add_packet_monitor(lua_aprservice* lua_service, lua_aprservice_aprs_packet_filter_callback filter, lua_aprservice_aprs_packet_monitor_callback callback)
 {
 	auto context = new lua_aprservice_aprs_add_packet_monitor_context
 	{
@@ -327,7 +331,7 @@ void                   lua_aprservice_aprs_add_packet_monitor(lua_aprservice* lu
 	aprservice_aprs_add_packet_monitor(lua_service->service, filter_detour, callback_detour, context);
 }
 // @return encoding_failed, connection_closed
-auto                   lua_aprservice_aprs_send_message(lua_aprservice* lua_service, const AL::String& destination, const AL::String& content)
+auto                    lua_aprservice_aprs_send_message(lua_aprservice* lua_service, const AL::String& destination, const AL::String& content)
 {
 	AL::Collections::Tuple<bool, bool> value(false, false);
 
@@ -340,7 +344,7 @@ auto                   lua_aprservice_aprs_send_message(lua_aprservice* lua_serv
 	return value;
 }
 // @return encoding_failed, connection_closed
-auto                   lua_aprservice_aprs_send_position(lua_aprservice* lua_service, AL::int32 altitude, AL::Float latitude, AL::Float longitude, const AL::String& comment)
+auto                    lua_aprservice_aprs_send_position(lua_aprservice* lua_service, AL::int32 altitude, AL::Float latitude, AL::Float longitude, const AL::String& comment)
 {
 	AL::Collections::Tuple<bool, bool> value(false, false);
 
@@ -353,7 +357,7 @@ auto                   lua_aprservice_aprs_send_position(lua_aprservice* lua_ser
 	return value;
 }
 // @return encoding_failed, connection_closed
-auto                   lua_aprservice_aprs_send_telemetry(lua_aprservice* lua_service, AL::uint8 analog_1, AL::uint8 analog_2, AL::uint8 analog_3, AL::uint8 analog_4, AL::uint8 analog_5, bool digital_1, bool digital_2, bool digital_3, bool digital_4, bool digital_5, bool digital_6, bool digital_7, bool digital_8)
+auto                    lua_aprservice_aprs_send_telemetry(lua_aprservice* lua_service, AL::uint8 analog_1, AL::uint8 analog_2, AL::uint8 analog_3, AL::uint8 analog_4, AL::uint8 analog_5, bool digital_1, bool digital_2, bool digital_3, bool digital_4, bool digital_5, bool digital_6, bool digital_7, bool digital_8)
 {
 	AL::Collections::Tuple<bool, bool> value(false, false);
 
@@ -366,7 +370,7 @@ auto                   lua_aprservice_aprs_send_telemetry(lua_aprservice* lua_se
 	return value;
 }
 // @return encoding_failed, connection_closed
-auto                   lua_aprservice_aprs_begin_send_message(lua_aprservice* lua_service, const AL::String& destination, const AL::String& content, lua_aprservice_aprs_message_callback callback)
+auto                    lua_aprservice_aprs_begin_send_message(lua_aprservice* lua_service, const AL::String& destination, const AL::String& content, lua_aprservice_aprs_message_callback callback)
 {
 	AL::Collections::Tuple<bool, bool> value(false, false);
 
@@ -398,7 +402,7 @@ auto                   lua_aprservice_aprs_begin_send_message(lua_aprservice* lu
 	return value;
 }
 
-lua_aprservice_config* lua_aprservice_config_init()
+lua_aprservice_config*  lua_aprservice_config_init()
 {
 	return new lua_aprservice_config
 	{
@@ -412,120 +416,120 @@ lua_aprservice_config* lua_aprservice_config_init()
 		}
 	};
 }
-void                   lua_aprservice_config_deinit(lua_aprservice_config* lua_config)
+void                    lua_aprservice_config_deinit(lua_aprservice_config* lua_config)
 {
 	delete lua_config;
 }
-const AL::String&      lua_aprservice_config_get_path(lua_aprservice_config* lua_config)
+const AL::String&       lua_aprservice_config_get_path(lua_aprservice_config* lua_config)
 {
 	return lua_config->aprs.path;
 }
-void                   lua_aprservice_config_set_path(lua_aprservice_config* lua_config, const AL::String& value)
+void                    lua_aprservice_config_set_path(lua_aprservice_config* lua_config, const AL::String& value)
 {
 	lua_config->aprs.path = value;
 }
-const AL::String&      lua_aprservice_config_get_station(lua_aprservice_config* lua_config)
+const AL::String&       lua_aprservice_config_get_station(lua_aprservice_config* lua_config)
 {
 	return lua_config->aprs.station;
 }
-void                   lua_aprservice_config_set_station(lua_aprservice_config* lua_config, const AL::String& value)
+void                    lua_aprservice_config_set_station(lua_aprservice_config* lua_config, const AL::String& value)
 {
 	lua_config->aprs.station = value;
 }
-const AL::String&      lua_aprservice_config_get_symbol_table(lua_aprservice_config* lua_config)
+const AL::String&       lua_aprservice_config_get_symbol_table(lua_aprservice_config* lua_config)
 {
 	return lua_config->aprs.symbol_table;
 }
-void                   lua_aprservice_config_set_symbol_table(lua_aprservice_config* lua_config, const AL::String& value)
+void                    lua_aprservice_config_set_symbol_table(lua_aprservice_config* lua_config, const AL::String& value)
 {
 	lua_config->aprs.symbol_table = value;
 }
-const AL::String&      lua_aprservice_config_get_symbol_table_key(lua_aprservice_config* lua_config)
+const AL::String&       lua_aprservice_config_get_symbol_table_key(lua_aprservice_config* lua_config)
 {
 	return lua_config->aprs.symbol_table_key;
 }
-void                   lua_aprservice_config_set_symbol_table_key(lua_aprservice_config* lua_config, const AL::String& value)
+void                    lua_aprservice_config_set_symbol_table_key(lua_aprservice_config* lua_config, const AL::String& value)
 {
 	lua_config->aprs.symbol_table_key = value;
 }
-bool                   lua_aprservice_config_get_monitor_mode(lua_aprservice_config* lua_config)
+bool                    lua_aprservice_config_get_monitor_mode(lua_aprservice_config* lua_config)
 {
 	return lua_config->aprs.monitor_mode_enabled;
 }
-void                   lua_aprservice_config_set_monitor_mode(lua_aprservice_config* lua_config, bool value)
+void                    lua_aprservice_config_set_monitor_mode(lua_aprservice_config* lua_config, bool value)
 {
 	lua_config->aprs.monitor_mode_enabled = value;
 }
-void                   lua_aprservice_config_events_set_on_connect(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_connect handler)
+void                    lua_aprservice_config_events_set_on_connect(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_connect handler)
 {
 	lua_config->aprs.events.on_connect = AL::Move(handler);
 }
-void                   lua_aprservice_config_events_set_on_disconnect(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_disconnect handler)
+void                    lua_aprservice_config_events_set_on_disconnect(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_disconnect handler)
 {
 	lua_config->aprs.events.on_disconnect = AL::Move(handler);
 }
-void                   lua_aprservice_config_events_set_on_send(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_send handler)
+void                    lua_aprservice_config_events_set_on_send(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_send handler)
 {
 	lua_config->aprs.events.on_send = AL::Move(handler);
 }
-void                   lua_aprservice_config_events_set_on_receive(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive handler)
+void                    lua_aprservice_config_events_set_on_receive(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive handler)
 {
 	lua_config->aprs.events.on_receive = AL::Move(handler);
 }
-void                   lua_aprservice_config_events_set_on_send_packet(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_send_packet handler)
+void                    lua_aprservice_config_events_set_on_send_packet(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_send_packet handler)
 {
 	lua_config->aprs.events.on_send_packet = AL::Move(handler);
 }
-void                   lua_aprservice_config_events_set_on_receive_packet(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive_packet handler)
+void                    lua_aprservice_config_events_set_on_receive_packet(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive_packet handler)
 {
 	lua_config->aprs.events.on_receive_packet = AL::Move(handler);
 }
-void                   lua_aprservice_config_events_set_on_send_message(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_send_message handler)
+void                    lua_aprservice_config_events_set_on_send_message(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_send_message handler)
 {
 	lua_config->aprs.events.on_send_message = AL::Move(handler);
 }
-void                   lua_aprservice_config_events_set_on_receive_message(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive_message handler)
+void                    lua_aprservice_config_events_set_on_receive_message(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive_message handler)
 {
 	lua_config->aprs.events.on_receive_message = AL::Move(handler);
 }
-void                   lua_aprservice_config_events_set_on_send_position(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_send_position handler)
+void                    lua_aprservice_config_events_set_on_send_position(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_send_position handler)
 {
 	lua_config->aprs.events.on_send_position = AL::Move(handler);
 }
-void                   lua_aprservice_config_events_set_on_receive_position(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive_position handler)
+void                    lua_aprservice_config_events_set_on_receive_position(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive_position handler)
 {
 	lua_config->aprs.events.on_receive_position = AL::Move(handler);
 }
-void                   lua_aprservice_config_events_set_on_send_telemetry(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_send_telemetry handler)
+void                    lua_aprservice_config_events_set_on_send_telemetry(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_send_telemetry handler)
 {
 	lua_config->aprs.events.on_send_telemetry = AL::Move(handler);
 }
-void                   lua_aprservice_config_events_set_on_receive_telemetry(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive_telemetry handler)
+void                    lua_aprservice_config_events_set_on_receive_telemetry(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive_telemetry handler)
 {
 	lua_config->aprs.events.on_receive_telemetry = AL::Move(handler);
 }
-void                   lua_aprservice_config_events_set_on_receive_invalid_packet(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive_invalid_packet handler)
+void                    lua_aprservice_config_events_set_on_receive_invalid_packet(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive_invalid_packet handler)
 {
 	lua_config->aprs.events.on_receive_invalid_packet = AL::Move(handler);
 }
 
-AL::Float              lua_aprservice_math_get_distance_between_points(AL::Float latitude1, AL::Float longitude1, AL::Float latitude2, AL::Float longitude2, AL::uint8 measurement_type)
+AL::Float               lua_aprservice_math_get_distance_between_points(AL::Float latitude1, AL::Float longitude1, AL::Float latitude2, AL::Float longitude2, AL::uint8 measurement_type)
 {
 	return aprservice_math_get_distance_between_points(latitude1, longitude1, latitude2, longitude2, measurement_type);
 }
 
-AL::uint32             lua_aprservice_events_get_count(lua_aprservice* lua_service)
+AL::uint32              lua_aprservice_events_get_count(lua_aprservice* lua_service)
 {
 	return aprservice_events_get_count(lua_service->service);
 }
-void                   lua_aprservice_events_clear(lua_aprservice* lua_service)
+void                    lua_aprservice_events_clear(lua_aprservice* lua_service)
 {
 	aprservice_events_clear(lua_service->service);
 
 	for (auto it = lua_service->events_schedule_contexts.begin(); it != lua_service->events_schedule_contexts.end(); )
 	{ delete *it; lua_service->events_schedule_contexts.Erase(it++); }
 }
-void                   lua_aprservice_events_schedule(lua_aprservice* lua_service, AL::uint32 seconds, lua_aprservice_event_handler handler)
+void                    lua_aprservice_events_schedule(lua_aprservice* lua_service, AL::uint32 seconds, lua_aprservice_event_handler handler)
 {
 	auto detour = [](aprservice* service, void* param)
 	{
@@ -548,12 +552,12 @@ void                   lua_aprservice_events_schedule(lua_aprservice* lua_servic
 	aprservice_events_schedule(lua_service->service, AL::TimeSpan::FromSeconds(seconds), detour, context);
 }
 
-bool                   lua_aprservice_console_set_title(const AL::String& value)
+bool                    lua_aprservice_console_set_title(const AL::String& value)
 {
 	return aprservice_console_set_title(value);
 }
 // @return success, char
-auto                   lua_aprservice_console_read()
+auto                    lua_aprservice_console_read()
 {
 	AL::Collections::Tuple<bool, AL::String> value(false, AL::String(AL::String::END, 2));
 	value.Set<0>(AL::OS::Console::Read(value.Get<1>()[0]));
@@ -561,31 +565,34 @@ auto                   lua_aprservice_console_read()
 	return value;
 }
 // @return success, string
-auto                   lua_aprservice_console_read_line()
+auto                    lua_aprservice_console_read_line()
 {
 	AL::Collections::Tuple<bool, AL::String> value;
 	value.Set<0>(AL::OS::Console::ReadLine(value.Get<1>()));
 
 	return value;
 }
-bool                   lua_aprservice_console_write(const AL::String& value)
+bool                    lua_aprservice_console_write(const AL::String& value)
 {
 	return aprservice_console_write(value);
 }
-bool                   lua_aprservice_console_write_line(const AL::String& value)
+bool                    lua_aprservice_console_write_line(const AL::String& value)
 {
 	return aprservice_console_write_line(value);
 }
-bool                   lua_aprservice_console_write_exception(const AL::Exception& value)
+bool                    lua_aprservice_console_write_exception(const AL::Exception& value)
 {
 	return aprservice_console_write_exception(value);
 }
 
-bool                   lua_aprservice_commands_execute(lua_aprservice* lua_service, const AL::String& sender, const AL::String& message)
+aprservice_lua_modules* lua_aprservice_modules_init(aprservice_lua* lua);
+void                    lua_aprservice_modules_deinit(aprservice_lua_modules* lua_modules);
+
+bool                    lua_aprservice_commands_execute(lua_aprservice* lua_service, const AL::String& sender, const AL::String& message)
 {
 	return aprservice_commands_execute(lua_service->service, sender, message);
 }
-void                   lua_aprservice_commands_register(lua_aprservice* lua_service, const AL::String& name, lua_aprservice_command_handler handler)
+void                    lua_aprservice_commands_register(lua_aprservice* lua_service, const AL::String& name, lua_aprservice_command_handler handler)
 {
 	auto detour = [](aprservice* service, const AL::String& sender, const AL::String& command_name, const AL::String& command_params, void* param)
 	{
@@ -608,11 +615,11 @@ void                   lua_aprservice_commands_register(lua_aprservice* lua_serv
 	aprservice_commands_register(lua_service->service, name, detour, context);
 }
 
-#define         aprservice_lua_register_global(l, v)                aprservice_lua_register_global_ex(l, v, #v)
-#define         aprservice_lua_register_global_ex(l, v, n)          l->state.SetGlobal(n, v)
-#define         aprservice_lua_register_global_function(l, f)       aprservice_lua_register_global_function_ex(l, f, #f)
-#define         aprservice_lua_register_global_function_ex(l, f, n) l->state.SetGlobalFunction<f>(n)
-void            aprservice_lua_register_globals(aprservice_lua* lua)
+#define               aprservice_lua_register_global(lua, value)                      aprservice_lua_state_register_global((&lua->state), value)
+#define               aprservice_lua_register_global_ex(lua, value, name)             aprservice_lua_state_register_global_ex((&lua->state), value, name)
+#define               aprservice_lua_register_global_function(lua, function)          aprservice_lua_state_register_global_function((&lua->state), function)
+#define               aprservice_lua_register_global_function_ex(lua, function, name) aprservice_lua_state_register_global_function_ex((&lua->state), function, name)
+void                  aprservice_lua_register_globals(aprservice_lua* lua)
 {
 	aprservice_lua_register_global(lua, APRSERVICE_FLAG_NONE);
 	aprservice_lua_register_global(lua, APRSERVICE_FLAG_STOP_ON_APRS_DISCONNECT);
@@ -699,7 +706,7 @@ void            aprservice_lua_register_globals(aprservice_lua* lua)
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_commands_register,                           "aprservice_commands_register");
 }
 
-aprservice_lua* aprservice_lua_init()
+aprservice_lua*       aprservice_lua_init()
 {
 	auto lua = new aprservice_lua
 	{
@@ -737,16 +744,34 @@ aprservice_lua* aprservice_lua_init()
 
 	aprservice_lua_register_globals(lua);
 
+	if ((lua->modules = lua_aprservice_modules_init(lua)) == nullptr)
+	{
+		lua->state.Destroy();
+
+		delete lua;
+
+		aprservice_console_write_line("Error initializing modules");
+
+		return nullptr;
+	}
+
 	return lua;
 }
-void            aprservice_lua_deinit(aprservice_lua* lua)
+void                  aprservice_lua_deinit(aprservice_lua* lua)
 {
+	lua_aprservice_modules_deinit(lua->modules);
+
 	lua->state.Destroy();
 
 	delete lua;
 }
 
-bool            aprservice_lua_run(aprservice_lua* lua, const AL::String& script)
+aprservice_lua_state* aprservice_lua_get_state(aprservice_lua* lua)
+{
+	return &lua->state;
+}
+
+bool                  aprservice_lua_run(aprservice_lua* lua, const AL::String& script)
 {
 	try
 	{
@@ -762,7 +787,7 @@ bool            aprservice_lua_run(aprservice_lua* lua, const AL::String& script
 
 	return true;
 }
-bool            aprservice_lua_run_file(aprservice_lua* lua, const AL::String& script_path)
+bool                  aprservice_lua_run_file(aprservice_lua* lua, const AL::String& script_path)
 {
 	try
 	{

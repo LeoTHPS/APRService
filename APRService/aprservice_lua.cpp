@@ -293,9 +293,9 @@ bool                   lua_aprservice_aprs_connect_kiss_tcp(lua_aprservice* lua_
 {
 	return aprservice_aprs_connect_kiss_tcp(lua_service->service, remote_host, remote_port);
 }
-bool                   lua_aprservice_aprs_connect_kiss_serial(lua_aprservice* lua_service, const AL::String& device)
+bool                   lua_aprservice_aprs_connect_kiss_serial(lua_aprservice* lua_service, const AL::String& device, AL::uint32 speed)
 {
-	return aprservice_aprs_connect_kiss_serial(lua_service->service, device);
+	return aprservice_aprs_connect_kiss_serial(lua_service->service, device, speed);
 }
 void                   lua_aprservice_aprs_disconnect(lua_aprservice* lua_service)
 {

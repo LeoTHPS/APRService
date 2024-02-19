@@ -23,7 +23,7 @@ void             aprservice_aprs_deinit(aprservice_aprs* aprs);
 bool             aprservice_aprs_is_connected(aprservice_aprs* aprs);
 bool             aprservice_aprs_connect_is(aprservice_aprs* aprs, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode);
 bool             aprservice_aprs_connect_kiss_tcp(aprservice_aprs* aprs, const AL::String& remote_host, AL::uint16 remote_port);
-bool             aprservice_aprs_connect_kiss_serial(aprservice_aprs* aprs, const AL::String& device);
+bool             aprservice_aprs_connect_kiss_serial(aprservice_aprs* aprs, const AL::String& device, AL::uint32 speed);
 void             aprservice_aprs_disconnect(aprservice_aprs* aprs);
 bool             aprservice_aprs_update(aprservice_aprs* aprs, AL::TimeSpan delta);
 void             aprservice_aprs_add_packet_monitor(aprservice_aprs* aprs, aprservice_aprs_packet_filter_callback filter, aprservice_aprs_packet_monitor_callback callback, void* param);
@@ -148,9 +148,9 @@ bool        aprservice_aprs_connect_kiss_tcp(aprservice* service, const AL::Stri
 {
 	return aprservice_aprs_connect_kiss_tcp(service->aprs, remote_host, remote_port);
 }
-bool        aprservice_aprs_connect_kiss_serial(aprservice* service, const AL::String& device)
+bool        aprservice_aprs_connect_kiss_serial(aprservice* service, const AL::String& device, AL::uint32 speed)
 {
-	return aprservice_aprs_connect_kiss_serial(service->aprs, device);
+	return aprservice_aprs_connect_kiss_serial(service->aprs, device, speed);
 }
 void        aprservice_aprs_disconnect(aprservice* service)
 {

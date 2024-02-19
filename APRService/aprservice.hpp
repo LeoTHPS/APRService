@@ -126,7 +126,7 @@ void        aprservice_stop(aprservice* service);
 bool        aprservice_aprs_is_connected(aprservice* service);
 bool        aprservice_aprs_connect_is(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode);
 bool        aprservice_aprs_connect_kiss_tcp(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port);
-bool        aprservice_aprs_connect_kiss_serial(aprservice* service, const AL::String& device);
+bool        aprservice_aprs_connect_kiss_serial(aprservice* service, const AL::String& device, AL::uint32 speed);
 void        aprservice_aprs_disconnect(aprservice* service);
 void        aprservice_aprs_add_packet_monitor(aprservice* service, aprservice_aprs_packet_filter_callback filter, aprservice_aprs_packet_monitor_callback callback, void* param);
 // @return 0 on connection closed

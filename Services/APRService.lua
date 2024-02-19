@@ -66,8 +66,8 @@ function APRService.APRS.KISS.Tcp.Connect(service, remote_host, remote_port)
 	return aprservice_aprs_connect_kiss_tcp(service, tostring(remote_host), tonumber(remote_port));
 end
 
-function APRService.APRS.KISS.Serial.Connect(service, device)
-	return aprservice_aprs_connect_kiss_serial(service, tostring(device));
+function APRService.APRS.KISS.Serial.Connect(service, device, speed)
+	return aprservice_aprs_connect_kiss_serial(service, tostring(device), tonumber(speed));
 end
 
 function APRService.APRS.Disconnect(service)

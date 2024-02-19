@@ -250,14 +250,14 @@ bool             aprservice_aprs_connect_kiss_tcp(aprservice_aprs* aprs, const A
 
 	return true;
 }
-bool             aprservice_aprs_connect_kiss_serial(aprservice_aprs* aprs, const AL::String& device)
+bool             aprservice_aprs_connect_kiss_serial(aprservice_aprs* aprs, const AL::String& device, AL::uint32 speed)
 {
 	if (aprservice_aprs_is_connected(aprs))
 		aprservice_aprs_disconnect(aprs);
 
 	try
 	{
-		if (!aprs->client.ConnectKISS(device))
+		if (!aprs->client.ConnectKISS(device, speed))
 			throw AL::Exception("Connection timed out");
 	}
 	catch (const AL::Exception& exception)

@@ -116,11 +116,37 @@ function APRService.Console.WriteLine(value)
 function APRService.Commands.Execute(service, sender, message)
 -- @param handler(service, sender, command_name, command_params)
 function APRService.Commands.Register(service, name, handler)
+
+APRService.Modules.SQLite3.FLAG_NONE
+APRService.Modules.SQLite3.FLAG_URI
+APRService.Modules.SQLite3.FLAG_CREATE
+APRService.Modules.SQLite3.FLAG_READ_ONLY
+APRService.Modules.SQLite3.FLAG_READ_WRITE
+APRService.Modules.SQLite3.FLAG_MEMORY
+APRService.Modules.SQLite3.FLAG_NO_MUTEX
+APRService.Modules.SQLite3.FLAG_FULL_MUTEX
+APRService.Modules.SQLite3.FLAG_NO_FOLLOW
+APRService.Modules.SQLite3.FLAG_SHARED_CACHE
+APRService.Modules.SQLite3.FLAG_PRIVATE_CACHE
+
+-- @return database
+function APRService.Modules.SQLite3.Database.Open(path, flags)
+function APRService.Modules.SQLite3.Database.Close(database)
+-- @return query_result
+function APRService.Modules.SQLite3.Database.ExecuteQuery(database, query)
+function APRService.Modules.SQLite3.QueryResult.GetSize(query_result)
+-- @return query_result_row
+function APRService.Modules.SQLite3.QueryResult.GetRow(query_result, index)
+function APRService.Modules.SQLite3.QueryResult.Release(query_result)
+function APRService.Modules.SQLite3.QueryResult.Row.GetSize(query_result_row)
+function APRService.Modules.SQLite3.QueryResult.Row.GetValue(query_result_row, index)
+function APRService.Modules.SQLite3.QueryResult.Row.GetColumn(query_result_row, index)
 ```
 
 ### Dependencies
 
 - [Lua 5.4](//github.com/lua/lua)
+- [SQLite3](//github.com/sqlite/sqlite)
 - [AbstractionLayer](//github.com/LeoTHPS/AbstractionLayer)
 
 ### Quick Start

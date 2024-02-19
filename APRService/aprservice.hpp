@@ -53,8 +53,8 @@ typedef void(*aprservice_event_handler)(aprservice* service, void* param);
 typedef void(*aprservice_command_handler)(aprservice* service, const AL::String& sender, const AL::String& command_name, const AL::String& command_params, void* param);
 
 typedef void(*aprservice_aprs_message_callback)(aprservice* service, void* param);
-typedef bool(*aprservice_aprs_packet_filter_callback)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& content, void* param);
-typedef void(*aprservice_aprs_packet_monitor_callback)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& content, void* param);
+typedef bool(*aprservice_aprs_packet_filter_callback)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content, void* param);
+typedef void(*aprservice_aprs_packet_monitor_callback)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content, void* param);
 
 typedef void(*aprservice_aprs_on_connect)(aprservice* service, AL::uint8 type, void* param);
 typedef void(*aprservice_aprs_on_disconnect)(aprservice* service, AL::uint8 reason, void* param);
@@ -62,19 +62,19 @@ typedef void(*aprservice_aprs_on_disconnect)(aprservice* service, AL::uint8 reas
 typedef void(*aprservice_aprs_on_send)(aprservice* service, const AL::String& value, void* param);
 typedef void(*aprservice_aprs_on_receive)(aprservice* service, const AL::String& value, void* param);
 
-typedef void(*aprservice_aprs_on_send_packet)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& content, void* param);
-typedef void(*aprservice_aprs_on_receive_packet)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& content, void* param);
+typedef void(*aprservice_aprs_on_send_packet)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content, void* param);
+typedef void(*aprservice_aprs_on_receive_packet)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content, void* param);
 
-typedef void(*aprservice_aprs_on_send_message)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& destination, const AL::String& content, void* param);
-typedef void(*aprservice_aprs_on_receive_message)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& destination, const AL::String& content, void* param);
+typedef void(*aprservice_aprs_on_send_message)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::String& destination, const AL::String& content, void* param);
+typedef void(*aprservice_aprs_on_receive_message)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::String& destination, const AL::String& content, void* param);
 
-typedef void(*aprservice_aprs_on_send_position)(aprservice* service, const AL::String& station, const AL::String& path, AL::int32 altitude, AL::Float latitude, AL::Float longitude, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param);
-typedef void(*aprservice_aprs_on_receive_position)(aprservice* service, const AL::String& station, const AL::String& path, AL::int32 altitude, AL::Float latitude, AL::Float longitude, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param);
+typedef void(*aprservice_aprs_on_send_position)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude, AL::Float latitude, AL::Float longitude, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param);
+typedef void(*aprservice_aprs_on_receive_position)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude, AL::Float latitude, AL::Float longitude, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param);
 
-typedef void(*aprservice_aprs_on_send_telemetry)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::uint8(&analog)[5], const bool(&digital)[8], void* param);
-typedef void(*aprservice_aprs_on_receive_telemetry)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::uint8(&analog)[5], const bool(&digital)[8], void* param);
+typedef void(*aprservice_aprs_on_send_telemetry)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::uint8(&analog)[5], const bool(&digital)[8], void* param);
+typedef void(*aprservice_aprs_on_receive_telemetry)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::uint8(&analog)[5], const bool(&digital)[8], void* param);
 
-typedef void(*aprservice_aprs_on_receive_invalid_packet)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& content, AL::uint8 packet_type, void* param);
+typedef void(*aprservice_aprs_on_receive_invalid_packet)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content, AL::uint8 packet_type, void* param);
 
 struct aprservice_aprs_event_handlers
 {

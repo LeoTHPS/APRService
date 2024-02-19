@@ -74,8 +74,8 @@ function APRService.APRS.Disconnect(service)
 	aprservice_aprs_disconnect(service);
 end
 
--- @param filter(service, station, tocall, path, content)->bool
--- @param callback(service, station, tocall, path, content)
+-- @param filter(service, station, tocall, path, igate, content)->bool
+-- @param callback(service, station, tocall, path, igate, content)
 function APRService.APRS.AddPacketMonitor(service, filter, callback)
 	aprservice_aprs_add_packet_monitor(service, filter, callback);
 end
@@ -169,43 +169,43 @@ function APRService.Config.Events.SetOnReceive(config, handler)
 	aprservice_config_events_set_on_receive(config, handler);
 end
 
--- @param handler(service, station, tocall, path, content)
+-- @param handler(service, station, tocall, path, igate, content)
 function APRService.Config.Events.SetOnSendPacket(config, handler)
 	aprservice_config_events_set_on_send_packet(config, handler);
 end
--- @param handler(service, station, tocall, path, content)
+-- @param handler(service, station, tocall, path, igate, content)
 function APRService.Config.Events.SetOnReceivePacket(config, handler)
 	aprservice_config_events_set_on_receive_packet(config, handler);
 end
 
--- @param handler(service, station, path, destination, content)
+-- @param handler(service, station, path, igate, destination, content)
 function APRService.Config.Events.SetOnSendMessage(config, handler)
 	aprservice_config_events_set_on_send_message(config, handler);
 end
--- @param handler(service, station, path, destination, content)
+-- @param handler(service, station, path, igate, destination, content)
 function APRService.Config.Events.SetOnReceiveMessage(config, handler)
 	aprservice_config_events_set_on_receive_message(config, handler);
 end
 
--- @param handler(service, station, path, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
+-- @param handler(service, station, path, igate, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
 function APRService.Config.Events.SetOnSendPosition(config, handler)
 	aprservice_config_events_set_on_send_position(config, handler);
 end
--- @param handler(service, station, path, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
+-- @param handler(service, station, path, igate, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
 function APRService.Config.Events.SetOnReceivePosition(config, handler)
 	aprservice_config_events_set_on_receive_position(config, handler);
 end
 
--- @param handler(service, station, tocall, path, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8)
+-- @param handler(service, station, tocall, path, igate, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8)
 function APRService.Config.Events.SetOnSendTelemetry(config, handler)
 	aprservice_config_events_set_on_send_telemetry(config, handler);
 end
--- @param handler(service, station, tocall, path, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8)
+-- @param handler(service, station, tocall, path, igate, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8)
 function APRService.Config.Events.SetOnReceiveTelemetry(config, handler)
 	aprservice_config_events_set_on_receive_telemetry(config, handler);
 end
 
--- @param handler(service, station, tocall, path, content, type)
+-- @param handler(service, station, tocall, path, igate, content, type)
 function APRService.Config.Events.SetOnReceiveInvalidPacket(config, handler)
 	aprservice_config_events_set_on_receive_invalid_packet(config, handler);
 end

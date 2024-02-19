@@ -112,19 +112,19 @@ void       aprservice_aprs_register_events(aprservice_aprs* aprs, const aprservi
 	if (events.on_send)                   aprs->client.OnSend.Register([aprs, &events](const AL::String& value) { events.on_send(aprs->service, value, events.param); });
 	if (events.on_receive)                aprs->client.OnReceive.Register([aprs, &events](const AL::String& value) { events.on_receive(aprs->service, value, events.param); });
 
-	if (events.on_send_packet)            aprs->client.OnSendPacket.Register([aprs, &events](const AL::APRS::Packet& value) { events.on_send_packet(aprs->service, value.GetSender(), value.GetToCall(), aprservice_aprs_convert_path(value.GetPath()), value.GetContent(), events.param); });
-	if (events.on_receive_packet)         aprs->client.OnReceivePacket.Register([aprs, &events](const AL::APRS::Packet& value) { events.on_receive_packet(aprs->service, value.GetSender(), value.GetToCall(), aprservice_aprs_convert_path(value.GetPath()), value.GetContent(), events.param); });
+	if (events.on_send_packet)            aprs->client.OnSendPacket.Register([aprs, &events](const AL::APRS::Packet& value) { events.on_send_packet(aprs->service, value.GetSender(), value.GetToCall(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetContent(), events.param); });
+	if (events.on_receive_packet)         aprs->client.OnReceivePacket.Register([aprs, &events](const AL::APRS::Packet& value) { events.on_receive_packet(aprs->service, value.GetSender(), value.GetToCall(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetContent(), events.param); });
 
-	if (events.on_send_message)           aprs->client.OnSendMessage.Register([aprs, &events](const AL::APRS::Message& value) { events.on_send_message(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetDestination(), value.GetContent(), events.param); });
-	if (events.on_receive_message)        aprs->client.OnReceiveMessage.Register([aprs, &events](const AL::APRS::Message& value) { if (!value.GetDestination().Compare(aprs->client.GetStation(), AL::True)) events.on_receive_message(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetDestination(), value.GetContent(), events.param); else if (!aprservice_commands_execute(aprs->service, value.GetSender(), value.GetContent())) events.on_receive_message(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetDestination(), value.GetContent(), events.param); });
+	if (events.on_send_message)           aprs->client.OnSendMessage.Register([aprs, &events](const AL::APRS::Message& value) { events.on_send_message(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetDestination(), value.GetContent(), events.param); });
+	if (events.on_receive_message)        aprs->client.OnReceiveMessage.Register([aprs, &events](const AL::APRS::Message& value) { if (!value.GetDestination().Compare(aprs->client.GetStation(), AL::True)) events.on_receive_message(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetDestination(), value.GetContent(), events.param); else if (!aprservice_commands_execute(aprs->service, value.GetSender(), value.GetContent())) events.on_receive_message(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetDestination(), value.GetContent(), events.param); });
 
-	if (events.on_send_position)          aprs->client.OnSendPosition.Register([aprs, &events](const AL::APRS::Position& value) { events.on_send_position(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetAltitude(), value.GetLatitude(), value.GetLongitude(), value.GetSymbolTable(), value.GetSymbolTableKey(), value.GetComment(), aprservice_aprs_convert_position_flags(value), events.param); });
-	if (events.on_receive_position)       aprs->client.OnReceivePosition.Register([aprs, &events](const AL::APRS::Position& value) { events.on_receive_position(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetAltitude(), value.GetLatitude(), value.GetLongitude(), value.GetSymbolTable(), value.GetSymbolTableKey(), value.GetComment(), aprservice_aprs_convert_position_flags(value), events.param); });
+	if (events.on_send_position)          aprs->client.OnSendPosition.Register([aprs, &events](const AL::APRS::Position& value) { events.on_send_position(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetAltitude(), value.GetLatitude(), value.GetLongitude(), value.GetSymbolTable(), value.GetSymbolTableKey(), value.GetComment(), aprservice_aprs_convert_position_flags(value), events.param); });
+	if (events.on_receive_position)       aprs->client.OnReceivePosition.Register([aprs, &events](const AL::APRS::Position& value) { events.on_receive_position(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetAltitude(), value.GetLatitude(), value.GetLongitude(), value.GetSymbolTable(), value.GetSymbolTableKey(), value.GetComment(), aprservice_aprs_convert_position_flags(value), events.param); });
 
-	if (events.on_send_telemetry)         aprs->client.OnSendTelemetry.Register([aprs, &events](const AL::APRS::Telemetry& value) { AL::uint8 a[5]; bool d[8]; value.GetValues(a, d); events.on_send_telemetry(aprs->service, value.GetSender(), value.GetToCall(), aprservice_aprs_convert_path(value.GetPath()), a, d, events.param); });
-	if (events.on_receive_telemetry)      aprs->client.OnReceiveTelemetry.Register([aprs, &events](const AL::APRS::Telemetry& value) { AL::uint8 a[5]; bool d[8]; value.GetValues(a, d); events.on_receive_telemetry(aprs->service, value.GetSender(), value.GetToCall(), aprservice_aprs_convert_path(value.GetPath()), a, d, events.param); });
+	if (events.on_send_telemetry)         aprs->client.OnSendTelemetry.Register([aprs, &events](const AL::APRS::Telemetry& value) { AL::uint8 a[5]; bool d[8]; value.GetValues(a, d); events.on_send_telemetry(aprs->service, value.GetSender(), value.GetToCall(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), a, d, events.param); });
+	if (events.on_receive_telemetry)      aprs->client.OnReceiveTelemetry.Register([aprs, &events](const AL::APRS::Telemetry& value) { AL::uint8 a[5]; bool d[8]; value.GetValues(a, d); events.on_receive_telemetry(aprs->service, value.GetSender(), value.GetToCall(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), a, d, events.param); });
 
-	if (events.on_receive_invalid_packet) aprs->client.OnReceiveInvalidPacket.Register([aprs, &events](const AL::APRS::Packet& packet) { events.on_receive_invalid_packet(aprs->service, packet.GetSender(), packet.GetToCall(), aprservice_aprs_convert_path(packet.GetPath()), packet.GetContent(), aprservice_aprs_convert_packet_type(packet.GetType()), events.param); });
+	if (events.on_receive_invalid_packet) aprs->client.OnReceiveInvalidPacket.Register([aprs, &events](const AL::APRS::Packet& value) { events.on_receive_invalid_packet(aprs->service, value.GetSender(), value.GetToCall(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetContent(), aprservice_aprs_convert_packet_type(value.GetType()), events.param); });
 }
 void       aprservice_aprs_disconnect(aprservice_aprs* aprs);
 
@@ -314,12 +314,12 @@ void             aprservice_aprs_add_packet_monitor(aprservice_aprs* aprs, aprse
 {
 	AL::APRS::ClientPacketFilterCallback filter_detour([aprs, filter, param](const AL::APRS::Packet& packet)
 	{
-		return filter(aprs->service, packet.GetSender(), packet.GetToCall(), AL::APRS::DigiPath_ToString(packet.GetPath()), packet.GetContent(), param);
+		return filter(aprs->service, packet.GetSender(), packet.GetToCall(), AL::APRS::DigiPath_ToString(packet.GetPath()), packet.GetIGate(), packet.GetContent(), param);
 	});
 
 	AL::APRS::ClientPacketMonitorCallback callback_detour([aprs, callback, param](const AL::APRS::Packet& packet)
 	{
-		callback(aprs->service, packet.GetSender(), packet.GetToCall(), AL::APRS::DigiPath_ToString(packet.GetPath()), packet.GetContent(), param);
+		callback(aprs->service, packet.GetSender(), packet.GetToCall(), AL::APRS::DigiPath_ToString(packet.GetPath()), packet.GetIGate(), packet.GetContent(), param);
 	});
 
 	aprs->client.AddPacketMonitor(AL::Move(filter_detour), AL::Move(callback_detour));

@@ -96,6 +96,10 @@ function APRService.Modules.ByteBuffer.ReadBoolean(byte_buffer)
 	return aprservice_lua_module_byte_buffer_read_boolean(byte_buffer);
 end
 
+function APRService.Modules.ByteBuffer.Write(byte_buffer, buffer, size)
+	return aprservice_lua_module_byte_buffer_write(byte_buffer, buffer, size);
+end
+
 function APRService.Modules.ByteBuffer.WriteInt8(byte_buffer, value)
 	return aprservice_lua_module_byte_buffer_write_int8(byte_buffer, tonumber(value));
 end

@@ -173,6 +173,7 @@ function APRService.Modules.ByteBuffer.ReadWString(byte_buffer)
 -- @return success, value
 function APRService.Modules.ByteBuffer.ReadBoolean(byte_buffer)
 
+function APRService.Modules.ByteBuffer.Write(byte_buffer, buffer, size)
 function APRService.Modules.ByteBuffer.WriteInt8(byte_buffer, value)
 function APRService.Modules.ByteBuffer.WriteInt16(byte_buffer, value)
 function APRService.Modules.ByteBuffer.WriteInt32(byte_buffer, value)

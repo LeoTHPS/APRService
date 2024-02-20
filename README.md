@@ -146,6 +146,8 @@ function APRService.Modules.ByteBuffer.GetCapacity(byte_buffer)
 
 function APRService.Modules.ByteBuffer.Clear(byte_buffer)
 
+-- @return success, byte_buffer
+function APRService.Modules.ByteBuffer.Read(byte_buffer, size)
 -- @return success, value
 function APRService.Modules.ByteBuffer.ReadInt8(byte_buffer)
 -- @return success, value

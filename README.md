@@ -328,7 +328,12 @@ function APRService.Modules.System.GetPlatform()
 ```
 ##### Thread
 ```lua
--- Coming soon
+function APRService.Modules.Thread.IsRunning(thread)
+
+-- @param main()
+-- @return thread
+function APRService.Modules.Thread.Start(main)
+function APRService.Modules.Thread.Join(thread)
 ```
 ##### Timer
 ```lua

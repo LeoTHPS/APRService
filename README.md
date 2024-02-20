@@ -132,7 +132,60 @@ function APRService.Commands.Register(service, name, handler)
 #### Modules
 ##### Byte Buffer
 ```lua
--- Coming soon
+APRService.Modules.ByteBuffer.ENDIAN_BIG
+APRService.Modules.ByteBuffer.ENDIAN_LITTLE
+APRService.Modules.ByteBuffer.ENDIAN_MACHINE
+
+-- @return byte_buffer
+function APRService.Modules.ByteBuffer.Create(endian, capacity)
+function APRService.Modules.ByteBuffer.Destroy(byte_buffer)
+
+function APRService.Modules.ByteBuffer.GetSize(byte_buffer)
+function APRService.Modules.ByteBuffer.GetBuffer(byte_buffer)
+function APRService.Modules.ByteBuffer.GetCapacity(byte_buffer)
+
+function APRService.Modules.ByteBuffer.Clear(byte_buffer)
+
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadInt8(byte_buffer)
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadInt16(byte_buffer)
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadInt32(byte_buffer)
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadInt64(byte_buffer)
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadUInt8(byte_buffer)
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadUInt16(byte_buffer)
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadUInt32(byte_buffer)
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadUInt64(byte_buffer)
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadFloat(byte_buffer)
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadDouble(byte_buffer)
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadString(byte_buffer)
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadWString(byte_buffer)
+-- @return success, value
+function APRService.Modules.ByteBuffer.ReadBoolean(byte_buffer)
+
+function APRService.Modules.ByteBuffer.WriteInt8(byte_buffer, value)
+function APRService.Modules.ByteBuffer.WriteInt16(byte_buffer, value)
+function APRService.Modules.ByteBuffer.WriteInt32(byte_buffer, value)
+function APRService.Modules.ByteBuffer.WriteInt64(byte_buffer, value)
+function APRService.Modules.ByteBuffer.WriteUInt8(byte_buffer, value)
+function APRService.Modules.ByteBuffer.WriteUInt16(byte_buffer, value)
+function APRService.Modules.ByteBuffer.WriteUInt32(byte_buffer, value)
+function APRService.Modules.ByteBuffer.WriteUInt64(byte_buffer, value)
+function APRService.Modules.ByteBuffer.WriteFloat(byte_buffer, value)
+function APRService.Modules.ByteBuffer.WriteDouble(byte_buffer, value)
+function APRService.Modules.ByteBuffer.WriteString(byte_buffer, value)
+function APRService.Modules.ByteBuffer.WriteWString(byte_buffer, value)
+function APRService.Modules.ByteBuffer.WriteBoolean(byte_buffer, value)
 ```
 ##### CSV
 ```lua

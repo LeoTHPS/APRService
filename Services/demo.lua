@@ -21,18 +21,18 @@ APRService.Config.APRS.SetSymbolTableKey(config, aprs_is_config['SymbolTableKey'
 APRService.Config.APRS.EnableMonitorMode(config, aprs_is_config['EnableMonitorMode']);
 
 APRService.Config.Events.SetOnConnect(config, function(service, type)
-	if type == APRService.APRS_CONNECTION_TYPE_APRS_IS then
+	if type == APRService.APRS.CONNECTION_TYPE_APRS_IS then
 		APRService.Console.WriteLine('Connected via APRS-IS');
-	elseif type == APRService.APRS_CONNECTION_TYPE_KISS_TCP then
+	elseif type == APRService.APRS.CONNECTION_TYPE_KISS_TCP then
 		APRService.Console.WriteLine('Connected via KISS TNC (TCP)');
-	elseif type == APRService.APRS_CONNECTION_TYPE_KISS_SERIAL then
+	elseif type == APRService.APRS.CONNECTION_TYPE_KISS_SERIAL then
 		APRService.Console.WriteLine('Connected via KISS TNC (Serial)');
 	end
 end);
 APRService.Config.Events.SetOnDisconnect(config, function(service, reason)
-	if reason == APRService.APRS_DISCONNECT_REASON_USER_REQUESTED then
+	if reason == APRService.APRS.DISCONNECT_REASON_USER_REQUESTED then
 		APRService.Console.WriteLine('Disconnected');
-	elseif reason == APRService.APRS_DISCONNECT_REASON_AUTHENTICATION_FAILED then
+	elseif reason == APRService.APRS.DISCONNECT_REASON_AUTHENTICATION_FAILED then
 		APRService.Console.WriteLine('Authentication failed');
 	else
 		APRService.Console.WriteLine('Connection closed');

@@ -3,35 +3,11 @@
 
 <hr />
 
-### Lua API
-
+### API
+#### Core
 ```lua
 APRService.FLAG_NONE
 APRService.FLAG_STOP_ON_APRS_DISCONNECT
-
-APRService.MEASUREMENT_TYPE_FEET
-APRService.MEASUREMENT_TYPE_MILES
-APRService.MEASUREMENT_TYPE_METERS
-APRService.MEASUREMENT_TYPE_KILOMETERS
-
-APRService.APRS_PACKET_TYPE_UNKNOWN
-APRService.APRS_PACKET_TYPE_MESSAGE
-APRService.APRS_PACKET_TYPE_POSITION
-APRService.APRS_PACKET_TYPE_TELEMETRY
-
-APRService.APRS_POSITION_FLAG_NONE
-APRService.APRS_POSITION_FLAG_COMPRESSED
-APRService.APRS_POSITION_FLAG_MESSAGING_ENABLED
-
-APRService.APRS_CONNECTION_TYPE_NONE
-APRService.APRS_CONNECTION_TYPE_APRS_IS
-APRService.APRS_CONNECTION_TYPE_KISS_TCP
-APRService.APRS_CONNECTION_TYPE_KISS_SERIAL
-
-APRService.APRS_DISCONNECT_REASON_UNDEFINED
-APRService.APRS_DISCONNECT_REASON_USER_REQUESTED
-APRService.APRS_DISCONNECT_REASON_CONNECTION_LOST
-APRService.APRS_DISCONNECT_REASON_AUTHENTICATION_FAILED
 
 -- @return service
 function APRService.Init(config)
@@ -39,6 +15,27 @@ function APRService.Deinit(service)
 function APRService.IsRunning(service)
 function APRService.Run(service, tick_rate, flags)
 function APRService.Stop(service)
+```
+##### APRS
+```lua
+APRService.APRS.PACKET_TYPE_UNKNOWN
+APRService.APRS.PACKET_TYPE_MESSAGE
+APRService.APRS.PACKET_TYPE_POSITION
+APRService.APRS.PACKET_TYPE_TELEMETRY
+
+APRService.APRS.POSITION_FLAG_NONE
+APRService.APRS.POSITION_FLAG_COMPRESSED
+APRService.APRS.POSITION_FLAG_MESSAGING_ENABLED
+
+APRService.APRS.CONNECTION_TYPE_NONE
+APRService.APRS.CONNECTION_TYPE_APRS_IS
+APRService.APRS.CONNECTION_TYPE_KISS_TCP
+APRService.APRS.CONNECTION_TYPE_KISS_SERIAL
+
+APRService.APRS.DISCONNECT_REASON_UNDEFINED
+APRService.APRS.DISCONNECT_REASON_USER_REQUESTED
+APRService.APRS.DISCONNECT_REASON_CONNECTION_LOST
+APRService.APRS.DISCONNECT_REASON_AUTHENTICATION_FAILED
 
 function APRService.APRS.IsConnected(service)
 function APRService.APRS.IS.Connect(service, remote_host, remote_port, passcode)
@@ -57,7 +54,9 @@ function APRService.APRS.SendTelemetry(service, analog_1, analog_2, analog_3, an
 -- @param callback(service)
 -- @return encoding_failed, connection_closed
 function APRService.APRS.BeginSendMessage(service, destination, content, callback)
-
+```
+##### Config
+```lua
 -- @return config
 function APRService.Config.Init()
 function APRService.Config.Deinit(config)
@@ -97,14 +96,25 @@ function APRService.Config.Events.SetOnSendTelemetry(config, handler)
 function APRService.Config.Events.SetOnReceiveTelemetry(config, handler)
 -- @param handler(service, station, tocall, path, igate, content, type)
 function APRService.Config.Events.SetOnReceiveInvalidPacket(config, handler)
+```
+##### Math
+```lua
+APRService.Math.MEASUREMENT_TYPE_FEET
+APRService.Math.MEASUREMENT_TYPE_MILES
+APRService.Math.MEASUREMENT_TYPE_METERS
+APRService.Math.MEASUREMENT_TYPE_KILOMETERS
 
 function APRService.Math.GetDistanceBetweenPoints(latitude1, longitude1, latitude2, longitude2, measurement_type)
-
+```
+##### Events
+```lua
 function APRService.Events.GetCount(service)
 function APRService.Events.Clear(service)
 -- @param handler(service)
 function APRService.Events.Schedule(service, seconds, handler)
-
+```
+##### Console
+```lua
 function APRService.Console.SetTitle(value)
 -- @return success, char
 function APRService.Console.Read()
@@ -112,11 +122,104 @@ function APRService.Console.Read()
 function APRService.Console.ReadLine()
 function APRService.Console.Write(value)
 function APRService.Console.WriteLine(value)
-
+```
+##### Commands
+```lua
 function APRService.Commands.Execute(service, sender, message)
 -- @param handler(service, sender, command_name, command_params)
 function APRService.Commands.Register(service, name, handler)
+```
+#### Modules
+##### Byte Buffer
+```lua
+-- Coming soon
+```
+##### CSV
+```lua
+-- Coming soon
+```
+##### Environment
+```lua
+-- @return exists, value
+function APRService.Modules.Environment.Get(name)
+function APRService.Modules.Environment.Set(name, value)
+function APRService.Modules.Environment.Delete(name)
+-- @param callback(name, value)->bool
+function APRService.Modules.Environment.Enumerate(callback)
+```
+##### File
+```lua
+-- Coming soon
+```
+##### GPIO
+```lua
 
+APRService.Modules.GPIO.PIN_EDGE_BOTH
+APRService.Modules.GPIO.PIN_EDGE_RISING
+APRService.Modules.GPIO.PIN_EDGE_FALLING
+
+APRService.Modules.GPIO.PIN_VALUE_LOW
+APRService.Modules.GPIO.PIN_VALUE_HIGH
+
+APRService.Modules.GPIO.PIN_DIRECTION_IN
+APRService.Modules.GPIO.PIN_DIRECTION_OUT
+
+-- @return pin
+function APRService.Modules.GPIO.OpenPin(bus, pin, direction, value)
+function APRService.Modules.GPIO.ClosePin(pin)
+
+-- @return success, value
+function APRService.Modules.GPIO.Pin.Read(pin)
+function APRService.Modules.GPIO.Pin.Write(pin, value)
+-- @return success, timeout
+function APRService.Modules.GPIO.Pin.WaitForEdge(pin, edge, max_wait_time_ms)
+function APRService.Modules.GPIO.Pin.SetPullUp(pin)
+function APRService.Modules.GPIO.Pin.SetPullDown(pin)
+function APRService.Modules.GPIO.Pin.GetDirection(pin)
+function APRService.Modules.GPIO.Pin.SetDirection(pin, direction, value)
+```
+##### HTTP
+```lua
+-- Coming soon
+```
+##### I2C
+```lua
+-- Coming soon
+```
+##### INI
+```lua
+-- Coming soon
+```
+##### IRC
+```lua
+-- Coming soon
+```
+##### JSON
+```lua
+-- Coming soon
+```
+##### Mutex
+```lua
+-- @return mutex
+function APRService.Modules.Mutex.Create()
+function APRService.Modules.Mutex.Destroy(mutex)
+function APRService.Modules.Mutex.Lock(mutex)
+function APRService.Modules.Mutex.Unlock(mutex)
+```
+##### Process
+```lua
+-- Coming soon
+```
+##### Socket
+```lua
+-- Coming soon
+```
+##### SPI
+```lua
+-- Coming soon
+```
+##### SQLite3
+```lua
 APRService.Modules.SQLite3.FLAG_NONE
 APRService.Modules.SQLite3.FLAG_URI
 APRService.Modules.SQLite3.FLAG_CREATE
@@ -143,17 +246,69 @@ function APRService.Modules.SQLite3.QueryResult.Row.GetSize(query_result_row)
 function APRService.Modules.SQLite3.QueryResult.Row.GetValue(query_result_row, index)
 function APRService.Modules.SQLite3.QueryResult.Row.GetColumn(query_result_row, index)
 ```
+##### SSH
+```lua
+-- Coming soon
+```
+##### System
+```lua
+APRService.Modules.System.PLATFORM_DEBUG
+APRService.Modules.System.PLATFORM_GNU
+APRService.Modules.System.PLATFORM_MSVC
+APRService.Modules.System.PLATFORM_CLANG
+APRService.Modules.System.PLATFORM_ARM
+APRService.Modules.System.PLATFORM_ARM64
+APRService.Modules.System.PLATFORM_X86
+APRService.Modules.System.PLATFORM_X86_64
+APRService.Modules.System.PLATFORM_PICO
+APRService.Modules.System.PLATFORM_PICO_W
+APRService.Modules.System.PLATFORM_RP2040
+APRService.Modules.System.PLATFORM_LINUX
+APRService.Modules.System.PLATFORM_MINGW
+APRService.Modules.System.PLATFORM_WINDOWS
+APRService.Modules.System.PLATFORM_MACHINE
+
+function APRService.Modules.System.GetPlatform()
+```
+##### Thread
+```lua
+-- Coming soon
+```
+##### Timer
+```lua
+-- @return timer
+function APRService.Modules.Timer.Create()
+function APRService.Modules.Timer.Destroy(timer)
+function APRService.Modules.Timer.Reset(timer)
+function APRService.Modules.Timer.GetElapsedMS(timer)
+function APRService.Modules.Timer.GetElapsedUS(timer)
+```
+##### UART
+```lua
+APRService.Modules.UART.DEVICE_FLAG_NONE
+APRService.Modules.UART.DEVICE_FLAG_PARITY
+APRService.Modules.UART.DEVICE_FLAG_PARITY_ODD
+APRService.Modules.UART.DEVICE_FLAG_PARITY_EVEN
+APRService.Modules.UART.DEVICE_FLAG_USE_2_STOP_BITS
+
+-- @return device
+function APRService.Modules.UART.OpenDevice(path, speed, flags)
+function APRService.Modules.UART.CloseDevice(device)
+
+-- @return success, byte_buffer
+function APRService.Modules.UART.Device.Read(device, buffer_size)
+function APRService.Modules.UART.Device.Write(device, byte_buffer)
+-- @return success, would_block, byte_buffer
+function APRService.Modules.UART.Device.TryRead(device, buffer_size)
+```
 
 ### Dependencies
-
 - [Lua 5.4](//github.com/lua/lua)
 - [SQLite3](//github.com/sqlite/sqlite)
 - [AbstractionLayer](//github.com/LeoTHPS/AbstractionLayer)
 
 ### Quick Start
-
 #### Linux - Debian
-
 ```sh
 # Install dependencies
 
@@ -169,9 +324,7 @@ export AL_INCLUDE=../../../../AbstractionLayer
 git clone https://github.com/LeoTHPS/APRService APRService
 make -C APRService/APRService -e COMPILER=GNU PLATFORM=LINUX
 ```
-
 #### Linux - Other
-
 ```sh
 # Install dependencies
 # - You need to install git, SQLite3 and Lua 5.4 c development packages for your distribution
@@ -186,9 +339,7 @@ export AL_INCLUDE=../../../../AbstractionLayer
 git clone https://github.com/LeoTHPS/APRService APRService
 make -C APRService/APRService -e COMPILER=GNU PLATFORM=LINUX
 ```
-
 #### Windows - MinGW64
-
 ```sh
 # Install dependencies
 
@@ -204,7 +355,5 @@ export AL_INCLUDE=../../../../AbstractionLayer
 git clone https://github.com/LeoTHPS/APRService APRService
 make -C APRService/APRService -e COMPILER=GNU PLATFORM=WINDOWS
 ```
-
 #### Windows - Visual Studio
-
 Instructions coming soon.

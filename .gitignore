@@ -5,3 +5,7 @@
 /APRService/*.o
 /APRService/APRService
 /APRService/APRService.exe
+
+# Service generated files
+/Services/*.db
+/Services/*.kml

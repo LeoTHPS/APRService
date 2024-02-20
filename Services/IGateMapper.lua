@@ -114,9 +114,9 @@ local function IGateMapper_ExportStationsToKML(service)
 end
 
 APRService.Config.Events.SetOnDisconnect(config, function(service, reason)
-	if reason == APRService.APRS_DISCONNECT_REASON_USER_REQUESTED then
+	if reason == APRService.APRS.DISCONNECT_REASON_USER_REQUESTED then
 		APRService.Stop(service);
-	elseif reason == APRService.APRS_DISCONNECT_REASON_AUTHENTICATION_FAILED then
+	elseif reason == APRService.APRS.DISCONNECT_REASON_AUTHENTICATION_FAILED then
 		APRService.Stop(service);
 	else
 		APRService.Events.Schedule(service, 0, IGateMapper_Connect_APRS_IS);

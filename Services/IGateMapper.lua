@@ -27,8 +27,8 @@ APRService.Config.APRS.SetSymbolTable(config, aprs_is_config['SymbolTable']);
 APRService.Config.APRS.SetSymbolTableKey(config, aprs_is_config['SymbolTableKey']);
 APRService.Config.APRS.EnableMonitorMode(config, aprs_is_config['EnableMonitorMode']);
 
-local IGateMapper_Stations     = {};
-local IGateMapper_Positions    = {};
+local IGateMapper_Stations     = {}; -- [station] = true
+local IGateMapper_Positions    = {}; -- [station] = { latitude, longitude, written_to_disk }
 local IGateMapper_StationCount = 0;
 
 local function IGateMapper_Connect_APRS_IS(service)
@@ -91,6 +91,28 @@ local function IGateMapper_WriteStationsToDisk(service)
 	APRService.Events.Schedule(service, database_config['UpdateInterval'], IGateMapper_WriteStationsToDisk);
 end
 
+local function IGateMapper_ExportStationsToKML(service)
+	local file = io.open('IGateMapper.kml', "w");
+
+	if file ~= nil then
+		file:write('<?xml version="1.0" encoding="UTF-8"?>');
+		file:write('<kml xmlns="http://www.opengis.net/kml/2.2">');
+		file:write('<Document>');
+
+		for station, station_info in pairs(IGateMapper_Positions) do
+			file:write('<Placemark>');
+			file:write(string.format('<name>%s</name>', station));
+			file:write(string.format('<description>http://aprs.fi/#!call=%s</description>', station));
+			file:write(string.format('<Point><coordinates>%f,%f,0</coordinates></Point>', station_info[2], station_info[1]));
+			file:write('</Placemark>');
+		end
+
+		file:write('</Document>');
+		file:write('</kml>');
+		file:close();
+	end
+end
+
 APRService.Config.Events.SetOnDisconnect(config, function(service, reason)
 	if reason == APRService.APRS_DISCONNECT_REASON_USER_REQUESTED then
 		APRService.Stop(service);
@@ -124,6 +146,7 @@ local service = APRService.Init(config);
 
 IGateMapper_InitDisk(service);
 IGateMapper_ReadStationsFromDisk(service);
+IGateMapper_ExportStationsToKML(service);
 
 APRService.Events.Schedule(service, 0,                                 IGateMapper_Connect_APRS_IS);
 APRService.Events.Schedule(service, database_config['UpdateInterval'], IGateMapper_WriteStationsToDisk);

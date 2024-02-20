@@ -92,11 +92,6 @@ function APRService.Modules.ByteBuffer.ReadString(byte_buffer)
 end
 
 -- @return success, value
-function APRService.Modules.ByteBuffer.ReadWString(byte_buffer)
-	return aprservice_lua_module_byte_buffer_read_wstring(byte_buffer);
-end
-
--- @return success, value
 function APRService.Modules.ByteBuffer.ReadBoolean(byte_buffer)
 	return aprservice_lua_module_byte_buffer_read_boolean(byte_buffer);
 end
@@ -147,10 +142,6 @@ end
 
 function APRService.Modules.ByteBuffer.WriteString(byte_buffer, value)
 	return aprservice_lua_module_byte_buffer_write_string(byte_buffer, tostring(value));
-end
-
-function APRService.Modules.ByteBuffer.WriteWString(byte_buffer, value)
-	return aprservice_lua_module_byte_buffer_write_wstring(byte_buffer, tostring(value));
 end
 
 function APRService.Modules.ByteBuffer.WriteBoolean(byte_buffer, value)

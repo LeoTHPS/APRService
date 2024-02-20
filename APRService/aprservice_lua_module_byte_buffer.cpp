@@ -334,24 +334,6 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_wstring(aprservice_lua_module_byte_buffer_instance* byte_buffer)
-{
-	AL::Collections::Tuple<bool, AL::WString> value(false, L"");
-
-	switch (byte_buffer->endian)
-	{
-		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_BIG:
-			value.Set<0>(byte_buffer->big->ReadWString(value.Get<1>()));
-			break;
-
-		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_LITTLE:
-			value.Set<0>(byte_buffer->little->ReadWString(value.Get<1>()));
-			break;
-	}
-
-	return value;
-}
-// @return success, value
 auto                                        aprservice_lua_module_byte_buffer_read_boolean(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
 	AL::Collections::Tuple<bool, bool> value(false, false);
@@ -525,19 +507,6 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_wstring(aprservice_lua_module_byte_buffer_instance* byte_buffer, const AL::WString& value)
-{
-	switch (byte_buffer->endian)
-	{
-		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_BIG:
-			return byte_buffer->big->WriteWString(value);
-
-		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_LITTLE:
-			return byte_buffer->little->WriteWString(value);
-	}
-
-	return false;
-}
 bool                                        aprservice_lua_module_byte_buffer_write_boolean(aprservice_lua_module_byte_buffer_instance* byte_buffer, bool value)
 {
 	switch (byte_buffer->endian)
@@ -582,7 +551,6 @@ aprservice_lua_module_byte_buffer* aprservice_lua_module_byte_buffer_init(aprser
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_read_float);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_read_double);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_read_string);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_read_wstring);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_read_boolean);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_write);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_write_int8);
@@ -596,7 +564,6 @@ aprservice_lua_module_byte_buffer* aprservice_lua_module_byte_buffer_init(aprser
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_write_float);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_write_double);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_write_string);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_write_wstring);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_write_boolean);
 
 	return byte_buffer;

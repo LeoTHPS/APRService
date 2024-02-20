@@ -207,4 +207,4 @@ make -C APRService/APRService -e COMPILER=GNU PLATFORM=WINDOWS
 
 #### Windows - Visual Studio
 
-No special instructions are required here. Note: AbstractionLayer will autodetect the platform and compiler in this scenario so the Makefile definitions aren't required.
+Instructions coming soon.

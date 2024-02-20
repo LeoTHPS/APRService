@@ -171,8 +171,6 @@ function APRService.Modules.ByteBuffer.ReadDouble(byte_buffer)
 -- @return success, value
 function APRService.Modules.ByteBuffer.ReadString(byte_buffer)
 -- @return success, value
-function APRService.Modules.ByteBuffer.ReadWString(byte_buffer)
--- @return success, value
 function APRService.Modules.ByteBuffer.ReadBoolean(byte_buffer)
 
 function APRService.Modules.ByteBuffer.Write(byte_buffer, buffer, size)
@@ -187,7 +185,6 @@ function APRService.Modules.ByteBuffer.WriteUInt64(byte_buffer, value)
 function APRService.Modules.ByteBuffer.WriteFloat(byte_buffer, value)
 function APRService.Modules.ByteBuffer.WriteDouble(byte_buffer, value)
 function APRService.Modules.ByteBuffer.WriteString(byte_buffer, value)
-function APRService.Modules.ByteBuffer.WriteWString(byte_buffer, value)
 function APRService.Modules.ByteBuffer.WriteBoolean(byte_buffer, value)
 ```
 ##### CSV

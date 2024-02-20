@@ -114,6 +114,27 @@ void                                        aprservice_lua_module_byte_buffer_cl
 			return byte_buffer->little->Clear();
 	}
 }
+// @return success, byte_buffer
+auto                                        aprservice_lua_module_byte_buffer_read(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t size)
+{
+	AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer_instance*> value(false, aprservice_lua_module_byte_buffer_create(byte_buffer->endian, size));
+
+	switch (byte_buffer->endian)
+	{
+		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_BIG:
+			value.Set<0>(byte_buffer->big->Read(const_cast<void*>(value.Get<1>()->big->GetBuffer()), size));
+			break;
+
+		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_LITTLE:
+			value.Set<0>(byte_buffer->little->Read(const_cast<void*>(value.Get<1>()->little->GetBuffer()), size));
+			break;
+	}
+
+	if (!value.Get<0>())
+		delete value.Get<1>();
+
+	return value;
+}
 // @return success, value
 auto                                        aprservice_lua_module_byte_buffer_read_int8(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
@@ -549,6 +570,7 @@ aprservice_lua_module_byte_buffer* aprservice_lua_module_byte_buffer_init(aprser
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_get_buffer);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_get_capacity);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_clear);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_read);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_read_int8);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_read_int16);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_read_int32);

@@ -31,6 +31,11 @@ function APRService.Modules.ByteBuffer.Clear(byte_buffer)
 	aprservice_lua_module_byte_buffer_clear(byte_buffer);
 end
 
+-- @return success, byte_buffer
+function APRService.Modules.ByteBuffer.Read(byte_buffer, size)
+	return aprservice_lua_module_byte_buffer_read(byte_buffer, tonumber(size));
+end
+
 -- @return success, value
 function APRService.Modules.ByteBuffer.ReadInt8(byte_buffer)
 	return aprservice_lua_module_byte_buffer_read_int8(byte_buffer);

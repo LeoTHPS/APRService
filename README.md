@@ -207,7 +207,4 @@ make -C APRService/APRService -e COMPILER=GNU PLATFORM=WINDOWS
 
 #### Windows - Visual Studio
 
-1. Create a solution with the files in this repository.
-2. Download Lua 5.4 and add all src files to the solution except lua.c and luac.c.
-3. Download AbstractionLayer and add its contents to the solution's include path.
-4. Build.
+No special instructions are required here. Note: AbstractionLayer will autodetect the platform and compiler in this scenario so the Makefile definitions aren't required.

@@ -20,9 +20,15 @@ struct aprservice_lua_module_uart
 {
 };
 
-struct aprservice_lua_module_byte_buffer;
-
 typedef AL::Hardware::UARTDevice aprservice_lua_module_uart_device;
+
+typedef typename AL::Get_Enum_Or_Integer_Base<AL::Endians>::Type APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN;
+struct                                                           aprservice_lua_module_byte_buffer_instance;
+aprservice_lua_module_byte_buffer_instance*                      aprservice_lua_module_byte_buffer_create(APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN endian, AL::size_t capacity);
+void                                                             aprservice_lua_module_byte_buffer_destroy(aprservice_lua_module_byte_buffer_instance* byte_buffer);
+AL::size_t                                                       aprservice_lua_module_byte_buffer_get_size(aprservice_lua_module_byte_buffer_instance* byte_buffer);
+const void*                                                      aprservice_lua_module_byte_buffer_get_buffer(aprservice_lua_module_byte_buffer_instance* byte_buffer);
+bool                                                             aprservice_lua_module_byte_buffer_write(aprservice_lua_module_byte_buffer_instance* byte_buffer, const void* buffer, AL::size_t size);
 
 aprservice_lua_module_uart_device* aprservice_lua_module_uart_open_device(const AL::String& path, AL::uint32 speed, AL::uint8 flags)
 {
@@ -54,28 +60,57 @@ void                               aprservice_lua_module_uart_close_device(aprse
 // @return success, byte_buffer
 auto                               aprservice_lua_module_uart_device_read(aprservice_lua_module_uart_device* uart_device, AL::size_t buffer_size)
 {
-	AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*> value(false, nullptr);
+	AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer_instance*> value(false, aprservice_lua_module_byte_buffer_create(static_cast<APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN>(AL::Endians::Machine), buffer_size));
 
-	// TODO: implement
-	aprservice_console_write_exception(AL::NotImplementedException());
+	try
+	{
+		uart_device->Read(const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>())), buffer_size);
+		value.Set<0>(true);
+	}
+	catch (const AL::Exception& exception)
+	{
+		aprservice_lua_module_byte_buffer_destroy(value.Get<1>());
+
+		aprservice_console_write_line("Error reading AL::Hardware::UARTDevice");
+		aprservice_console_write_exception(exception);
+	}
 
 	return value;
 }
-bool                               aprservice_lua_module_uart_device_write(aprservice_lua_module_uart_device* uart_device, aprservice_lua_module_byte_buffer* buffer)
+bool                               aprservice_lua_module_uart_device_write(aprservice_lua_module_uart_device* uart_device, aprservice_lua_module_byte_buffer_instance* buffer)
 {
-	// TODO: implement
-	aprservice_console_write_exception(AL::NotImplementedException());
+	try
+	{
+		uart_device->Write(aprservice_lua_module_byte_buffer_get_buffer(buffer), aprservice_lua_module_byte_buffer_get_size(buffer));
+	}
+	catch (const AL::Exception& exception)
+	{
+		aprservice_console_write_line("Error reading AL::Hardware::UARTDevice");
+		aprservice_console_write_exception(exception);
 
-	return false;
+		return false;
+	}
+
+	return true;
 }
 
 // @return success, would_block, byte_buffer
 auto                               aprservice_lua_module_uart_device_try_read(aprservice_lua_module_uart_device* uart_device, AL::size_t buffer_size)
 {
-	AL::Collections::Tuple<bool, bool, aprservice_lua_module_byte_buffer*> value(false, false, nullptr);
+	AL::Collections::Tuple<bool, bool, aprservice_lua_module_byte_buffer_instance*> value(false, false, aprservice_lua_module_byte_buffer_create(static_cast<APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN>(AL::Endians::Machine), buffer_size));
 
-	// TODO: implement
-	aprservice_console_write_exception(AL::NotImplementedException());
+	try
+	{
+		value.Set<1>(!uart_device->TryRead(const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<2>())), buffer_size));
+		value.Set<0>(true);
+	}
+	catch (const AL::Exception& exception)
+	{
+		aprservice_lua_module_byte_buffer_destroy(value.Get<2>());
+
+		aprservice_console_write_line("Error reading AL::Hardware::UARTDevice");
+		aprservice_console_write_exception(exception);
+	}
 
 	return value;
 }

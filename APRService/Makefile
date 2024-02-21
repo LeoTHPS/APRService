@@ -29,6 +29,7 @@ ifdef PLATFORM
 	ifeq ($(PLATFORM), LINUX)
 		LDLIBS += -lpthread
 		LDLIBS += -llua5.4
+		LDLIBS += -lssl -lcrypto
 		LDLIBS += -lsqlite3
 	endif
 
@@ -37,6 +38,7 @@ ifdef PLATFORM
 		LDLIBS += -lwsock32 -lws2_32 -lIphlpapi
 		LDLIBS += -lshlwapi
 		LDLIBS += -llua
+		LDLIBS += -lssl -lcrypto
 		LDLIBS += -lsqlite3
 	endif
 endif

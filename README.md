@@ -202,7 +202,25 @@ function APRService.Modules.Environment.Enumerate(callback)
 ```
 ##### File
 ```lua
--- Coming soon
+APRService.Modules.File.OPEN_MODE_READ
+APRService.Modules.File.OPEN_MODE_WRITE
+APRService.Modules.File.OPEN_MODE_APPEND
+APRService.Modules.File.OPEN_MODE_TRUNCATE
+
+-- @return file
+function APRService.Modules.File.Open(path, mode)
+function APRService.Modules.File.Close(file)
+
+function APRService.Modules.File.GetSize(path)
+
+function APRService.Modules.File.Copy(source_path, destination_path)
+function APRService.Modules.File.Move(source_path, destination_path)
+function APRService.Modules.File.Delete(path)
+function APRService.Modules.File.Exists(path)
+
+-- @return success, byte_buffer, byte_buffer_size
+function APRService.Modules.File.Read(file, buffer_size)
+function APRService.Modules.File.Write(file, byte_buffer)
 ```
 ##### GPIO
 ```lua

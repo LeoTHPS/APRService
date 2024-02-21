@@ -387,6 +387,7 @@ function APRService.Modules.TextFile.WriteLine(text_file, value)
 ```lua
 function APRService.Modules.Thread.IsRunning(thread)
 
+-- @param main()
 function APRService.Modules.Thread.Run(main)
 
 -- @param main()

@@ -6,6 +6,7 @@ function APRService.Modules.Thread.IsRunning(thread)
 	return aprservice_lua_module_thread_is_running(thread);
 end
 
+-- @param main()
 function APRService.Modules.Thread.Run(main)
 	return aprservice_lua_module_thread_run(main);
 end

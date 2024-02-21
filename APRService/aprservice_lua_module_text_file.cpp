@@ -15,23 +15,33 @@ struct aprservice_lua_module_text_file_instance
 	AL::FileSystem::TextFile file;
 };
 
-aprservice_lua_module_text_file_instance*                    aprservice_lua_module_text_file_open(const AL::String& path, AL::uint8 mode)
+aprservice_lua_module_text_file_instance*                    aprservice_lua_module_text_file_open(const AL::String& path, AL::uint8 mode, AL::uint8 line_ending)
 {
 	auto text_file = new aprservice_lua_module_text_file_instance
 	{
 		.file = AL::FileSystem::TextFile(path)
 	};
 
-	AL::BitMask<AL::FileSystem::FileOpenModes> open_mode;
+	AL::BitMask<AL::FileSystem::FileOpenModes> file_open_mode;
+	if ((mode & APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_READ)     == APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_READ)     file_open_mode.Add(AL::FileSystem::FileOpenModes::Read);
+	if ((mode & APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_WRITE)    == APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_WRITE)    file_open_mode.Add(AL::FileSystem::FileOpenModes::Write);
+	if ((mode & APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_APPEND)   == APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_APPEND)   file_open_mode.Add(AL::FileSystem::FileOpenModes::Append);
+	if ((mode & APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_TRUNCATE) == APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_TRUNCATE) file_open_mode.Add(AL::FileSystem::FileOpenModes::Truncate);
 
-	if ((mode & APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_READ)     == APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_READ)     open_mode.Add(AL::FileSystem::FileOpenModes::Read);
-	if ((mode & APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_WRITE)    == APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_WRITE)    open_mode.Add(AL::FileSystem::FileOpenModes::Write);
-	if ((mode & APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_APPEND)   == APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_APPEND)   open_mode.Add(AL::FileSystem::FileOpenModes::Append);
-	if ((mode & APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_TRUNCATE) == APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_TRUNCATE) open_mode.Add(AL::FileSystem::FileOpenModes::Truncate);
+	switch (line_ending)
+	{
+		case APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_LF:
+			text_file->file.SetLineEnding(AL::FileSystem::TextFileLineEndings::LF);
+			break;
+
+		case APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_CRLF:
+			text_file->file.SetLineEnding(AL::FileSystem::TextFileLineEndings::CRLF);
+			break;
+	}
 
 	try
 	{
-		if (!text_file->file.Open(open_mode.Value))
+		if (!text_file->file.Open(file_open_mode.Value))
 			throw AL::Exception("File not found");
 	}
 	catch (const AL::Exception& exception)
@@ -135,6 +145,10 @@ aprservice_lua_module_text_file* aprservice_lua_module_text_file_init(aprservice
 	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_WRITE);
 	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_APPEND);
 	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_TRUNCATE);
+
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_LF);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_CRLF);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_AUTO);
 
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_open);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_close);

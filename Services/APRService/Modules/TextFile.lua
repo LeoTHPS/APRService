@@ -7,9 +7,13 @@ APRService.Modules.TextFile.OPEN_MODE_WRITE    = APRSERVICE_LUA_MODULE_TEXT_FILE
 APRService.Modules.TextFile.OPEN_MODE_APPEND   = APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_APPEND;
 APRService.Modules.TextFile.OPEN_MODE_TRUNCATE = APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_TRUNCATE;
 
+APRService.Modules.TextFile.LINE_ENDING_LF   = APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_LF
+APRService.Modules.TextFile.LINE_ENDING_CRLF = APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_CRLF
+APRService.Modules.TextFile.LINE_ENDING_AUTO = APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_AUTO
+
 -- @return text_file
-function APRService.Modules.TextFile.Open(path, mode)
-	return aprservice_lua_module_text_file_open(tostring(path), mode);
+function APRService.Modules.TextFile.Open(path, mode, line_ending)
+	return aprservice_lua_module_text_file_open(tostring(path), mode, line_ending);
 end
 
 function APRService.Modules.TextFile.Close(text_file)

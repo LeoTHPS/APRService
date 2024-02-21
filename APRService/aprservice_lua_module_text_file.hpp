@@ -11,12 +11,19 @@ enum APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODES : AL::uint8
 	APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_TRUNCATE = 0x08
 };
 
+enum APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDINGS : AL::uint8
+{
+	APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_LF,
+	APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_CRLF,
+	APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_AUTO
+};
+
 struct aprservice_lua_module_text_file_instance;
 
 template<typename ... T>
 using aprservice_lua_module_text_file_read_value = AL::Collections::Tuple<bool, T ...>;
 
-aprservice_lua_module_text_file_instance*                    aprservice_lua_module_text_file_open(const AL::String& path, AL::uint8 mode);
+aprservice_lua_module_text_file_instance*                    aprservice_lua_module_text_file_open(const AL::String& path, AL::uint8 mode, AL::uint8 line_ending);
 void                                                         aprservice_lua_module_text_file_close(aprservice_lua_module_text_file_instance* text_file);
 
 // @return success, end_of_file, string

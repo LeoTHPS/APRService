@@ -233,7 +233,34 @@ function APRService.Modules.GPIO.Pin.SetDirection(pin, direction, value)
 ```
 ##### HTTP
 ```lua
--- Coming soon
+APRService.Modules.HTTP.HTTP_VERSION_1_0
+APRService.Modules.HTTP.HTTP_VERSION_1_1
+
+APRService.Modules.HTTP.REQUEST_METHOD_GET
+APRService.Modules.HTTP.REQUEST_METHOD_HEAD
+APRService.Modules.HTTP.REQUEST_METHOD_POST
+APRService.Modules.HTTP.REQUEST_METHOD_PUT
+APRService.Modules.HTTP.REQUEST_METHOD_DELETE
+APRService.Modules.HTTP.REQUEST_METHOD_CONNECT
+APRService.Modules.HTTP.REQUEST_METHOD_OPTIONS
+APRService.Modules.HTTP.REQUEST_METHOD_TRACE
+APRService.Modules.HTTP.REQUEST_METHOD_PATCH
+
+-- @return http_request
+function APRService.Modules.HTTP.CreateRequest(version, method)
+function APRService.Modules.HTTP.DestroyRequest(http_request)
+
+-- @return exists, string
+function APRService.Modules.HTTP.Request.GetHeader(http_request, key)
+function APRService.Modules.HTTP.Request.SetHeader(http_request, key, value)
+
+function APRService.Modules.HTTP.Request.GetMethod(http_request)
+function APRService.Modules.HTTP.Request.GetVersion(http_request)
+
+-- @return success, status_code, string
+function APRService.Modules.HTTP.Request.DownloadString(http_request, url)
+-- @return success, status_code, byte_buffer
+function APRService.Modules.HTTP.Request.DownloadByteBuffer(http_request, url)
 ```
 ##### I2C
 ```lua

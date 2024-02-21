@@ -371,8 +371,12 @@ APRService.Modules.TextFile.OPEN_MODE_WRITE
 APRService.Modules.TextFile.OPEN_MODE_APPEND
 APRService.Modules.TextFile.OPEN_MODE_TRUNCATE
 
+APRService.Modules.TextFile.LINE_ENDING_LF
+APRService.Modules.TextFile.LINE_ENDING_CRLF
+APRService.Modules.TextFile.LINE_ENDING_AUTO
+
 -- @return text_file
-function APRService.Modules.TextFile.Open(path, mode)
+function APRService.Modules.TextFile.Open(path, mode, line_ending)
 function APRService.Modules.TextFile.Close(text_file)
 
 -- @return success, end_of_file, string

@@ -1,9 +1,14 @@
 #include "aprservice.hpp"
 #include "aprservice_lua.hpp"
+#include "aprservice_lua_module_byte_buffer.hpp"
 
 #include <AL/Lua54/Lua.hpp>
 
 #include <AL/Hardware/UART.hpp>
+
+struct aprservice_lua_module_uart
+{
+};
 
 typedef typename AL::Get_Enum_Or_Integer_Base<AL::Hardware::UARTDeviceFlags>::Type APRSERVICE_LUA_MODULE_UART_DEVICE_FLAG;
 
@@ -16,19 +21,7 @@ enum APRSERVICE_LUA_MODULE_UART_DEVICE_FLAGS : APRSERVICE_LUA_MODULE_UART_DEVICE
 	APRSERVICE_LUA_MODULE_UART_DEVICE_FLAG_USE_2_STOP_BITS = static_cast<APRSERVICE_LUA_MODULE_UART_DEVICE_FLAG>(AL::Hardware::UARTDeviceFlags::Use2StopBits)
 };
 
-struct aprservice_lua_module_uart
-{
-};
-
 typedef AL::Hardware::UARTDevice aprservice_lua_module_uart_device;
-
-typedef typename AL::Get_Enum_Or_Integer_Base<AL::Endians>::Type APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN;
-struct                                                           aprservice_lua_module_byte_buffer_instance;
-aprservice_lua_module_byte_buffer_instance*                      aprservice_lua_module_byte_buffer_create(APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN endian, AL::size_t capacity);
-void                                                             aprservice_lua_module_byte_buffer_destroy(aprservice_lua_module_byte_buffer_instance* byte_buffer);
-AL::size_t                                                       aprservice_lua_module_byte_buffer_get_size(aprservice_lua_module_byte_buffer_instance* byte_buffer);
-const void*                                                      aprservice_lua_module_byte_buffer_get_buffer(aprservice_lua_module_byte_buffer_instance* byte_buffer);
-bool                                                             aprservice_lua_module_byte_buffer_write(aprservice_lua_module_byte_buffer_instance* byte_buffer, const void* buffer, AL::size_t size);
 
 aprservice_lua_module_uart_device* aprservice_lua_module_uart_open_device(const AL::String& path, AL::uint32 speed, AL::uint8 flags)
 {

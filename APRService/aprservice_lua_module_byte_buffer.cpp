@@ -1,18 +1,10 @@
 #include "aprservice.hpp"
 #include "aprservice_lua.hpp"
+#include "aprservice_lua_module_byte_buffer.hpp"
 
 #include <AL/Lua54/Lua.hpp>
 
 #include <AL/Collections/ByteBuffer.hpp>
-
-typedef typename AL::Get_Enum_Or_Integer_Base<AL::Endians>::Type APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN;
-
-enum APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIANS : APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN
-{
-	APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_BIG     = static_cast<APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN>(AL::Endians::Big),
-	APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_LITTLE  = static_cast<APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN>(AL::Endians::Little),
-	APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_MACHINE = static_cast<APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN>(AL::Endians::Machine)
-};
 
 struct aprservice_lua_module_byte_buffer
 {
@@ -29,7 +21,7 @@ struct aprservice_lua_module_byte_buffer_instance
 	aprservice_lua_module_byte_buffer_little* little;
 };
 
-aprservice_lua_module_byte_buffer_instance* aprservice_lua_module_byte_buffer_create(APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN endian, AL::size_t capacity)
+aprservice_lua_module_byte_buffer_instance*                                               aprservice_lua_module_byte_buffer_create(APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN endian, AL::size_t capacity)
 {
 	auto byte_buffer = new aprservice_lua_module_byte_buffer_instance
 	{
@@ -49,7 +41,7 @@ aprservice_lua_module_byte_buffer_instance* aprservice_lua_module_byte_buffer_cr
 
 	return byte_buffer;
 }
-void                                        aprservice_lua_module_byte_buffer_destroy(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+void                                                                                      aprservice_lua_module_byte_buffer_destroy(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
 	switch (byte_buffer->endian)
 	{
@@ -64,7 +56,7 @@ void                                        aprservice_lua_module_byte_buffer_de
 
 	delete byte_buffer;
 }
-AL::size_t                                  aprservice_lua_module_byte_buffer_get_size(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_size(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
 	switch (byte_buffer->endian)
 	{
@@ -77,7 +69,7 @@ AL::size_t                                  aprservice_lua_module_byte_buffer_ge
 
 	return 0;
 }
-const void*                                 aprservice_lua_module_byte_buffer_get_buffer(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+const void*                                                                               aprservice_lua_module_byte_buffer_get_buffer(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
 	switch (byte_buffer->endian)
 	{
@@ -90,7 +82,7 @@ const void*                                 aprservice_lua_module_byte_buffer_ge
 
 	return nullptr;
 }
-AL::size_t                                  aprservice_lua_module_byte_buffer_get_capacity(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_capacity(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
 	switch (byte_buffer->endian)
 	{
@@ -103,7 +95,8 @@ AL::size_t                                  aprservice_lua_module_byte_buffer_ge
 
 	return 0;
 }
-void                                        aprservice_lua_module_byte_buffer_clear(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+
+void                                                                                      aprservice_lua_module_byte_buffer_clear(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
 	switch (byte_buffer->endian)
 	{
@@ -114,10 +107,11 @@ void                                        aprservice_lua_module_byte_buffer_cl
 			return byte_buffer->little->Clear();
 	}
 }
+
 // @return success, byte_buffer
-auto                                        aprservice_lua_module_byte_buffer_read(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t size)
+aprservice_lua_module_byte_buffer_read_value<aprservice_lua_module_byte_buffer_instance*> aprservice_lua_module_byte_buffer_read(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t size)
 {
-	AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer_instance*> value(false, aprservice_lua_module_byte_buffer_create(byte_buffer->endian, size));
+	aprservice_lua_module_byte_buffer_read_value<aprservice_lua_module_byte_buffer_instance*> value(false, aprservice_lua_module_byte_buffer_create(byte_buffer->endian, size));
 
 	switch (byte_buffer->endian)
 	{
@@ -136,9 +130,9 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_int8(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+aprservice_lua_module_byte_buffer_read_value<AL::int8>                                    aprservice_lua_module_byte_buffer_read_int8(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
-	AL::Collections::Tuple<bool, AL::int8> value(false, 0);
+	aprservice_lua_module_byte_buffer_read_value<AL::int8> value(false, 0);
 
 	switch (byte_buffer->endian)
 	{
@@ -154,9 +148,9 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_int16(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+aprservice_lua_module_byte_buffer_read_value<AL::int16>                                   aprservice_lua_module_byte_buffer_read_int16(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
-	AL::Collections::Tuple<bool, AL::int16> value(false, 0);
+	aprservice_lua_module_byte_buffer_read_value<AL::int16> value(false, 0);
 
 	switch (byte_buffer->endian)
 	{
@@ -172,9 +166,9 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_int32(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+aprservice_lua_module_byte_buffer_read_value<AL::int32>                                   aprservice_lua_module_byte_buffer_read_int32(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
-	AL::Collections::Tuple<bool, AL::int32> value(false, 0);
+	aprservice_lua_module_byte_buffer_read_value<AL::int32> value(false, 0);
 
 	switch (byte_buffer->endian)
 	{
@@ -190,9 +184,9 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_int64(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+aprservice_lua_module_byte_buffer_read_value<AL::int64>                                   aprservice_lua_module_byte_buffer_read_int64(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
-	AL::Collections::Tuple<bool, AL::int64> value(false, 0);
+	aprservice_lua_module_byte_buffer_read_value<AL::int64> value(false, 0);
 
 	switch (byte_buffer->endian)
 	{
@@ -208,9 +202,9 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_uint8(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+aprservice_lua_module_byte_buffer_read_value<AL::uint8>                                   aprservice_lua_module_byte_buffer_read_uint8(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
-	AL::Collections::Tuple<bool, AL::uint8> value(false, 0);
+	aprservice_lua_module_byte_buffer_read_value<AL::uint8> value(false, 0);
 
 	switch (byte_buffer->endian)
 	{
@@ -226,9 +220,9 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_uint16(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+aprservice_lua_module_byte_buffer_read_value<AL::uint16>                                  aprservice_lua_module_byte_buffer_read_uint16(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
-	AL::Collections::Tuple<bool, AL::uint16> value(false, 0);
+	aprservice_lua_module_byte_buffer_read_value<AL::uint16> value(false, 0);
 
 	switch (byte_buffer->endian)
 	{
@@ -244,9 +238,9 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_uint32(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+aprservice_lua_module_byte_buffer_read_value<AL::uint32>                                  aprservice_lua_module_byte_buffer_read_uint32(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
-	AL::Collections::Tuple<bool, AL::uint32> value(false, 0);
+	aprservice_lua_module_byte_buffer_read_value<AL::uint32> value(false, 0);
 
 	switch (byte_buffer->endian)
 	{
@@ -262,9 +256,9 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_uint64(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+aprservice_lua_module_byte_buffer_read_value<AL::uint64>                                  aprservice_lua_module_byte_buffer_read_uint64(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
-	AL::Collections::Tuple<bool, AL::uint64> value(false, 0);
+	aprservice_lua_module_byte_buffer_read_value<AL::uint64> value(false, 0);
 
 	switch (byte_buffer->endian)
 	{
@@ -280,9 +274,9 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_float(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+aprservice_lua_module_byte_buffer_read_value<AL::Float>                                   aprservice_lua_module_byte_buffer_read_float(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
-	AL::Collections::Tuple<bool, AL::Float> value(false, 0);
+	aprservice_lua_module_byte_buffer_read_value<AL::Float> value(false, 0);
 
 	switch (byte_buffer->endian)
 	{
@@ -298,9 +292,9 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_double(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+aprservice_lua_module_byte_buffer_read_value<AL::Double>                                  aprservice_lua_module_byte_buffer_read_double(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
-	AL::Collections::Tuple<bool, AL::Double> value(false, 0);
+	aprservice_lua_module_byte_buffer_read_value<AL::Double> value(false, 0);
 
 	switch (byte_buffer->endian)
 	{
@@ -316,9 +310,9 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_string(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+aprservice_lua_module_byte_buffer_read_value<AL::String>                                  aprservice_lua_module_byte_buffer_read_string(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
-	AL::Collections::Tuple<bool, AL::String> value(false, "");
+	aprservice_lua_module_byte_buffer_read_value<AL::String> value(false, "");
 
 	switch (byte_buffer->endian)
 	{
@@ -334,9 +328,9 @@ auto                                        aprservice_lua_module_byte_buffer_re
 	return value;
 }
 // @return success, value
-auto                                        aprservice_lua_module_byte_buffer_read_boolean(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+aprservice_lua_module_byte_buffer_read_value<bool>                                        aprservice_lua_module_byte_buffer_read_boolean(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
-	AL::Collections::Tuple<bool, bool> value(false, false);
+	aprservice_lua_module_byte_buffer_read_value<bool> value(false, false);
 
 	switch (byte_buffer->endian)
 	{
@@ -351,7 +345,8 @@ auto                                        aprservice_lua_module_byte_buffer_re
 
 	return value;
 }
-bool                                        aprservice_lua_module_byte_buffer_write(aprservice_lua_module_byte_buffer_instance* byte_buffer, const void* buffer, AL::size_t size)
+
+bool                                                                                      aprservice_lua_module_byte_buffer_write(aprservice_lua_module_byte_buffer_instance* byte_buffer, const void* buffer, AL::size_t size)
 {
 	switch (byte_buffer->endian)
 	{
@@ -364,7 +359,7 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_int8(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::int8 value)
+bool                                                                                      aprservice_lua_module_byte_buffer_write_int8(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::int8 value)
 {
 	switch (byte_buffer->endian)
 	{
@@ -377,7 +372,7 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_int16(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::int16 value)
+bool                                                                                      aprservice_lua_module_byte_buffer_write_int16(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::int16 value)
 {
 	switch (byte_buffer->endian)
 	{
@@ -390,7 +385,7 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_int32(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::int32 value)
+bool                                                                                      aprservice_lua_module_byte_buffer_write_int32(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::int32 value)
 {
 	switch (byte_buffer->endian)
 	{
@@ -403,7 +398,7 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_int64(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::int64 value)
+bool                                                                                      aprservice_lua_module_byte_buffer_write_int64(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::int64 value)
 {
 	switch (byte_buffer->endian)
 	{
@@ -416,7 +411,7 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_uint8(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::uint16 value)
+bool                                                                                      aprservice_lua_module_byte_buffer_write_uint8(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::uint16 value)
 {
 	switch (byte_buffer->endian)
 	{
@@ -429,7 +424,7 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_uint16(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::uint16 value)
+bool                                                                                      aprservice_lua_module_byte_buffer_write_uint16(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::uint16 value)
 {
 	switch (byte_buffer->endian)
 	{
@@ -442,7 +437,7 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_uint32(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::uint32 value)
+bool                                                                                      aprservice_lua_module_byte_buffer_write_uint32(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::uint32 value)
 {
 	switch (byte_buffer->endian)
 	{
@@ -455,7 +450,7 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_uint64(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::uint64 value)
+bool                                                                                      aprservice_lua_module_byte_buffer_write_uint64(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::uint64 value)
 {
 	switch (byte_buffer->endian)
 	{
@@ -468,7 +463,7 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_float(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::Float value)
+bool                                                                                      aprservice_lua_module_byte_buffer_write_float(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::Float value)
 {
 	switch (byte_buffer->endian)
 	{
@@ -481,7 +476,7 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_double(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::Double value)
+bool                                                                                      aprservice_lua_module_byte_buffer_write_double(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::Double value)
 {
 	switch (byte_buffer->endian)
 	{
@@ -494,7 +489,7 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_string(aprservice_lua_module_byte_buffer_instance* byte_buffer, const AL::String& value)
+bool                                                                                      aprservice_lua_module_byte_buffer_write_string(aprservice_lua_module_byte_buffer_instance* byte_buffer, const AL::String& value)
 {
 	switch (byte_buffer->endian)
 	{
@@ -507,7 +502,7 @@ bool                                        aprservice_lua_module_byte_buffer_wr
 
 	return false;
 }
-bool                                        aprservice_lua_module_byte_buffer_write_boolean(aprservice_lua_module_byte_buffer_instance* byte_buffer, bool value)
+bool                                                                                      aprservice_lua_module_byte_buffer_write_boolean(aprservice_lua_module_byte_buffer_instance* byte_buffer, bool value)
 {
 	switch (byte_buffer->endian)
 	{

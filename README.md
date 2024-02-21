@@ -5,7 +5,8 @@
 
 ### API
 
-- [Lua](/API_Lua.md)
+- [C++](/API.cpp.md)
+- [Lua](/API.lua.md)
 
 ### Dependencies
 - [Lua 5.4](//github.com/lua/lua)

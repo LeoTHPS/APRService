@@ -427,6 +427,7 @@ function APRService.Modules.UART.Device.TryRead(device, buffer_size)
 
 ### Dependencies
 - [Lua 5.4](//github.com/lua/lua)
+- [OpenSSL](//github.com/openssl/openssl)
 - [SQLite3](//github.com/sqlite/sqlite)
 - [AbstractionLayer](//github.com/LeoTHPS/AbstractionLayer)
 
@@ -435,7 +436,7 @@ function APRService.Modules.UART.Device.TryRead(device, buffer_size)
 ```sh
 # Install dependencies
 
-apt install git liblua5.4-dev libsqlite3-dev
+apt install git liblua5.4-dev libssl-dev libsqlite3-dev
 
 # Clone AbstractionLayer and set temporary environment variable
 
@@ -450,7 +451,7 @@ make -C APRService/APRService -e COMPILER=GNU PLATFORM=LINUX
 #### Linux - Other
 ```sh
 # Install dependencies
-# - You need to install git, SQLite3 and Lua 5.4 c development packages for your distribution
+# - You need to install git, OpenSSL, SQLite3 and Lua 5.4 c development packages for your distribution
 
 # Clone AbstractionLayer and set temporary environment variable
 
@@ -466,7 +467,7 @@ make -C APRService/APRService -e COMPILER=GNU PLATFORM=LINUX
 ```sh
 # Install dependencies
 
-pacman -S git mingw-w64-x86_64-lua mingw-w64-x86_64-sqlite3
+pacman -S git mingw-w64-x86_64-lua mingw-w64-x86_64-openssl mingw-w64-x86_64-sqlite3
 
 # Clone AbstractionLayer and set temporary environment variable
 

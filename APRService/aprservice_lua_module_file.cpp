@@ -106,7 +106,7 @@ aprservice_lua_module_file_instance*                                            
 	AL::BitMask<AL::FileSystem::FileOpenModes> open_mode;
 
 	if ((mode & APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_READ)     == APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_READ)     open_mode.Add(AL::FileSystem::FileOpenModes::Read);
-	if ((mode & APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_READ)     == APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_READ)     open_mode.Add(AL::FileSystem::FileOpenModes::Write);
+	if ((mode & APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_WRITE)    == APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_WRITE)    open_mode.Add(AL::FileSystem::FileOpenModes::Write);
 	if ((mode & APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_APPEND)   == APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_APPEND)   open_mode.Add(AL::FileSystem::FileOpenModes::Append);
 	if ((mode & APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_TRUNCATE) == APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_TRUNCATE) open_mode.Add(AL::FileSystem::FileOpenModes::Truncate);
 

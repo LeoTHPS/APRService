@@ -19,6 +19,7 @@ struct aprservice_lua_module_spi;
 struct aprservice_lua_module_sqlite3;
 struct aprservice_lua_module_ssh;
 struct aprservice_lua_module_system;
+struct aprservice_lua_module_text_file;
 struct aprservice_lua_module_thread;
 struct aprservice_lua_module_timer;
 struct aprservice_lua_module_uart;
@@ -43,6 +44,7 @@ struct aprservice_lua_modules
 	aprservice_lua_module_sqlite3*     sqlite3;
 	aprservice_lua_module_ssh*         ssh;
 	aprservice_lua_module_system*      system;
+	aprservice_lua_module_text_file*   text_file;
 	aprservice_lua_module_thread*      thread;
 	aprservice_lua_module_timer*       timer;
 	aprservice_lua_module_uart*        uart;
@@ -99,6 +101,9 @@ void                               aprservice_lua_module_ssh_deinit(aprservice_l
 aprservice_lua_module_system*      aprservice_lua_module_system_init(aprservice_lua* lua);
 void                               aprservice_lua_module_system_deinit(aprservice_lua_module_system* system);
 
+aprservice_lua_module_text_file*   aprservice_lua_module_text_file_init(aprservice_lua* lua);
+void                               aprservice_lua_module_text_file_deinit(aprservice_lua_module_text_file* text_file);
+
 aprservice_lua_module_thread*      aprservice_lua_module_thread_init(aprservice_lua* lua);
 void                               aprservice_lua_module_thread_deinit(aprservice_lua_module_thread* thread);
 
@@ -141,6 +146,7 @@ aprservice_lua_modules* lua_aprservice_modules_init(aprservice_lua* lua)
 	lua_aprservice_modules_init_module(lua_modules, lua, sqlite3);
 	lua_aprservice_modules_init_module(lua_modules, lua, ssh);
 	lua_aprservice_modules_init_module(lua_modules, lua, system);
+	lua_aprservice_modules_init_module(lua_modules, lua, text_file);
 	lua_aprservice_modules_init_module(lua_modules, lua, thread);
 	lua_aprservice_modules_init_module(lua_modules, lua, timer);
 	lua_aprservice_modules_init_module(lua_modules, lua, uart);
@@ -169,6 +175,7 @@ void                    lua_aprservice_modules_deinit(aprservice_lua_modules* lu
 	lua_aprservice_modules_deinit_module(lua_modules, sqlite3);
 	lua_aprservice_modules_deinit_module(lua_modules, ssh);
 	lua_aprservice_modules_deinit_module(lua_modules, system);
+	lua_aprservice_modules_deinit_module(lua_modules, text_file);
 	lua_aprservice_modules_deinit_module(lua_modules, thread);
 	lua_aprservice_modules_deinit_module(lua_modules, timer);
 	lua_aprservice_modules_deinit_module(lua_modules, uart);

@@ -368,6 +368,25 @@ APRService.Modules.System.PLATFORM_MACHINE
 
 function APRService.Modules.System.GetPlatform()
 ```
+##### Text File
+```lua
+APRService.Modules.TextFile.OPEN_MODE_READ
+APRService.Modules.TextFile.OPEN_MODE_WRITE
+APRService.Modules.TextFile.OPEN_MODE_APPEND
+APRService.Modules.TextFile.OPEN_MODE_TRUNCATE
+
+-- @return text_file
+function APRService.Modules.TextFile.Open(path, mode)
+function APRService.Modules.TextFile.Close(text_file)
+
+-- @return success, end_of_file, string
+function APRService.Modules.TextFile.Read(text_file, length)
+function APRService.Modules.TextFile.Write(text_file, value)
+
+-- @return success, end_of_file, string
+function APRService.Modules.TextFile.ReadLine(text_file)
+function APRService.Modules.TextFile.WriteLine(text_file, value)
+```
 ##### Thread
 ```lua
 function APRService.Modules.Thread.IsRunning(thread)

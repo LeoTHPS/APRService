@@ -111,7 +111,7 @@ aprservice_lua_module_file_instance*                                            
 
 	try
 	{
-		if (!file->file.Open(open_mode.Value))
+		if (!file->file.Open(open_mode.Value | AL::FileSystem::FileOpenModes::Binary))
 			throw AL::Exception("File not found");
 	}
 	catch (const AL::Exception& exception)

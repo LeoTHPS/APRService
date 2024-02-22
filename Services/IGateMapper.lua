@@ -42,7 +42,7 @@ end
 -- @return exists, packet_count, latitude, longitude, altitude, is_located
 function IGateMapper.DB.GetGateway(callsign)
 	if IGateMapper.DB.GatewayIndex[callsign] then
-		local gateway = IGateMapper.DB.Gateways[callsign];
+		local gateway                                           = IGateMapper.DB.Gateways[callsign];
 		local exists, latitude, longitude, altitude, is_located = IGateMapper.DB.GetStation(callsign);
 
 		return true, gateway[1], latitude, longitude, altitude, is_located;

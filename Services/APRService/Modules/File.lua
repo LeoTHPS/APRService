@@ -1,4 +1,5 @@
 require('APRService');
+require('APRService.Modules.ByteBuffer');
 
 APRService.Modules.File = {};
 

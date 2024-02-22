@@ -318,7 +318,7 @@ function IGateMapper.Deinit()
 end
 
 function IGateMapper.Run(tick_rate)
-	APRService.Events.Schedule(IGateMapper.Service, database_config['UpdateInterval'], function(service) IGateMapper.Private.Update(); end);
+	APRService.Events.Schedule(IGateMapper.Service, database_config['UpdateInterval'], function(service) IGateMapper.Private.UpdateDB(); end);
 	APRService.Run(IGateMapper.Service, tick_rate, APRService.FLAG_NONE);
 end
 

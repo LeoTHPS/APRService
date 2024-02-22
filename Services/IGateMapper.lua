@@ -20,26 +20,96 @@ local database_config =
 	['UpdateInterval'] = 600
 };
 
-local config = APRService.Config.Init();
+local IGateMapper = {};
 
-APRService.Config.APRS.SetPath(config, aprs_is_config['Path']);
-APRService.Config.APRS.SetStation(config, aprs_is_config['Callsign']);
-APRService.Config.APRS.SetSymbolTable(config, aprs_is_config['SymbolTable']);
-APRService.Config.APRS.SetSymbolTableKey(config, aprs_is_config['SymbolTableKey']);
-APRService.Config.APRS.EnableMonitorMode(config, aprs_is_config['EnableMonitorMode']);
+IGateMapper.DB          = {};
+IGateMapper.DB.Gateways = {}; -- [callsign] = { packet_count, write_pending }
+IGateMapper.DB.Stations = {}; -- [callsign] = { latitude, longitude, altitude, write_pending, is_located }
 
-local IGateMapper_DB_Gateways     = {}; -- [callsign] = { packet_count, write_pending }
-local IGateMapper_DB_GatewayCount = 0;
+-- @return exists, latitude, longitude, altitude, is_located
+function IGateMapper.DB.GetStation(callsign)
+	local station = IGateMapper.DB.Stations[callsign];
 
-local IGateMapper_DB_Stations     = {}; -- [callsign] = { latitude, longitude, altitude, write_pending, is_located }
-local IGateMapper_DB_StationCount = 0;
+	if station then
+		return true, station[1], station[2], station[3], station[5];
+	end
 
-local function IGateMapper_DB_Init()
+	return false;
+end
+
+-- @return exists, packet_count, latitude, longitude, altitude, is_located
+function IGateMapper.DB.GetGateway(callsign)
+	local gateway = IGateMapper.DB.Gateways[callsign];
+
+	if gateway then
+		local exists, latitude, longitude, altitude, is_located = IGateMapper.DB.GetStation(callsign);
+
+		if exists then
+			return true, gateway[1], latitude, longitude, altitude, is_located;
+		end
+	end
+
+	return false;
+end
+
+function IGateMapper.DB.AddStation(callsign)
+	if not IGateMapper.DB.Stations[callsign] then
+		IGateMapper.DB.Stations[callsign] = { 0, 0, 0, true, false };
+	end
+end
+
+function IGateMapper.DB.AddGateway(callsign)
+	if not IGateMapper.DB.Gateways[callsign] then
+		IGateMapper.DB.AddStation(callsign);
+
+		IGateMapper.DB.Gateways[callsign] = { 1, true };
+	end
+end
+
+-- @param callback(callsign, packet_count, latitude, longitude, altitude, is_located)->boolean
+function IGateMapper.DB.EnumerateGateways(callback)
+	for callsign, gateway in pairs(IGateMapper.DB.Gateways) do
+		local exists, latitude, longitude, altitude, is_located = IGateMapper.DB.GetStation(callsign);
+
+		if not callback(callsign, gateway[1], latitude, longitude, altitude, is_located) then
+			break;
+		end
+	end
+end
+
+-- @param callback(callsign, latitude, longitude, altitude, is_located)->boolean
+function IGateMapper.DB.EnumerateStations(callback)
+	for callsign, station in pairs(IGateMapper.DB.Stations) do
+		if not callback(callsign, station[1], station[2], station[3], station[5]) then
+			break;
+		end
+	end
+end
+
+function IGateMapper.DB.SetStationLocation(callsign, latitude, longitude, altitude)
+	local station = IGateMapper.DB.Stations[callsign];
+
+	if station then
+		local station_position_changed = not station[5] or (station[1] ~= latitude) or (station[2] ~= longitude) or (station[3] ~= altitude);
+
+		IGateMapper.DB.Stations[callsign] = { latitude, longitude, altitude, station_position_changed, true };
+	end
+end
+
+function IGateMapper.DB.IncrementGatewayPacketCount(callsign)
+	local gateway = IGateMapper.DB.Gateways[callsign];
+
+	if gateway then
+		IGateMapper.DB.Gateways[callsign] = { gateway[1] + 1, true };
+	end
+end
+
+function IGateMapper.DB.Init()
 	local sqlite3_db = APRService.Modules.SQLite3.Database.Open(database_config['Path'], APRService.Modules.SQLite3.FLAG_CREATE | APRService.Modules.SQLite3.FLAG_READ_WRITE);
 
 	if sqlite3_db then
 		APRService.Modules.SQLite3.Database.ExecuteNonQuery(sqlite3_db, 'CREATE TABLE IF NOT EXISTS gateways(callsign TEXT PRIMARY KEY UNIQUE, packet_count INTEGER)');
-		APRService.Modules.SQLite3.Database.ExecuteNonQuery(sqlite3_db, 'CREATE TABLE IF NOT EXISTS stations(callsign TEXT PRIMARY KEY UNIQUE, latitude REAL, longitude REAL, altitude INTEGER)');
+		APRService.Modules.SQLite3.Database.ExecuteNonQuery(sqlite3_db, 'CREATE TABLE IF NOT EXISTS stations(callsign TEXT PRIMARY KEY UNIQUE, latitude REAL, longitude REAL, altitude INTEGER, is_location_set INTEGER)');
 
 		local sqlite3_db_query_result = APRService.Modules.SQLite3.Database.ExecuteQuery(sqlite3_db, string.format('SELECT * FROM gateways'));
 
@@ -52,78 +122,86 @@ local function IGateMapper_DB_Init()
 				local gateway_callsign     = APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 1);
 				local gateway_packet_count = tonumber(APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 2));
 
-				IGateMapper_DB_Gateways[gateway_callsign] = { gateway_packet_count, false };
-				IGateMapper_DB_GatewayCount               = IGateMapper_DB_GatewayCount + 1;
+				IGateMapper.DB.Gateways[gateway_callsign] = { gateway_packet_count, false };
 			end
 
 			APRService.Modules.SQLite3.QueryResult.Release(sqlite3_db_query_result);
-		end
 
-		sqlite3_db_query_result = APRService.Modules.SQLite3.Database.ExecuteQuery(sqlite3_db, string.format('SELECT * FROM stations'));
+			sqlite3_db_query_result = APRService.Modules.SQLite3.Database.ExecuteQuery(sqlite3_db, string.format('SELECT * FROM stations'));
 
-		if sqlite3_db_query_result then
-			local sqlite3_db_query_result_size = APRService.Modules.SQLite3.QueryResult.GetSize(sqlite3_db_query_result);
+			if sqlite3_db_query_result then
+				local sqlite3_db_query_result_size = APRService.Modules.SQLite3.QueryResult.GetSize(sqlite3_db_query_result);
 
-			for i = 1, sqlite3_db_query_result_size do
-				local sqlite3_db_query_result_row = APRService.Modules.SQLite3.QueryResult.GetRow(sqlite3_db_query_result, i);
+				for i = 1, sqlite3_db_query_result_size do
+					local sqlite3_db_query_result_row = APRService.Modules.SQLite3.QueryResult.GetRow(sqlite3_db_query_result, i);
 
-				local station_callsign  = APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 1);
-				local station_latitude  = tonumber(APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 2));
-				local station_longitude = tonumber(APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 3));
-				local station_altitude  = tonumber(APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 4));
+					local station_callsign        = APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 1);
+					local station_latitude        = tonumber(APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 2));
+					local station_longitude       = tonumber(APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 3));
+					local station_altitude        = tonumber(APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 4));
+					local station_is_location_set = tonumber(APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 5)) ~= 0;
 
-				IGateMapper_DB_Stations[station_callsign] = { station_latitude, station_longitude, station_altitude, false, true };
-				IGateMapper_DB_StationCount               = IGateMapper_DB_StationCount + 1;
+					IGateMapper.DB.Stations[station_callsign] = { station_latitude, station_longitude, station_altitude, false, station_is_location_set };
+				end
+
+				APRService.Modules.SQLite3.QueryResult.Release(sqlite3_db_query_result);
+				APRService.Modules.SQLite3.Database.Close(sqlite3_db);
+
+				return true;
 			end
-
-			APRService.Modules.SQLite3.QueryResult.Release(sqlite3_db_query_result);
 		end
 
 		APRService.Modules.SQLite3.Database.Close(sqlite3_db);
+
+		return true;
 	end
+
+	return false;
 end
 
-local function IGateMapper_DB_Export()
-	local text_file = APRService.Modules.TextFile.Open(string.format('%s.stations.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
+function IGateMapper.DB.Export()
+	local text_file = APRService.Modules.TextFile.Open(string.format('%s.gateways.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
 
 	if text_file then
 		APRService.Modules.TextFile.WriteLine(text_file, '<?xml version="1.0" encoding="UTF-8"?>');
 		APRService.Modules.TextFile.WriteLine(text_file, '<kml xmlns="http://www.opengis.net/kml/2.2">');
 		APRService.Modules.TextFile.WriteLine(text_file, '\t<Document>');
 
-		for callsign, station in pairs(IGateMapper_DB_Stations) do
-			if station[5] then
+		IGateMapper.DB.EnumerateGateways(function(callsign, packet_count, latitude, longitude, altitude, is_located)
+			if is_located then
 				APRService.Modules.TextFile.WriteLine(text_file, '\t\t<Placemark>');
 				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<name>%s</name>', callsign));
 				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<description>http://aprs.fi/#!call=%s</description>', callsign));
-				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', station[2], station[1], station[3]));
+				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude));
 				APRService.Modules.TextFile.WriteLine(text_file, '\t\t</Placemark>');
 			end
-		end
+
+			return true;
+		end);
 
 		APRService.Modules.TextFile.WriteLine(text_file, '\t</Document>');
 		APRService.Modules.TextFile.WriteLine(text_file, '</kml>');
 		APRService.Modules.TextFile.Close(text_file);
 	end
 
-	text_file = APRService.Modules.TextFile.Open(string.format('%s.gateways.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
+	text_file = APRService.Modules.TextFile.Open(string.format('%s.stations.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
 
 	if text_file then
 		APRService.Modules.TextFile.WriteLine(text_file, '<?xml version="1.0" encoding="UTF-8"?>');
 		APRService.Modules.TextFile.WriteLine(text_file, '<kml xmlns="http://www.opengis.net/kml/2.2">');
 		APRService.Modules.TextFile.WriteLine(text_file, '\t<Document>');
 
-		for callsign, gateway in pairs(IGateMapper_DB_Gateways) do
-			local station = IGateMapper_DB_Stations[callsign];
-
-			if station[5] then
+		IGateMapper.DB.EnumerateStations(function(callsign, latitude, longitude, altitude, is_located)
+			if is_located then
 				APRService.Modules.TextFile.WriteLine(text_file, '\t\t<Placemark>');
 				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<name>%s</name>', callsign));
 				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<description>http://aprs.fi/#!call=%s</description>', callsign));
-				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', station[2], station[1], station[3]));
+				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude));
 				APRService.Modules.TextFile.WriteLine(text_file, '\t\t</Placemark>');
 			end
-		end
+
+			return true;
+		end);
 
 		APRService.Modules.TextFile.WriteLine(text_file, '\t</Document>');
 		APRService.Modules.TextFile.WriteLine(text_file, '</kml>');
@@ -131,19 +209,19 @@ local function IGateMapper_DB_Export()
 	end
 end
 
-local function IGateMapper_DB_Update()
+function IGateMapper.DB.Update()
 	local sqlite3_db = APRService.Modules.SQLite3.Database.Open(database_config['Path'], APRService.Modules.SQLite3.FLAG_READ_WRITE);
 
 	if sqlite3_db then
-		for callsign, gateway in pairs(IGateMapper_DB_Gateways) do
+		for callsign, gateway in pairs(IGateMapper.DB.Gateways) do
 			if gateway[2] and APRService.Modules.SQLite3.Database.ExecuteNonQuery(sqlite3_db, string.format("INSERT OR IGNORE INTO gateways VALUES('%s', %u); UPDATE gateways SET packet_count = %u WHERE callsign = '%s'", callsign, gateway[1], gateway[1], callsign)) then
-				IGateMapper_DB_Gateways[callsign][2] = false;
+				IGateMapper.DB.Gateways[callsign][2] = false;
 			end
 		end
 
-		for callsign, station in pairs(IGateMapper_DB_Stations) do
-			if station[4] and APRService.Modules.SQLite3.Database.ExecuteNonQuery(sqlite3_db, string.format("INSERT OR IGNORE INTO stations VALUES('%s', %f, %f, %i); UPDATE stations SET latitude = %f, longitude = %f, altitude = %i WHERE callsign = '%s'", callsign, station[1], station[2], station[3], station[1], station[2], station[3], callsign)) then
-				IGateMapper_DB_Stations[callsign][4] = false;
+		for callsign, station in pairs(IGateMapper.DB.Stations) do
+			if station[4] and APRService.Modules.SQLite3.Database.ExecuteNonQuery(sqlite3_db, string.format("INSERT OR IGNORE INTO stations VALUES('%s', %f, %f, %i, %u); UPDATE stations SET latitude = %f, longitude = %f, altitude = %i, is_location_set = %u WHERE callsign = '%s'", callsign, station[1], station[2], station[3], station[5], station[1], station[2], station[3], station[5], callsign)) then
+				IGateMapper.DB.Stations[callsign][4] = false;
 			end
 		end
 
@@ -151,76 +229,116 @@ local function IGateMapper_DB_Update()
 	end
 end
 
-local function IGateMapper_APRS_Connect(service)
-	return APRService.APRS.IS.Connect(service, aprs_is_config['Host'], aprs_is_config['Port'], aprs_is_config['Passcode']);
+IGateMapper.APRS = {};
+
+function IGateMapper.APRS.Connect()
+	return APRService.APRS.IS.Connect(IGateMapper.Service, aprs_is_config['Host'], aprs_is_config['Port'], aprs_is_config['Passcode']);
 end
 
-local function IGateMapper_Connect(service)
-	if not IGateMapper_APRS_Connect(service) then
-		APRService.Console.WriteLine('Connection failed. Trying again in 3 seconds.');
-		APRService.Events.Schedule(service, 3, IGateMapper_Connect);
-	end
-end
+function IGateMapper.Init()
+	IGateMapper.ServiceConfig = APRService.Config.Init();
 
-local function IGateMapper_Update(service)
-	IGateMapper_DB_Update();
-	IGateMapper_DB_Export();
-
-	APRService.Events.Schedule(service, database_config['UpdateInterval'], IGateMapper_Update);
-end
-
-APRService.Config.Events.SetOnDisconnect(config, function(service, reason)
-	if reason == APRService.APRS.DISCONNECT_REASON_USER_REQUESTED then
-		APRService.Stop(service);
-	elseif reason == APRService.APRS.DISCONNECT_REASON_AUTHENTICATION_FAILED then
-		APRService.Stop(service);
-	else
-		APRService.Events.Schedule(service, 0, IGateMapper_Connect);
-	end
-end);
-
-APRService.Config.Events.SetOnReceivePacket(config, function(service, station, tocall, path, igate, content)
-	if not IGateMapper_DB_Stations[station] then
-		IGateMapper_DB_Stations[station] = { 0, 0, 0, false, false };
-		IGateMapper_DB_StationCount      = IGateMapper_DB_StationCount + 1;
-
-		APRService.Console.WriteLine(string.format('Identified station #%u: %s', IGateMapper_DB_StationCount, station));
+	if not IGateMapper.ServiceConfig then
+		return false;
 	end
 
-	if string.len(igate) ~= 0 then
-		if not IGateMapper_DB_Gateways[igate] then
-			IGateMapper_DB_Gateways[igate] = { 0, true };
-			IGateMapper_DB_GatewayCount    = IGateMapper_DB_GatewayCount + 1;
+	APRService.Config.APRS.SetPath(IGateMapper.ServiceConfig, aprs_is_config['Path']);
+	APRService.Config.APRS.SetStation(IGateMapper.ServiceConfig, aprs_is_config['Callsign']);
+	APRService.Config.APRS.SetSymbolTable(IGateMapper.ServiceConfig, aprs_is_config['SymbolTable']);
+	APRService.Config.APRS.SetSymbolTableKey(IGateMapper.ServiceConfig, aprs_is_config['SymbolTableKey']);
+	APRService.Config.APRS.EnableMonitorMode(IGateMapper.ServiceConfig, aprs_is_config['EnableMonitorMode']);
 
-			IGateMapper_DB_Stations[igate] = { 0, 0, 0, true, false };
-			IGateMapper_DB_StationCount    = IGateMapper_DB_StationCount + 1;
+	APRService.Config.Events.SetOnDisconnect(IGateMapper.ServiceConfig, function(service, reason)
+		if reason == APRService.APRS.DISCONNECT_REASON_USER_REQUESTED then
+			APRService.Stop(service);
+		elseif reason == APRService.APRS.DISCONNECT_REASON_AUTHENTICATION_FAILED then
+			APRService.Stop(service);
+		else
+			APRService.Events.Schedule(service, 0, function(service) IGateMapper.Private.Connect(); end);
+		end
+	end);
 
-			APRService.Console.WriteLine(string.format('Identified gateway #%u: %s', IGateMapper_DB_GatewayCount, igate));
+	APRService.Config.Events.SetOnReceivePacket(IGateMapper.ServiceConfig, function(service, station, tocall, path, igate, content)
+		if not IGateMapper.DB.GetStation(station) then
+			IGateMapper.DB.AddStation(station);
+
+			APRService.Console.WriteLine(string.format('Identified station %s', station));
 		end
 
-		IGateMapper_DB_Gateways[igate][1] = IGateMapper_DB_Gateways[igate][1] + 1;
+		if string.len(igate) ~= 0 then
+			if not IGateMapper.DB.GetGateway(igate) then
+				IGateMapper.DB.AddGateway(igate);
+
+				APRService.Console.WriteLine(string.format('Identified gateway %s', igate));
+			end
+
+			IGateMapper.DB.IncrementGatewayPacketCount(igate);
+		end
+	end);
+
+	APRService.Config.Events.SetOnReceivePosition(IGateMapper.ServiceConfig, function(service, station, path, igate, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
+		local station_exists, station_packet_count, station_latitude, station_longitude, station_altitude, station_is_located = IGateMapper.DB.GetGateway(station);
+
+		IGateMapper.DB.SetStationLocation(station, latitude, longitude, altitude);
+
+		if not station_exists then
+			station_exists, station_latitude, station_longitude, station_altitude, station_is_located = IGateMapper.DB.GetStation(station);
+
+			if station_exists and not station_is_located then
+				APRService.Console.WriteLine(string.format('Discovered station %s', station));
+			end
+		elseif not station_is_located then
+			APRService.Console.WriteLine(string.format('Discovered gateway %s', station));
+		end
+	end);
+
+	IGateMapper.Service = APRService.Init(IGateMapper.ServiceConfig);
+
+	if not IGateMapper.Service then
+		APRService.Config.Deinit(IGateMapper.ServiceConfig);
+
+		return false;
 	end
-end);
 
-APRService.Config.Events.SetOnReceivePosition(config, function(service, station, path, igate, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
-	local station_info = IGateMapper_DB_Stations[station];
+	if not IGateMapper.DB.Init() then
+		APRService.Deinit(IGateMapper.Service);
+		APRService.Config.Deinit(IGateMapper.ServiceConfig);
 
-	if IGateMapper_DB_Gateways[station] and not station_info[5] then
-		APRService.Console.WriteLine(string.format('Discovered gateway %s [Latitude: %f, Longitude: %f, Altitude: %i]', station, latitude, longitude, altitude));
+		return false;
 	end
 
-	IGateMapper_DB_Stations[station] = { latitude, longitude, altitude, not (station_info[5] and (latitude == station_info[1]) and (longitude == station_info[2]) and (altitude == station_info[3])), true };
-end);
+	IGateMapper.Private.Connect();
 
-local service = APRService.Init(config);
+	return true;
+end
 
-IGateMapper_DB_Init();
-IGateMapper_DB_Export();
+function IGateMapper.Deinit()
+	APRService.Deinit(IGateMapper.Service);
+	APRService.Config.Deinit(IGateMapper.ServiceConfig);
+end
 
-IGateMapper_Connect(service);
+function IGateMapper.Run(tick_rate)
+	APRService.Events.Schedule(IGateMapper.Service, database_config['UpdateInterval'], function(service) IGateMapper.Update(); end);
+	APRService.Run(IGateMapper.Service, tick_rate, APRService.FLAG_NONE);
+end
 
-APRService.Events.Schedule(service, database_config['UpdateInterval'], IGateMapper_Update);
-APRService.Run(service, 4, APRService.FLAG_NONE);
+IGateMapper.Private = {};
 
-APRService.Deinit(service);
-APRService.Config.Deinit(config);
+function IGateMapper.Private.Connect()
+	if not IGateMapper.APRS.Connect() then
+		APRService.Console.WriteLine('Connection failed. Trying again in 3 seconds.');
+		APRService.Events.Schedule(IGateMapper.Service, 3, IGateMapper.Private.Connect);
+	end
+end
+
+function IGateMapper.Private.UpdateDB()
+	IGateMapper.DB.Update();
+	IGateMapper.DB.Export();
+
+	APRService.Events.Schedule(IGateMapper.Service, database_config['UpdateInterval'], function(service) IGateMapper.Private.UpdateDB(); end);
+end
+
+if IGateMapper.Init() then
+	IGateMapper.Run(5);
+	IGateMapper.Deinit();
+end

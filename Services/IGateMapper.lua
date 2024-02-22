@@ -220,7 +220,7 @@ function IGateMapper.DB.Update()
 		end
 
 		for callsign, station in pairs(IGateMapper.DB.Stations) do
-			if station[4] and APRService.Modules.SQLite3.Database.ExecuteNonQuery(sqlite3_db, string.format("INSERT OR IGNORE INTO stations VALUES('%s', %f, %f, %i, %u); UPDATE stations SET latitude = %f, longitude = %f, altitude = %i, is_location_set = %u WHERE callsign = '%s'", callsign, station[1], station[2], station[3], station[5], station[1], station[2], station[3], station[5], callsign)) then
+			if station[4] and APRService.Modules.SQLite3.Database.ExecuteNonQuery(sqlite3_db, string.format("INSERT OR IGNORE INTO stations VALUES('%s', %f, %f, %i, %u); UPDATE stations SET latitude = %f, longitude = %f, altitude = %i, is_location_set = %u WHERE callsign = '%s'", callsign, station[1], station[2], station[3], station[5] and 1 or 0, station[1], station[2], station[3], station[5] and 1 or 0, callsign)) then
 				IGateMapper.DB.Stations[callsign][4] = false;
 			end
 		end

@@ -61,10 +61,10 @@ AL::size_t                                                                      
 	switch (byte_buffer->endian)
 	{
 		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_BIG:
-			return byte_buffer->big->GetWritePosition();
+			return byte_buffer->big->GetWritePosition() + 1;
 
 		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_LITTLE:
-			return byte_buffer->little->GetWritePosition();
+			return byte_buffer->little->GetWritePosition() + 1;
 	}
 
 	return 0;
@@ -126,10 +126,10 @@ AL::size_t                                                                      
 	switch (byte_buffer->endian)
 	{
 		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_BIG:
-			return byte_buffer->big->GetWritePosition();
+			return byte_buffer->big->GetWritePosition() + 1;
 
 		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_LITTLE:
-			return byte_buffer->little->GetWritePosition();
+			return byte_buffer->little->GetWritePosition() + 1;
 	}
 
 	return 0;

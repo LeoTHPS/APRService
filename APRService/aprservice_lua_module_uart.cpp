@@ -70,11 +70,11 @@ auto                               aprservice_lua_module_uart_device_read(aprser
 
 	return value;
 }
-bool                               aprservice_lua_module_uart_device_write(aprservice_lua_module_uart_device* uart_device, aprservice_lua_module_byte_buffer_instance* buffer)
+bool                               aprservice_lua_module_uart_device_write(aprservice_lua_module_uart_device* uart_device, aprservice_lua_module_byte_buffer_instance* buffer, AL::size_t buffer_size)
 {
 	try
 	{
-		uart_device->Write(aprservice_lua_module_byte_buffer_get_buffer(buffer), aprservice_lua_module_byte_buffer_get_size(buffer));
+		uart_device->Write(aprservice_lua_module_byte_buffer_get_buffer(buffer), buffer_size);
 	}
 	catch (const AL::Exception& exception)
 	{

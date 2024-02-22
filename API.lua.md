@@ -422,7 +422,7 @@ function APRService.Modules.UART.CloseDevice(device)
 
 -- @return success, byte_buffer
 function APRService.Modules.UART.Device.Read(device, buffer_size)
-function APRService.Modules.UART.Device.Write(device, byte_buffer)
+function APRService.Modules.UART.Device.Write(device, byte_buffer, buffer_size)
 
 -- @return success, would_block, byte_buffer
 function APRService.Modules.UART.Device.TryRead(device, buffer_size)

@@ -25,8 +25,8 @@ function APRService.Modules.UART.Device.Read(device, buffer_size)
 	return aprservice_lua_module_uart_device_read(device, tonumber(buffer_size));
 end
 
-function APRService.Modules.UART.Device.Write(device, byte_buffer)
-	return aprservice_lua_module_uart_device_write(device, byte_buffer);
+function APRService.Modules.UART.Device.Write(device, byte_buffer, buffer_size)
+	return aprservice_lua_module_uart_device_write(device, byte_buffer, tonumber(buffer_size));
 end
 
 -- @return success, would_block, byte_buffer

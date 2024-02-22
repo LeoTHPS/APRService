@@ -36,7 +36,7 @@ function IGateMapper.DB.GetStation(callsign)
 	if IGateMapper.DB.station_index[callsign] then
 		local station = IGateMapper.DB.stations[callsign];
 
-		return true, station[1], station[2], station[3], station[5];
+		return true, station[1], station[2], station[3], station[4];
 	end
 
 	return false;

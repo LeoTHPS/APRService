@@ -1,7 +1,6 @@
 #include "aprservice.hpp"
 #include "aprservice_lua.hpp"
 #include "aprservice_lua_module_file.hpp"
-#include "aprservice_lua_module_byte_buffer.hpp"
 
 #include <AL/Lua54/Lua.hpp>
 
@@ -135,9 +134,9 @@ void                                                                            
 }
 
 // @return success, byte_buffer, byte_buffer_size
-aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance*, AL::size_t> aprservice_lua_module_file_read(aprservice_lua_module_file_instance* file, AL::size_t buffer_size)
+aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance*, AL::size_t> aprservice_lua_module_file_read(aprservice_lua_module_file_instance* file, AL::size_t buffer_size, APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN endian)
 {
-	aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance*, AL::size_t> value(false, aprservice_lua_module_byte_buffer_create(APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_MACHINE, buffer_size), 0);
+	aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance*, AL::size_t> value(false, aprservice_lua_module_byte_buffer_create(endian, buffer_size), 0);
 
 	try
 	{

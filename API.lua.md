@@ -221,7 +221,7 @@ function APRService.Modules.File.Delete(path)
 function APRService.Modules.File.Exists(path)
 
 -- @return success, byte_buffer, byte_buffer_size
-function APRService.Modules.File.Read(file, buffer_size)
+function APRService.Modules.File.Read(file, buffer_size, byte_buffer_endian)
 function APRService.Modules.File.Write(file, byte_buffer, buffer_size)
 ```
 ##### GPIO

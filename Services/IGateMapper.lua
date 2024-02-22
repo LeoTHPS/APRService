@@ -17,20 +17,22 @@ local aprs_is_config =
 local database_config =
 {
 	['Path']           = './IGateMapper.db',
-	['UpdateInterval'] = 600
+	['UpdateInterval'] = 10 * 60
 };
 
 local IGateMapper = {};
 
-IGateMapper.DB          = {};
-IGateMapper.DB.Gateways = {}; -- [callsign] = { packet_count, write_pending }
-IGateMapper.DB.Stations = {}; -- [callsign] = { latitude, longitude, altitude, write_pending, is_located }
+IGateMapper.DB              = {};
+IGateMapper.DB.Gateways     = {}; -- [callsign] = { packet_count, write_pending }
+IGateMapper.DB.Stations     = {}; -- [callsign] = { latitude, longitude, altitude, write_pending, is_located }
+IGateMapper.DB.GatewayIndex = {}; -- [callsign] = true
+IGateMapper.DB.StationIndex = {}; -- [callsign] = true
 
 -- @return exists, latitude, longitude, altitude, is_located
 function IGateMapper.DB.GetStation(callsign)
-	local station = IGateMapper.DB.Stations[callsign];
+	if IGateMapper.DB.StationIndex[callsign] then
+		local station = IGateMapper.DB.Stations[callsign];
 
-	if station then
 		return true, station[1], station[2], station[3], station[5];
 	end
 
@@ -39,30 +41,29 @@ end
 
 -- @return exists, packet_count, latitude, longitude, altitude, is_located
 function IGateMapper.DB.GetGateway(callsign)
-	local gateway = IGateMapper.DB.Gateways[callsign];
-
-	if gateway then
+	if IGateMapper.DB.GatewayIndex[callsign] then
+		local gateway = IGateMapper.DB.Gateways[callsign];
 		local exists, latitude, longitude, altitude, is_located = IGateMapper.DB.GetStation(callsign);
 
-		if exists then
-			return true, gateway[1], latitude, longitude, altitude, is_located;
-		end
+		return true, gateway[1], latitude, longitude, altitude, is_located;
 	end
 
 	return false;
 end
 
 function IGateMapper.DB.AddStation(callsign)
-	if not IGateMapper.DB.Stations[callsign] then
-		IGateMapper.DB.Stations[callsign] = { 0, 0, 0, true, false };
+	if not IGateMapper.DB.StationIndex[callsign] then
+		IGateMapper.DB.Stations[callsign]     = { 0, 0, 0, true, false };
+		IGateMapper.DB.StationIndex[callsign] = true;
 	end
 end
 
 function IGateMapper.DB.AddGateway(callsign)
-	if not IGateMapper.DB.Gateways[callsign] then
+	if not IGateMapper.DB.GatewayIndex[callsign] then
 		IGateMapper.DB.AddStation(callsign);
 
-		IGateMapper.DB.Gateways[callsign] = { 1, true };
+		IGateMapper.DB.Gateways[callsign]     = { 1, true };
+		IGateMapper.DB.GatewayIndex[callsign] = true;
 	end
 end
 
@@ -87,19 +88,16 @@ function IGateMapper.DB.EnumerateStations(callback)
 end
 
 function IGateMapper.DB.SetStationLocation(callsign, latitude, longitude, altitude)
-	local station = IGateMapper.DB.Stations[callsign];
-
-	if station then
-		local station_position_changed = not station[5] or (station[1] ~= latitude) or (station[2] ~= longitude) or (station[3] ~= altitude);
-
+	if IGateMapper.DB.StationIndex[callsign] then
+		local station                     = IGateMapper.DB.Stations[callsign];
+		local station_position_changed    = not station[5] or (station[1] ~= latitude) or (station[2] ~= longitude) or (station[3] ~= altitude);
 		IGateMapper.DB.Stations[callsign] = { latitude, longitude, altitude, station_position_changed, true };
 	end
 end
 
 function IGateMapper.DB.IncrementGatewayPacketCount(callsign)
-	local gateway = IGateMapper.DB.Gateways[callsign];
-
-	if gateway then
+	if IGateMapper.DB.GatewayIndex[callsign] then
+		local gateway                     = IGateMapper.DB.Gateways[callsign];
 		IGateMapper.DB.Gateways[callsign] = { gateway[1] + 1, true };
 	end
 end
@@ -122,7 +120,8 @@ function IGateMapper.DB.Init()
 				local gateway_callsign     = APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 1);
 				local gateway_packet_count = tonumber(APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 2));
 
-				IGateMapper.DB.Gateways[gateway_callsign] = { gateway_packet_count, false };
+				IGateMapper.DB.Gateways[gateway_callsign]     = { gateway_packet_count, false };
+				IGateMapper.DB.GatewayIndex[gateway_callsign] = true;
 			end
 
 			APRService.Modules.SQLite3.QueryResult.Release(sqlite3_db_query_result);
@@ -141,7 +140,8 @@ function IGateMapper.DB.Init()
 					local station_altitude        = tonumber(APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 4));
 					local station_is_location_set = tonumber(APRService.Modules.SQLite3.QueryResult.Row.GetValue(sqlite3_db_query_result_row, 5)) ~= 0;
 
-					IGateMapper.DB.Stations[station_callsign] = { station_latitude, station_longitude, station_altitude, false, station_is_location_set };
+					IGateMapper.DB.Stations[station_callsign]     = { station_latitude, station_longitude, station_altitude, false, station_is_location_set };
+					IGateMapper.DB.StationIndex[station_callsign] = true;
 				end
 
 				APRService.Modules.SQLite3.QueryResult.Release(sqlite3_db_query_result);
@@ -259,14 +259,18 @@ function IGateMapper.Init()
 	end);
 
 	APRService.Config.Events.SetOnReceivePacket(IGateMapper.ServiceConfig, function(service, station, tocall, path, igate, content)
-		if not IGateMapper.DB.GetStation(station) then
+		local station_exists, _ = IGateMapper.DB.GetStation(station);
+	
+		if not station_exists then
 			IGateMapper.DB.AddStation(station);
 
 			APRService.Console.WriteLine(string.format('Identified station %s', station));
 		end
 
 		if string.len(igate) ~= 0 then
-			if not IGateMapper.DB.GetGateway(igate) then
+			local gateway_exists, _ = IGateMapper.DB.GetGateway(igate);
+
+			if not gateway_exists then
 				IGateMapper.DB.AddGateway(igate);
 
 				APRService.Console.WriteLine(string.format('Identified gateway %s', igate));

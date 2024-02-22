@@ -27,6 +27,22 @@ function APRService.Modules.ByteBuffer.GetCapacity(byte_buffer)
 	return aprservice_lua_module_byte_buffer_get_capacity(byte_buffer);
 end
 
+function APRService.Modules.ByteBuffer.GetReadPosition(byte_buffer)
+	return aprservice_lua_module_byte_buffer_get_read_position(byte_buffer);
+end
+
+function APRService.Modules.ByteBuffer.SetReadPosition(byte_buffer, value)
+	aprservice_lua_module_byte_buffer_set_read_position(byte_buffer, tonumber(value));
+end
+
+function APRService.Modules.ByteBuffer.GetWritePosition(byte_buffer)
+	return aprservice_lua_module_byte_buffer_get_write_position(byte_buffer);
+end
+
+function APRService.Modules.ByteBuffer.SetWritePosition(byte_buffer, value)
+	aprservice_lua_module_byte_buffer_set_write_position(byte_buffer, tonumber(value));
+end
+
 function APRService.Modules.ByteBuffer.Clear(byte_buffer)
 	aprservice_lua_module_byte_buffer_clear(byte_buffer);
 end

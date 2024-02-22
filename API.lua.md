@@ -140,6 +140,12 @@ function APRService.Modules.ByteBuffer.GetSize(byte_buffer)
 function APRService.Modules.ByteBuffer.GetBuffer(byte_buffer)
 function APRService.Modules.ByteBuffer.GetCapacity(byte_buffer)
 
+function APRService.Modules.ByteBuffer.GetReadPosition(byte_buffer)
+function APRService.Modules.ByteBuffer.SetReadPosition(byte_buffer, value)
+
+function APRService.Modules.ByteBuffer.GetWritePosition(byte_buffer)
+function APRService.Modules.ByteBuffer.SetWritePosition(byte_buffer, value)
+
 function APRService.Modules.ByteBuffer.Clear(byte_buffer)
 
 -- @return success, byte_buffer

@@ -23,6 +23,12 @@ AL::size_t                                                                      
 const void*                                                                               aprservice_lua_module_byte_buffer_get_buffer(aprservice_lua_module_byte_buffer_instance* byte_buffer);
 AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_capacity(aprservice_lua_module_byte_buffer_instance* byte_buffer);
 
+AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_read_position(aprservice_lua_module_byte_buffer_instance* byte_buffer);
+void                                                                                      aprservice_lua_module_byte_buffer_set_read_position(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t value);
+
+AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_write_position(aprservice_lua_module_byte_buffer_instance* byte_buffer);
+void                                                                                      aprservice_lua_module_byte_buffer_set_write_position(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t value);
+
 void                                                                                      aprservice_lua_module_byte_buffer_clear(aprservice_lua_module_byte_buffer_instance* byte_buffer);
 
 // @return success, byte_buffer

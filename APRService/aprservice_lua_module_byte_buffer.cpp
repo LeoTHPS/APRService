@@ -96,6 +96,54 @@ AL::size_t                                                                      
 	return 0;
 }
 
+AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_read_position(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+{
+	switch (byte_buffer->endian)
+	{
+		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_BIG:
+			return byte_buffer->big->GetReadPosition() + 1;
+
+		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_LITTLE:
+			return byte_buffer->little->GetReadPosition() + 1;
+	}
+}
+void                                                                                      aprservice_lua_module_byte_buffer_set_read_position(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t value)
+{
+	switch (byte_buffer->endian)
+	{
+		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_BIG:
+			byte_buffer->big->SetReadPosition(value - 1);
+
+		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_LITTLE:
+			byte_buffer->little->SetReadPosition(value - 1);
+	}
+}
+
+AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_write_position(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+{
+	switch (byte_buffer->endian)
+	{
+		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_BIG:
+			return byte_buffer->big->GetWritePosition();
+
+		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_LITTLE:
+			return byte_buffer->little->GetWritePosition();
+	}
+}
+void                                                                                      aprservice_lua_module_byte_buffer_set_write_position(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t value)
+{
+	switch (byte_buffer->endian)
+	{
+		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_BIG:
+			byte_buffer->big->SetWritePosition(value - 1);
+			break;
+
+		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_LITTLE:
+			byte_buffer->little->SetWritePosition(value - 1);
+			break;
+	}
+}
+
 void                                                                                      aprservice_lua_module_byte_buffer_clear(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
 	switch (byte_buffer->endian)
@@ -533,7 +581,15 @@ aprservice_lua_module_byte_buffer* aprservice_lua_module_byte_buffer_init(aprser
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_get_size);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_get_buffer);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_get_capacity);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_get_read_position);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_set_read_position);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_get_write_position);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_set_write_position);
+
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_clear);
+
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_read);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_read_int8);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_read_int16);

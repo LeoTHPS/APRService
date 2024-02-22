@@ -1,4 +1,5 @@
 require('APRService');
+require('APRService.Modules.Timer');
 require('APRService.Modules.SQLite3');
 require('APRService.Modules.TextFile');
 
@@ -22,11 +23,12 @@ local database_config =
 
 local IGateMapper = {};
 
-IGateMapper.DB              = {};
-IGateMapper.DB.Gateways     = {}; -- [callsign] = { packet_count, write_pending }
-IGateMapper.DB.Stations     = {}; -- [callsign] = { latitude, longitude, altitude, write_pending, is_located }
-IGateMapper.DB.GatewayIndex = {}; -- [callsign] = true
-IGateMapper.DB.StationIndex = {}; -- [callsign] = true
+IGateMapper.DB                    = {};
+IGateMapper.DB.Gateways           = {}; -- [callsign] = { packet_count, write_pending }
+IGateMapper.DB.Stations           = {}; -- [callsign] = { latitude, longitude, altitude, write_pending, is_located }
+IGateMapper.DB.GatewayIndex       = {}; -- [callsign] = true
+IGateMapper.DB.StationIndex       = {}; -- [callsign] = true
+IGateMapper.DB.PendingChangeCount = 0;
 
 -- @return exists, latitude, longitude, altitude, is_located
 function IGateMapper.DB.GetStation(callsign)
@@ -55,6 +57,7 @@ function IGateMapper.DB.AddStation(callsign)
 	if not IGateMapper.DB.StationIndex[callsign] then
 		IGateMapper.DB.Stations[callsign]     = { 0, 0, 0, true, false };
 		IGateMapper.DB.StationIndex[callsign] = true;
+		IGateMapper.DB.PendingChangeCount     = IGateMapper.DB.PendingChangeCount + 1;
 	end
 end
 
@@ -64,6 +67,7 @@ function IGateMapper.DB.AddGateway(callsign)
 
 		IGateMapper.DB.Gateways[callsign]     = { 1, true };
 		IGateMapper.DB.GatewayIndex[callsign] = true;
+		IGateMapper.DB.PendingChangeCount     = IGateMapper.DB.PendingChangeCount + 1;
 	end
 end
 
@@ -92,6 +96,7 @@ function IGateMapper.DB.SetStationLocation(callsign, latitude, longitude, altitu
 		local station                     = IGateMapper.DB.Stations[callsign];
 		local station_position_changed    = not station[5] or (station[1] ~= latitude) or (station[2] ~= longitude) or (station[3] ~= altitude);
 		IGateMapper.DB.Stations[callsign] = { latitude, longitude, altitude, station_position_changed, true };
+		IGateMapper.DB.PendingChangeCount = IGateMapper.DB.PendingChangeCount + 1;
 	end
 end
 
@@ -99,6 +104,7 @@ function IGateMapper.DB.IncrementGatewayPacketCount(callsign)
 	if IGateMapper.DB.GatewayIndex[callsign] then
 		local gateway                     = IGateMapper.DB.Gateways[callsign];
 		IGateMapper.DB.Gateways[callsign] = { gateway[1] + 1, true };
+		IGateMapper.DB.PendingChangeCount = IGateMapper.DB.PendingChangeCount + 1;
 	end
 end
 
@@ -216,12 +222,14 @@ function IGateMapper.DB.Update()
 		for callsign, gateway in pairs(IGateMapper.DB.Gateways) do
 			if gateway[2] and APRService.Modules.SQLite3.Database.ExecuteNonQuery(sqlite3_db, string.format("INSERT OR IGNORE INTO gateways VALUES('%s', %u); UPDATE gateways SET packet_count = %u WHERE callsign = '%s'", callsign, gateway[1], gateway[1], callsign)) then
 				IGateMapper.DB.Gateways[callsign][2] = false;
+				IGateMapper.DB.PendingChangeCount    = IGateMapper.DB.PendingChangeCount - 1;
 			end
 		end
 
 		for callsign, station in pairs(IGateMapper.DB.Stations) do
 			if station[4] and APRService.Modules.SQLite3.Database.ExecuteNonQuery(sqlite3_db, string.format("INSERT OR IGNORE INTO stations VALUES('%s', %f, %f, %i, %u); UPDATE stations SET latitude = %f, longitude = %f, altitude = %i, is_location_set = %u WHERE callsign = '%s'", callsign, station[1], station[2], station[3], station[5] and 1 or 0, station[1], station[2], station[3], station[5] and 1 or 0, callsign)) then
 				IGateMapper.DB.Stations[callsign][4] = false;
+				IGateMapper.DB.PendingChangeCount    = IGateMapper.DB.PendingChangeCount - 1;
 			end
 		end
 
@@ -336,8 +344,18 @@ function IGateMapper.Private.Connect()
 end
 
 function IGateMapper.Private.UpdateDB()
+	local timer = APRService.Modules.Timer.Create();
+
+	APRService.Console.WriteLine('Updating database');
+
+	APRService.Console.WriteLine(string.format('Flushing %u pending changes to database', IGateMapper.DB.PendingChangeCount));
 	IGateMapper.DB.Update();
+
+	APRService.Console.WriteLine('Exporting database to KML');
 	IGateMapper.DB.Export();
+
+	APRService.Console.WriteLine(string.format('Updated database in %.2f seconds', APRService.Modules.Timer.GetElapsedMS(timer) / 1000));
+	APRService.Modules.Timer.Destroy(timer);
 
 	APRService.Events.Schedule(IGateMapper.Service, database_config['UpdateInterval'], function(service) IGateMapper.Private.UpdateDB(); end);
 end

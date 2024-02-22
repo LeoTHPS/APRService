@@ -106,6 +106,8 @@ AL::size_t                                                                      
 		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_LITTLE:
 			return byte_buffer->little->GetReadPosition() + 1;
 	}
+
+	return 0;
 }
 void                                                                                      aprservice_lua_module_byte_buffer_set_read_position(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t value)
 {
@@ -129,6 +131,8 @@ AL::size_t                                                                      
 		case APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_LITTLE:
 			return byte_buffer->little->GetWritePosition();
 	}
+
+	return 0;
 }
 void                                                                                      aprservice_lua_module_byte_buffer_set_write_position(aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t value)
 {

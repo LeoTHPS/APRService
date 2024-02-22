@@ -65,7 +65,7 @@ function IGateMapper.DB.AddGateway(callsign)
 	if not IGateMapper.DB.GatewayIndex[callsign] then
 		IGateMapper.DB.AddStation(callsign);
 
-		IGateMapper.DB.Gateways[callsign]     = { 1, true };
+		IGateMapper.DB.Gateways[callsign]     = { 0, true };
 		IGateMapper.DB.GatewayIndex[callsign] = true;
 		IGateMapper.DB.PendingChangeCount     = IGateMapper.DB.PendingChangeCount + 1;
 	end

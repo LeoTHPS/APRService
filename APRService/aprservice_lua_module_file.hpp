@@ -28,4 +28,4 @@ void                                                                            
 
 // @return success, byte_buffer, byte_buffer_size
 aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance*, AL::size_t> aprservice_lua_module_file_read(aprservice_lua_module_file_instance* file, AL::size_t buffer_size);
-bool                                                                                           aprservice_lua_module_file_write(aprservice_lua_module_file_instance* file, aprservice_lua_module_byte_buffer_instance* byte_buffer);
+bool                                                                                           aprservice_lua_module_file_write(aprservice_lua_module_file_instance* file, aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t buffer_size);

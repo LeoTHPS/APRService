@@ -154,10 +154,9 @@ aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance
 
 	return value;
 }
-bool                                                                                           aprservice_lua_module_file_write(aprservice_lua_module_file_instance* file, aprservice_lua_module_byte_buffer_instance* byte_buffer)
+bool                                                                                           aprservice_lua_module_file_write(aprservice_lua_module_file_instance* file, aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t buffer_size)
 {
-	auto buffer      = reinterpret_cast<const AL::uint8*>(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer));
-	auto buffer_size = aprservice_lua_module_byte_buffer_get_size(byte_buffer);
+	auto buffer = reinterpret_cast<const AL::uint8*>(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer));
 
 	try
 	{

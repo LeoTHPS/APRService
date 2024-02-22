@@ -41,6 +41,6 @@ function APRService.Modules.File.Read(file, buffer_size)
 	return aprservice_lua_module_file_read(file, tonumber(buffer_size));
 end
 
-function APRService.Modules.File.Write(file, byte_buffer)
-	return aprservice_lua_module_file_write(file, byte_buffer);
+function APRService.Modules.File.Write(file, byte_buffer, buffer_size)
+	return aprservice_lua_module_file_write(file, byte_buffer, tonumber(buffer_size));
 end

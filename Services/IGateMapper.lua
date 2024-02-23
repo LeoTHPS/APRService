@@ -513,8 +513,8 @@ function IGateMapper.Init()
 		end
 
 		if string.len(igate) ~= 0 then
-			local gateway_exists, _                                                                   = IGateMapper.DB.GetGateway(igate);
-			station_exists, station_latitude, station_longitude, station_altitude, station_is_located = IGateMapper.DB.GetStation(igate);
+			local gateway_exists, _ = IGateMapper.DB.GetGateway(igate);
+			      station_exists, _ = IGateMapper.DB.GetStation(igate);
 
 			if not station_exists and not gateway_exists then
 				IGateMapper.DB.AddGateway(igate);

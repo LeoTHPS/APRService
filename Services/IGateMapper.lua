@@ -518,7 +518,7 @@ function IGateMapper.Init()
 			if not gateway_exists then
 				IGateMapper.DB.AddGateway(igate);
 
-				APRService.Console.WriteLine(string.format('Identified gateway %s', igate));
+				APRService.Console.WriteLine(string.format('Identified gateway %s', station));
 			end
 
 			IGateMapper.DB.IncrementGatewayPacketCount(igate);
@@ -526,18 +526,19 @@ function IGateMapper.Init()
 	end);
 
 	APRService.Config.Events.SetOnReceivePosition(IGateMapper.ServiceConfig, function(service, station, path, igate, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
-		local station_exists, station_packet_count, station_latitude, station_longitude, station_altitude, station_is_located = IGateMapper.DB.GetGateway(station);
+		local gateway_exists, gateway_packet_count, gateway_latitude, gateway_longitude, gateway_altitude, gateway_is_located = IGateMapper.DB.GetGateway(station);
+		local station_exists,                       station_latitude, station_longitude, station_altitude, station_is_located = IGateMapper.DB.GetStation(station);
 
 		IGateMapper.DB.SetStationLocation(station, latitude, longitude, altitude);
 
-		if not station_exists then
-			station_exists, station_latitude, station_longitude, station_altitude, station_is_located = IGateMapper.DB.GetStation(station);
-
-			if station_exists and not station_is_located then
-				APRService.Console.WriteLine(string.format('Discovered station %s', station));
-			end
-		elseif not station_is_located then
-			APRService.Console.WriteLine(string.format('Discovered gateway %s', station));
+		if gateway_exists and not gateway_is_located then
+			APRService.Console.WriteLine(string.format('Discovered gateway %s at %.6f, %.6f', station, latitude, longitude));
+		elseif gateway_exists and gateway_is_located and ((gateway_latitude ~= latitude) or (gateway_longitude ~= longitude)) then
+			APRService.Console.WriteLine(string.format('Updated gateway %s position to %.6f, %.6f', station, latitude, longitude));
+		elseif not gateway_exists and station_exists and not station_is_located then
+			APRService.Console.WriteLine(string.format('Discovered station %s at %.6f, %.6f', station, latitude, longitude));
+		elseif not gateway_exists and station_exists and station_is_located and ((station_latitude ~= latitude) or (station_longitude ~= longitude)) then
+			APRService.Console.WriteLine(string.format('Updated station %s position to %.6f, %.6f', station, latitude, longitude));
 		end
 	end);
 
@@ -572,6 +573,6 @@ function IGateMapper.Run(tick_rate)
 end
 
 if IGateMapper.Init() then
-	IGateMapper.Run(5);
+	IGateMapper.Run(10);
 	IGateMapper.Deinit();
 end

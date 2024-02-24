@@ -410,7 +410,10 @@ function IGateMapper.DB.IncrementStationDigiPacketCount(callsign)
 	end
 
 	station[3] = APRService.Modules.System.GetTimestamp();
-	station[7] = station[7] + 1;
+
+	if station[7] ~= 0xFFFFFFFFFFFFFFFF then
+		station[7] = station[7] + 1;
+	end
 
 	return true;
 end
@@ -423,7 +426,10 @@ function IGateMapper.DB.IncrementStationIGatePacketCount(callsign)
 	end
 
 	station[3] = APRService.Modules.System.GetTimestamp();
-	station[8] = station[8] + 1;
+
+	if station[8] ~= 0xFFFFFFFFFFFFFFFF then
+		station[8] = station[8] + 1;
+	end
 
 	return true;
 end

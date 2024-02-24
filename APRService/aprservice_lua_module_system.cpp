@@ -49,6 +49,10 @@ APRSERVICE_LUA_MODULE_SYSTEM_PLATFORM aprservice_lua_module_system_get_platform(
 {
 	return static_cast<APRSERVICE_LUA_MODULE_SYSTEM_PLATFORM>(AL::Platforms::Machine);
 }
+AL::uint64                            aprservice_lua_module_system_get_timestamp()
+{
+	return AL::OS::System::GetTimestamp().ToSeconds();
+}
 
 aprservice_lua_module_system* aprservice_lua_module_system_init(aprservice_lua* lua)
 {
@@ -75,6 +79,7 @@ aprservice_lua_module_system* aprservice_lua_module_system_init(aprservice_lua* 
 	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_SYSTEM_PLATFORM_MACHINE);
 
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_system_get_platform);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_system_get_timestamp);
 
 	return system;
 }

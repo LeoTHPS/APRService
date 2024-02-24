@@ -21,3 +21,7 @@ APRService.Modules.System.PLATFORM_MACHINE = APRSERVICE_LUA_MODULE_SYSTEM_PLATFO
 function APRService.Modules.System.GetPlatform()
 	return aprservice_lua_module_system_get_platform();
 end
+
+function APRService.Modules.System.GetTimestamp()
+	return aprservice_lua_module_system_get_timestamp();
+end

@@ -175,9 +175,12 @@ function IGateMapper.DB.Init()
 		return success;
 	end
 
-	local file = APRService.Modules.File.Open(database_config['Path'], APRService.Modules.File.OPEN_MODE_READ);
+	local timer = APRService.Modules.Timer.Create();
+	local file  = APRService.Modules.File.Open(database_config['Path'], APRService.Modules.File.OPEN_MODE_READ);
 
 	if not file then
+		APRService.Modules.Timer.Destroy(timer);
+
 		return false;
 	end
 
@@ -185,6 +188,7 @@ function IGateMapper.DB.Init()
 
 	if not success then
 		APRService.Modules.File.Close(file);
+		APRService.Modules.Timer.Destroy(timer);
 
 		return false;
 	end
@@ -197,6 +201,7 @@ function IGateMapper.DB.Init()
 
 		if not station_success then
 			APRService.Modules.File.Close(file);
+			APRService.Modules.Timer.Destroy(timer);
 
 			return false;
 		end
@@ -207,18 +212,25 @@ function IGateMapper.DB.Init()
 
 	APRService.Modules.File.Close(file);
 
+	APRService.Console.WriteLine(string.format('Loaded %u stations from disk in %ums', IGateMapper.DB.Private.station_count, APRService.Modules.Timer.GetElapsedMS(timer)));
+	APRService.Modules.Timer.Destroy(timer);
+
 	return true;
 end
 
 function IGateMapper.DB.Save()
-	local file = APRService.Modules.File.Open(database_config['Path'], APRService.Modules.File.OPEN_MODE_WRITE | APRService.Modules.File.OPEN_MODE_TRUNCATE);
+	local timer = APRService.Modules.Timer.Create();
+	local file  = APRService.Modules.File.Open(database_config['Path'], APRService.Modules.File.OPEN_MODE_WRITE | APRService.Modules.File.OPEN_MODE_TRUNCATE);
 
 	if not file then
+		APRService.Modules.Timer.Destroy(timer);
+
 		return false;
 	end
 
-	if not IGateMapper.DB.Private.WriteHeader(file, IGateMapper.DB.station_count) then
+	if not IGateMapper.DB.Private.WriteHeader(file, IGateMapper.DB.Private.station_count) then
 		APRService.Modules.File.Close(file);
+		APRService.Modules.Timer.Destroy(timer);
 
 		return false;
 	end
@@ -229,13 +241,20 @@ function IGateMapper.DB.Save()
 
 	APRService.Modules.File.Close(file);
 
+	APRService.Console.WriteLine(string.format('Saved %u stations to disk in %ums', IGateMapper.DB.Private.station_count, APRService.Modules.Timer.GetElapsedMS(timer)));
+
+	APRService.Modules.Timer.Destroy(timer);
+
 	return true;
 end
 
 function IGateMapper.DB.Export()
+	local timer     = APRService.Modules.Timer.Create();
 	local text_file = APRService.Modules.TextFile.Open(string.format('%s.stations.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
 
 	if text_file then
+		local station_count = 0;
+
 		APRService.Modules.TextFile.WriteLine(text_file, '<?xml version="1.0" encoding="UTF-8"?>');
 		APRService.Modules.TextFile.WriteLine(text_file, '<kml xmlns="http://www.opengis.net/kml/2.2">');
 		APRService.Modules.TextFile.WriteLine(text_file, '\t<Document>');
@@ -247,6 +266,7 @@ function IGateMapper.DB.Export()
 				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<description>http://aprs.fi/#!call=%s</description>', callsign));
 				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude));
 				APRService.Modules.TextFile.WriteLine(text_file, '\t\t</Placemark>');
+				station_count = station_count + 1;
 			end
 
 			return true;
@@ -255,8 +275,11 @@ function IGateMapper.DB.Export()
 		APRService.Modules.TextFile.WriteLine(text_file, '\t</Document>');
 		APRService.Modules.TextFile.WriteLine(text_file, '</kml>');
 		APRService.Modules.TextFile.Close(text_file);
+		APRService.Console.WriteLine(string.format('Exported %u stations to disk in %ums', station_count, APRService.Modules.Timer.GetElapsedMS(timer)));
 
-		text_file = APRService.Modules.TextFile.Open(string.format('%s.digis.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
+		APRService.Modules.Timer.Reset(timer);
+		text_file     = APRService.Modules.TextFile.Open(string.format('%s.digis.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
+		station_count = 0;
 
 		if text_file then
 			APRService.Modules.TextFile.WriteLine(text_file, '<?xml version="1.0" encoding="UTF-8"?>');
@@ -270,6 +293,7 @@ function IGateMapper.DB.Export()
 					APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<description>http://aprs.fi/#!call=%s</description>', callsign));
 					APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude));
 					APRService.Modules.TextFile.WriteLine(text_file, '\t\t</Placemark>');
+					station_count = station_count + 1;
 				end
 
 				return true;
@@ -278,8 +302,11 @@ function IGateMapper.DB.Export()
 			APRService.Modules.TextFile.WriteLine(text_file, '\t</Document>');
 			APRService.Modules.TextFile.WriteLine(text_file, '</kml>');
 			APRService.Modules.TextFile.Close(text_file);
+			APRService.Console.WriteLine(string.format('Exported %u digipeaters to disk in %ums', station_count, APRService.Modules.Timer.GetElapsedMS(timer)));
 
-			text_file = APRService.Modules.TextFile.Open(string.format('%s.igates.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
+			APRService.Modules.Timer.Reset(timer);
+			text_file     = APRService.Modules.TextFile.Open(string.format('%s.igates.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
+			station_count = 0;
 
 			if text_file then
 				APRService.Modules.TextFile.WriteLine(text_file, '<?xml version="1.0" encoding="UTF-8"?>');
@@ -293,6 +320,7 @@ function IGateMapper.DB.Export()
 						APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<description>http://aprs.fi/#!call=%s</description>', callsign));
 						APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude));
 						APRService.Modules.TextFile.WriteLine(text_file, '\t\t</Placemark>');
+						station_count = station_count + 1;
 					end
 
 					return true;
@@ -301,11 +329,16 @@ function IGateMapper.DB.Export()
 				APRService.Modules.TextFile.WriteLine(text_file, '\t</Document>');
 				APRService.Modules.TextFile.WriteLine(text_file, '</kml>');
 				APRService.Modules.TextFile.Close(text_file);
+				APRService.Console.WriteLine(string.format('Exported %u gateways to disk in %ums', station_count, APRService.Modules.Timer.GetElapsedMS(timer)));
+
+				APRService.Modules.Timer.Destroy(timer);
 
 				return true;
 			end
 		end
 	end
+
+	APRService.Modules.Timer.Destroy(timer);
 
 	return false;
 end
@@ -324,6 +357,24 @@ end
 function IGateMapper.DB.AddStation(callsign)
 	IGateMapper.DB.Private.stations[IGateMapper.DB.Private.station_count] = { callsign, APRService.Modules.System.GetTimestamp(), APRService.Modules.System.GetTimestamp(), 0, 0, 0, 0, 0, false };
 	IGateMapper.DB.Private.station_count                                  = IGateMapper.DB.Private.station_count + 1;
+end
+
+-- @return station_count, gateway_count, digipeater_count
+function IGateMapper.DB.GetStatistics()
+	local gateway_count    = 0;
+	local digipeater_count = 0;
+
+	for station_id, station in pairs(IGateMapper.DB.Private.stations) do
+		if station[7] ~= 0 then
+			digipeater_count = digipeater_count + 1;
+		end
+
+		if station[8] ~= 0 then
+			gateway_count = gateway_count + 1;
+		end
+	end
+
+	return IGateMapper.DB.Private.station_count, gateway_count, digipeater_count;
 end
 
 -- @param callback(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set)->boolean
@@ -399,23 +450,8 @@ end
 function IGateMapper.Private.UpdateDB()
 	APRService.Events.Schedule(IGateMapper.Service, database_config['UpdateInterval'], function(service) IGateMapper.Private.UpdateDB(); end);
 
-	local timer = APRService.Modules.Timer.Create();
-
-	APRService.Console.WriteLine('Saving database');
-	APRService.Modules.Timer.Reset(timer);
-
-	if IGateMapper.DB.Save() then
-		APRService.Console.WriteLine(string.format('Saved in %ums', APRService.Modules.Timer.GetElapsedMS(timer)));
-	end
-
-	APRService.Console.WriteLine('Exporting database');
-	APRService.Modules.Timer.Reset(timer);
-
-	if IGateMapper.DB.Export() then
-		APRService.Console.WriteLine(string.format('Exported in %ums', APRService.Modules.Timer.GetElapsedMS(timer)));
-	end
-
-	APRService.Modules.Timer.Destroy(timer);
+	IGateMapper.DB.Save();
+	IGateMapper.DB.Export();
 end
 
 function IGateMapper.Init()
@@ -492,10 +528,11 @@ end
 
 function IGateMapper.Run(tick_rate)
 	APRService.Events.Schedule(IGateMapper.Service, database_config['UpdateInterval'], function(service) IGateMapper.Private.UpdateDB(); end);
+
 	APRService.Run(IGateMapper.Service, tick_rate, APRService.FLAG_NONE);
 end
 
 if IGateMapper.Init() then
-	IGateMapper.Run(10);
+	IGateMapper.Run(5);
 	IGateMapper.Deinit();
 end

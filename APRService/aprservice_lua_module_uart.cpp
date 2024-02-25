@@ -51,13 +51,13 @@ void                               aprservice_lua_module_uart_close_device(aprse
 }
 
 // @return success, byte_buffer
-auto                               aprservice_lua_module_uart_device_read(aprservice_lua_module_uart_device* uart_device, AL::size_t buffer_size)
+auto                               aprservice_lua_module_uart_device_read(aprservice_lua_module_uart_device* uart_device, AL::size_t byte_buffer_size, APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN byte_buffer_endian)
 {
-	AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer_instance*> value(false, aprservice_lua_module_byte_buffer_create(static_cast<APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN>(AL::Endians::Machine), buffer_size));
+	AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer_instance*> value(false, aprservice_lua_module_byte_buffer_create(byte_buffer_endian, byte_buffer_size));
 
 	try
 	{
-		uart_device->Read(const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>())), buffer_size);
+		uart_device->Read(const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>())), byte_buffer_size);
 		value.Set<0>(true);
 	}
 	catch (const AL::Exception& exception)
@@ -70,11 +70,11 @@ auto                               aprservice_lua_module_uart_device_read(aprser
 
 	return value;
 }
-bool                               aprservice_lua_module_uart_device_write(aprservice_lua_module_uart_device* uart_device, aprservice_lua_module_byte_buffer_instance* buffer, AL::size_t buffer_size)
+bool                               aprservice_lua_module_uart_device_write(aprservice_lua_module_uart_device* uart_device, aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t byte_buffer_size)
 {
 	try
 	{
-		uart_device->Write(aprservice_lua_module_byte_buffer_get_buffer(buffer), buffer_size);
+		uart_device->Write(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer), byte_buffer_size);
 	}
 	catch (const AL::Exception& exception)
 	{
@@ -88,13 +88,13 @@ bool                               aprservice_lua_module_uart_device_write(aprse
 }
 
 // @return success, would_block, byte_buffer
-auto                               aprservice_lua_module_uart_device_try_read(aprservice_lua_module_uart_device* uart_device, AL::size_t buffer_size)
+auto                               aprservice_lua_module_uart_device_try_read(aprservice_lua_module_uart_device* uart_device, AL::size_t byte_buffer_size, APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN byte_buffer_endian)
 {
-	AL::Collections::Tuple<bool, bool, aprservice_lua_module_byte_buffer_instance*> value(false, false, aprservice_lua_module_byte_buffer_create(static_cast<APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN>(AL::Endians::Machine), buffer_size));
+	AL::Collections::Tuple<bool, bool, aprservice_lua_module_byte_buffer_instance*> value(false, false, aprservice_lua_module_byte_buffer_create(byte_buffer_endian, byte_buffer_size));
 
 	try
 	{
-		value.Set<1>(!uart_device->TryRead(const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<2>())), buffer_size));
+		value.Set<1>(!uart_device->TryRead(const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<2>())), byte_buffer_size));
 		value.Set<0>(true);
 	}
 	catch (const AL::Exception& exception)

@@ -21,15 +21,15 @@ end
 APRService.Modules.UART.Device = {};
 
 -- @return success, byte_buffer
-function APRService.Modules.UART.Device.Read(device, buffer_size)
-	return aprservice_lua_module_uart_device_read(device, tonumber(buffer_size));
+function APRService.Modules.UART.Device.Read(device, byte_buffer_size, byte_buffer_endian)
+	return aprservice_lua_module_uart_device_read(device, tonumber(byte_buffer_size), byte_buffer_endian);
 end
 
-function APRService.Modules.UART.Device.Write(device, byte_buffer, buffer_size)
-	return aprservice_lua_module_uart_device_write(device, byte_buffer, tonumber(buffer_size));
+function APRService.Modules.UART.Device.Write(device, byte_buffer, byte_buffer_size)
+	return aprservice_lua_module_uart_device_write(device, byte_buffer, tonumber(byte_buffer_size));
 end
 
 -- @return success, would_block, byte_buffer
-function APRService.Modules.UART.Device.TryRead(device, buffer_size)
-	return aprservice_lua_module_uart_device_try_read(device, tonumber(buffer_size));
+function APRService.Modules.UART.Device.TryRead(device, byte_buffer_size, byte_buffer_endian)
+	return aprservice_lua_module_uart_device_try_read(device, tonumber(byte_buffer_size), byte_buffer_endian);
 end

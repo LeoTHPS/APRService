@@ -134,13 +134,13 @@ void                                                                            
 }
 
 // @return success, byte_buffer, byte_buffer_size
-aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance*, AL::size_t> aprservice_lua_module_file_read(aprservice_lua_module_file_instance* file, AL::size_t buffer_size, APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN endian)
+aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance*, AL::size_t> aprservice_lua_module_file_read(aprservice_lua_module_file_instance* file, AL::size_t byte_buffer_size, APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN byte_buffer_endian)
 {
-	aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance*, AL::size_t> value(false, aprservice_lua_module_byte_buffer_create(endian, buffer_size), 0);
+	aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance*, AL::size_t> value(false, aprservice_lua_module_byte_buffer_create(byte_buffer_endian, byte_buffer_size), 0);
 
 	try
 	{
-		value.Set<2>(file->file.Read(const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>())), buffer_size));
+		value.Set<2>(file->file.Read(const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>())), byte_buffer_size));
 		value.Set<0>(true);
 	}
 	catch (const AL::Exception& exception)
@@ -153,14 +153,14 @@ aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance
 
 	return value;
 }
-bool                                                                                           aprservice_lua_module_file_write(aprservice_lua_module_file_instance* file, aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t buffer_size)
+bool                                                                                           aprservice_lua_module_file_write(aprservice_lua_module_file_instance* file, aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t byte_buffer_size)
 {
 	auto buffer = reinterpret_cast<const AL::uint8*>(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer));
 
 	try
 	{
-		for (AL::size_t i = 0; i < buffer_size; )
-			i += file->file.Write(&buffer[i], buffer_size - i);
+		for (AL::size_t i = 0; i < byte_buffer_size; )
+			i += file->file.Write(&buffer[i], byte_buffer_size - i);
 	}
 	catch (const AL::Exception& exception)
 	{

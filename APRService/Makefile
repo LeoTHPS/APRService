@@ -13,7 +13,7 @@ SOURCE_FILES += aprservice_console.cpp
 SOURCE_FILES += aprservice_commands.cpp
 OBJECT_FILES  = $(SOURCE_FILES:.cpp=.o)
 
-CXXFLAGS     += -Wall -Wfatal-errors -std=c++20 -I. -I"$(AL_INCLUDE)"
+CXXFLAGS     += -Wall -Wfatal-errors -std=c++20 -O3 -I. -I"$(AL_INCLUDE)"
 
 ifdef COMPILER
 	ifeq ($(COMPILER), GNU)
@@ -31,6 +31,7 @@ ifdef PLATFORM
 		LDLIBS += -llua5.4
 		LDLIBS += -lssl -lcrypto
 		LDLIBS += -lsqlite3
+		LDLIBS += -li2c -lgpiod
 	endif
 
 	ifeq ($(PLATFORM), WINDOWS)

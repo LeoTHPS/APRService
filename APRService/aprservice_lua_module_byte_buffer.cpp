@@ -82,6 +82,10 @@ const void*                                                                     
 
 	return nullptr;
 }
+AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_endian(aprservice_lua_module_byte_buffer_instance* byte_buffer)
+{
+	return byte_buffer->endian;
+}
 AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_capacity(aprservice_lua_module_byte_buffer_instance* byte_buffer)
 {
 	switch (byte_buffer->endian)
@@ -584,6 +588,7 @@ aprservice_lua_module_byte_buffer* aprservice_lua_module_byte_buffer_init(aprser
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_destroy);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_get_size);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_get_buffer);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_get_endian);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_get_capacity);
 
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_byte_buffer_get_read_position);

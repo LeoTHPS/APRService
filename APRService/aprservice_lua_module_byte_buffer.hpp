@@ -21,6 +21,7 @@ aprservice_lua_module_byte_buffer_instance*                                     
 void                                                                                      aprservice_lua_module_byte_buffer_destroy(aprservice_lua_module_byte_buffer_instance* byte_buffer);
 AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_size(aprservice_lua_module_byte_buffer_instance* byte_buffer);
 const void*                                                                               aprservice_lua_module_byte_buffer_get_buffer(aprservice_lua_module_byte_buffer_instance* byte_buffer);
+AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_endian(aprservice_lua_module_byte_buffer_instance* byte_buffer);
 AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_capacity(aprservice_lua_module_byte_buffer_instance* byte_buffer);
 
 AL::size_t                                                                                aprservice_lua_module_byte_buffer_get_read_position(aprservice_lua_module_byte_buffer_instance* byte_buffer);

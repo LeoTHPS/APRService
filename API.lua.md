@@ -198,7 +198,9 @@ function APRService.Modules.ByteBuffer.WriteBoolean(byte_buffer, value)
 -- @return exists, value
 function APRService.Modules.Environment.Get(name)
 function APRService.Modules.Environment.Set(name, value)
+
 function APRService.Modules.Environment.Delete(name)
+
 -- @param callback(name, value)->bool
 function APRService.Modules.Environment.Enumerate(callback)
 ```
@@ -215,14 +217,14 @@ function APRService.Modules.File.Close(file)
 
 function APRService.Modules.File.GetSize(path)
 
+-- @return success, byte_buffer, byte_buffer_size
+function APRService.Modules.File.Read(file, buffer_size, byte_buffer_endian)
+function APRService.Modules.File.Write(file, byte_buffer, buffer_size)
+
 function APRService.Modules.File.Copy(source_path, destination_path)
 function APRService.Modules.File.Move(source_path, destination_path)
 function APRService.Modules.File.Delete(path)
 function APRService.Modules.File.Exists(path)
-
--- @return success, byte_buffer, byte_buffer_size
-function APRService.Modules.File.Read(file, buffer_size, byte_buffer_endian)
-function APRService.Modules.File.Write(file, byte_buffer, buffer_size)
 ```
 ##### GPIO
 ```lua
@@ -244,10 +246,13 @@ function APRService.Modules.GPIO.ClosePin(pin)
 -- @return success, value
 function APRService.Modules.GPIO.Pin.Read(pin)
 function APRService.Modules.GPIO.Pin.Write(pin, value)
+
 -- @return success, timeout
 function APRService.Modules.GPIO.Pin.WaitForEdge(pin, edge, max_wait_time_ms)
+
 function APRService.Modules.GPIO.Pin.SetPullUp(pin)
 function APRService.Modules.GPIO.Pin.SetPullDown(pin)
+
 function APRService.Modules.GPIO.Pin.GetDirection(pin)
 function APRService.Modules.GPIO.Pin.SetDirection(pin, direction, value)
 ```
@@ -284,7 +289,25 @@ function APRService.Modules.HTTP.Request.DownloadByteBuffer(http_request, url)
 ```
 ##### I2C
 ```lua
--- Coming soon
+function APRService.Modules.I2C.OpenBus(path, baud)
+function APRService.Modules.I2C.CloseBus(i2c_bus)
+
+function APRService.Modules.I2C.OpenDevice(i2c_bus, address)
+function APRService.Modules.I2C.CloseDevice(i2c_device)
+
+-- @return success, byte_buffer
+function APRService.Modules.I2C.Bus.Read(i2c_bus, address, byte_buffer_size, byte_buffer_endian)
+function APRService.Modules.I2C.Bus.Write(i2c_bus, address, byte_buffer, byte_buffer_size)
+-- @return success, byte_buffer
+function APRService.Modules.I2C.Bus.WriteRead(i2c_bus, address, byte_buffer, byte_buffer_size, rx_byte_buffer_size, rx_byte_buffer_endian)
+
+function APRService.Modules.I2C.Device.GetAddress(i2c_device)
+
+-- @return success, byte_buffer
+function APRService.Modules.I2C.Device.Read(i2c_device, byte_buffer_size, byte_buffer_endian)
+function APRService.Modules.I2C.Device.Write(i2c_device, byte_buffer, byte_buffer_size)
+-- @return success, byte_buffer
+function APRService.Modules.I2C.Device.WriteRead(i2c_device, byte_buffer, byte_buffer_size, rx_byte_buffer_size, rx_byte_buffer_endian)
 ```
 ##### INI
 ```lua
@@ -303,6 +326,7 @@ function APRService.Modules.HTTP.Request.DownloadByteBuffer(http_request, url)
 -- @return mutex
 function APRService.Modules.Mutex.Create()
 function APRService.Modules.Mutex.Destroy(mutex)
+
 function APRService.Modules.Mutex.Lock(mutex)
 function APRService.Modules.Mutex.Unlock(mutex)
 ```
@@ -316,7 +340,23 @@ function APRService.Modules.Mutex.Unlock(mutex)
 ```
 ##### SPI
 ```lua
--- Coming soon
+APRService.Modules.SPI.MODE_ZERO
+APRService.Modules.SPI.MODE_ONE
+APRService.Modules.SPI.MODE_TWO
+APRService.Modules.SPI.MODE_THREE
+
+function APRService.Modules.SPI.OpenDevice(path, mode, speed, bit_count)
+function APRService.Modules.SPI.CloseDevice(spi_device)
+
+function APRService.Modules.SPI.Device.GetMode(spi_device)
+function APRService.Modules.SPI.Device.GetSpeed(spi_device)
+function APRService.Modules.SPI.Device.GetBitCount(spi_device)
+
+-- @return success, byte_buffer
+function APRService.Modules.SPI.Device.Read(spi_device, byte_buffer_size, byte_buffer_endian, change_cs)
+function APRService.Modules.SPI.Device.Write(spi_device, byte_buffer, byte_buffer_size, change_cs)
+-- @return success, byte_buffer
+function APRService.Modules.SPI.Device.WriteRead(spi_device, byte_buffer, byte_buffer_size, rx_byte_buffer_endian, change_cs)
 ```
 ##### SQLite3
 ```lua
@@ -335,13 +375,16 @@ APRService.Modules.SQLite3.FLAG_PRIVATE_CACHE
 -- @return database
 function APRService.Modules.SQLite3.Database.Open(path, flags)
 function APRService.Modules.SQLite3.Database.Close(database)
+
 -- @return query_result
 function APRService.Modules.SQLite3.Database.ExecuteQuery(database, query)
 function APRService.Modules.SQLite3.Database.ExecuteNonQuery(database, query)
+
 function APRService.Modules.SQLite3.QueryResult.GetSize(query_result)
 -- @return query_result_row
 function APRService.Modules.SQLite3.QueryResult.GetRow(query_result, index)
 function APRService.Modules.SQLite3.QueryResult.Release(query_result)
+
 function APRService.Modules.SQLite3.QueryResult.Row.GetSize(query_result_row)
 function APRService.Modules.SQLite3.QueryResult.Row.GetValue(query_result_row, index)
 function APRService.Modules.SQLite3.QueryResult.Row.GetColumn(query_result_row, index)
@@ -369,9 +412,13 @@ APRService.Modules.System.PLATFORM_WINDOWS
 APRService.Modules.System.PLATFORM_MACHINE
 
 function APRService.Modules.System.GetPlatform()
+-- @return year, month, day, hours, minutes, seconds
+function APRService.Modules.System.GetDateTime()
+function APRService.Modules.System.GetTimestamp()
 ```
 ##### Text File
 ```lua
+
 APRService.Modules.TextFile.OPEN_MODE_READ
 APRService.Modules.TextFile.OPEN_MODE_WRITE
 APRService.Modules.TextFile.OPEN_MODE_APPEND
@@ -387,10 +434,10 @@ function APRService.Modules.TextFile.Close(text_file)
 
 -- @return success, end_of_file, string
 function APRService.Modules.TextFile.Read(text_file, length)
-function APRService.Modules.TextFile.Write(text_file, value)
-
 -- @return success, end_of_file, string
 function APRService.Modules.TextFile.ReadLine(text_file)
+
+function APRService.Modules.TextFile.Write(text_file, value)
 function APRService.Modules.TextFile.WriteLine(text_file, value)
 ```
 ##### Thread
@@ -410,6 +457,7 @@ function APRService.Modules.Thread.Join(thread)
 -- @return timer
 function APRService.Modules.Timer.Create()
 function APRService.Modules.Timer.Destroy(timer)
+
 function APRService.Modules.Timer.Reset(timer)
 function APRService.Modules.Timer.GetElapsedMS(timer)
 function APRService.Modules.Timer.GetElapsedUS(timer)
@@ -427,9 +475,8 @@ function APRService.Modules.UART.OpenDevice(path, speed, flags)
 function APRService.Modules.UART.CloseDevice(device)
 
 -- @return success, byte_buffer
-function APRService.Modules.UART.Device.Read(device, buffer_size)
-function APRService.Modules.UART.Device.Write(device, byte_buffer, buffer_size)
-
+function APRService.Modules.UART.Device.Read(device, byte_buffer_size, byte_buffer_endian)
+function APRService.Modules.UART.Device.Write(device, byte_buffer, byte_buffer_size)
 -- @return success, would_block, byte_buffer
-function APRService.Modules.UART.Device.TryRead(device, buffer_size)
+function APRService.Modules.UART.Device.TryRead(device, byte_buffer_size, byte_buffer_endian)
 ```

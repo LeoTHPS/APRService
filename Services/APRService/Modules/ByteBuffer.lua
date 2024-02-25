@@ -23,6 +23,10 @@ function APRService.Modules.ByteBuffer.GetBuffer(byte_buffer)
 	return aprservice_lua_module_byte_buffer_get_buffer(byte_buffer);
 end
 
+function APRService.Modules.ByteBuffer.GetEndian(byte_buffer)
+	return aprservice_lua_module_byte_buffer_get_endian(byte_buffer);
+end
+
 function APRService.Modules.ByteBuffer.GetCapacity(byte_buffer)
 	return aprservice_lua_module_byte_buffer_get_capacity(byte_buffer);
 end

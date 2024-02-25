@@ -49,6 +49,13 @@ APRSERVICE_LUA_MODULE_SYSTEM_PLATFORM aprservice_lua_module_system_get_platform(
 {
 	return static_cast<APRSERVICE_LUA_MODULE_SYSTEM_PLATFORM>(AL::Platforms::Machine);
 }
+// @return year, month, day, hours, minutes, seconds
+auto                                  aprservice_lua_module_system_get_date_time()
+{
+	auto value = AL::OS::System::GetDateTime();
+
+	return AL::Collections::Tuple<AL::uint16, AL::uint8, AL::uint8, AL::uint8, AL::uint8, AL::uint8>(static_cast<AL::uint16>(value.Year), static_cast<AL::uint8>(value.Month), static_cast<AL::uint8>(value.Day), static_cast<AL::uint8>(value.Hour), static_cast<AL::uint8>(value.Minutes), static_cast<AL::uint8>(value.Seconds));
+}
 AL::uint64                            aprservice_lua_module_system_get_timestamp()
 {
 	return AL::OS::System::GetTimestamp().ToSeconds();
@@ -79,6 +86,7 @@ aprservice_lua_module_system* aprservice_lua_module_system_init(aprservice_lua* 
 	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_SYSTEM_PLATFORM_MACHINE);
 
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_system_get_platform);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_system_get_date_time);
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_system_get_timestamp);
 
 	return system;

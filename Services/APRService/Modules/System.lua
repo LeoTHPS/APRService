@@ -22,6 +22,11 @@ function APRService.Modules.System.GetPlatform()
 	return aprservice_lua_module_system_get_platform();
 end
 
+-- @return year, month, day, hours, minutes, seconds
+function APRService.Modules.System.GetDateTime()
+	return aprservice_lua_module_system_get_date_time();
+end
+
 function APRService.Modules.System.GetTimestamp()
 	return aprservice_lua_module_system_get_timestamp();
 end

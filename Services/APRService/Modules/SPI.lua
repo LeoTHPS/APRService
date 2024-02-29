@@ -8,56 +8,55 @@ APRService.Modules.SPI.MODE_ONE   = APRSERVICE_LUA_MODULE_SPI_MODE_ONE;
 APRService.Modules.SPI.MODE_TWO   = APRSERVICE_LUA_MODULE_SPI_MODE_TWO;
 APRService.Modules.SPI.MODE_THREE = APRSERVICE_LUA_MODULE_SPI_MODE_THREE;
 
-function APRService.Modules.SPI.OpenDevice(path, mode, speed, bit_count)
-	return aprservice_lua_module_spi_device_open(tostring(path), mode, tonumber(speed), tonumber(bit_count));
+-- @return spi
+function APRService.Modules.SPI.Open(path, mode, speed, bit_count)
+	return aprservice_lua_module_spi_open(tostring(path), mode, tonumber(speed), tonumber(bit_count));
 end
 
-function APRService.Modules.SPI.CloseDevice(spi_device)
-	aprservice_lua_module_spi_device_close(spi_device);
+function APRService.Modules.SPI.Close(spi)
+	aprservice_lua_module_spi_close(spi);
 end
 
-APRService.Modules.SPI.Device = {};
-
-function APRService.Modules.SPI.Device.GetMode(spi_device)
-	return aprservice_lua_module_spi_device_get_mode(spi_device);
+function APRService.Modules.SPI.GetMode(spi)
+	return aprservice_lua_module_spi_get_mode(spi);
 end
 
-function APRService.Modules.SPI.Device.GetSpeed(spi_device)
-	return aprservice_lua_module_spi_device_get_speed(spi_device);
+function APRService.Modules.SPI.GetSpeed(spi)
+	return aprservice_lua_module_spi_get_speed(spi);
 end
 
-function APRService.Modules.SPI.Device.GetBitCount(spi_device)
-	return aprservice_lua_module_spi_device_get_bit_count(spi_device);
-end
-
--- @return success, byte_buffer
-function APRService.Modules.SPI.Device.Read(spi_device, byte_buffer_size, byte_buffer_endian, change_cs)
-	if change_cs == nil then
-		change_cs = true;
-	else
-		change_cs = change_cs and true or false;
-	end
-
-	return aprservice_lua_module_spi_device_read(spi_device, tonumber(byte_buffer_size), byte_buffer_endian, change_cs);
-end
-
-function APRService.Modules.SPI.Device.Write(spi_device, byte_buffer, byte_buffer_size, change_cs)
-	if change_cs == nil then
-		change_cs = true;
-	else
-		change_cs = change_cs and true or false;
-	end
-
-	return aprservice_lua_module_spi_device_write(spi_device, byte_buffer, tonumber(byte_buffer_size), change_cs);
+function APRService.Modules.SPI.GetBitCount(spi)
+	return aprservice_lua_module_spi_get_bit_count(spi);
 end
 
 -- @return success, byte_buffer
-function APRService.Modules.SPI.Device.WriteRead(spi_device, byte_buffer, byte_buffer_size, rx_byte_buffer_endian, change_cs)
+function APRService.Modules.SPI.Read(spi, byte_buffer_size, byte_buffer_endian, change_cs)
 	if change_cs == nil then
 		change_cs = true;
 	else
 		change_cs = change_cs and true or false;
 	end
 
-	return aprservice_lua_module_spi_device_write_read(spi_device, byte_buffer, tonumber(byte_buffer_size), rx_byte_buffer_endian, change_cs);
+	return aprservice_lua_module_spi_read(spi, tonumber(byte_buffer_size), byte_buffer_endian, change_cs);
+end
+
+function APRService.Modules.SPI.Write(spi, byte_buffer, byte_buffer_size, change_cs)
+	if change_cs == nil then
+		change_cs = true;
+	else
+		change_cs = change_cs and true or false;
+	end
+
+	return aprservice_lua_module_spi_write(spi, byte_buffer, tonumber(byte_buffer_size), change_cs);
+end
+
+-- @return success, byte_buffer
+function APRService.Modules.SPI.WriteRead(spi, byte_buffer, byte_buffer_size, rx_byte_buffer_endian, change_cs)
+	if change_cs == nil then
+		change_cs = true;
+	else
+		change_cs = change_cs and true or false;
+	end
+
+	return aprservice_lua_module_spi_write_read(spi, byte_buffer, tonumber(byte_buffer_size), rx_byte_buffer_endian, change_cs);
 end

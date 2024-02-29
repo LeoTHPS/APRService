@@ -385,10 +385,6 @@ function APRService.Modules.SQLite3.QueryResult.Row.GetSize(query_result_row)
 function APRService.Modules.SQLite3.QueryResult.Row.GetValue(query_result_row, index)
 function APRService.Modules.SQLite3.QueryResult.Row.GetColumn(query_result_row, index)
 ```
-##### SSH
-```lua
--- Coming soon
-```
 ##### System
 ```lua
 APRService.Modules.System.PLATFORM_DEBUG

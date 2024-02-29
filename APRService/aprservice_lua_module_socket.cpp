@@ -342,6 +342,8 @@ bool                                                                            
 			case APRSERVICE_LUA_MODULE_SOCKET_TYPE_UNIX_UDP:
 				throw AL::Exception("Invalid socket type");
 		}
+
+		socket->is_listening = true;
 	}
 	catch (const AL::Exception& exception)
 	{

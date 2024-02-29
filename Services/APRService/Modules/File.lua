@@ -38,10 +38,10 @@ function APRService.Modules.File.Exists(path)
 end
 
 -- @return success, byte_buffer, byte_buffer_size
-function APRService.Modules.File.Read(file, buffer_size, byte_buffer_endian)
-	return aprservice_lua_module_file_read(file, tonumber(buffer_size), byte_buffer_endian);
+function APRService.Modules.File.Read(file, byte_buffer_size, byte_buffer_endian)
+	return aprservice_lua_module_file_read(file, tonumber(byte_buffer_size), byte_buffer_endian);
 end
 
-function APRService.Modules.File.Write(file, byte_buffer, buffer_size)
-	return aprservice_lua_module_file_write(file, byte_buffer, tonumber(buffer_size));
+function APRService.Modules.File.Write(file, byte_buffer, byte_buffer_size)
+	return aprservice_lua_module_file_write(file, byte_buffer, tonumber(byte_buffer_size));
 end

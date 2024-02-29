@@ -8,14 +8,32 @@
 
 struct aprservice_lua_module_file
 {
-};
-
-struct aprservice_lua_module_file_instance
-{
 	AL::FileSystem::File file;
 };
 
-AL::uint64                                                                                     aprservice_lua_module_file_get_size(const AL::String& path)
+void                                                                         aprservice_lua_module_file_register_globals(aprservice_lua* lua)
+{
+	auto lua_state = aprservice_lua_get_state(lua);
+
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_READ);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_WRITE);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_APPEND);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_TRUNCATE);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_get_size);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_copy);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_move);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_delete);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_exists);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_open);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_close);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_read);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_write);
+}
+
+AL::uint64                                                                   aprservice_lua_module_file_get_size(const AL::String& path)
 {
 	try
 	{
@@ -29,7 +47,7 @@ AL::uint64                                                                      
 
 	return 0;
 }
-bool                                                                                           aprservice_lua_module_file_copy(const AL::String& source, const AL::String& destination)
+bool                                                                         aprservice_lua_module_file_copy(const AL::String& source, const AL::String& destination)
 {
 	try
 	{
@@ -45,7 +63,7 @@ bool                                                                            
 
 	return true;
 }
-bool                                                                                           aprservice_lua_module_file_move(const AL::String& source, const AL::String& destination)
+bool                                                                         aprservice_lua_module_file_move(const AL::String& source, const AL::String& destination)
 {
 	try
 	{
@@ -61,7 +79,7 @@ bool                                                                            
 
 	return true;
 }
-bool                                                                                           aprservice_lua_module_file_delete(const AL::String& path)
+bool                                                                         aprservice_lua_module_file_delete(const AL::String& path)
 {
 	try
 	{
@@ -77,7 +95,7 @@ bool                                                                            
 
 	return true;
 }
-bool                                                                                           aprservice_lua_module_file_exists(const AL::String& path)
+bool                                                                         aprservice_lua_module_file_exists(const AL::String& path)
 {
 	try
 	{
@@ -95,9 +113,9 @@ bool                                                                            
 	return true;
 }
 
-aprservice_lua_module_file_instance*                                                           aprservice_lua_module_file_open(const AL::String& path, AL::uint8 mode)
+aprservice_lua_module_file*                                                  aprservice_lua_module_file_open(const AL::String& path, AL::uint8 mode)
 {
-	auto file = new aprservice_lua_module_file_instance
+	auto file = new aprservice_lua_module_file
 	{
 		.file = AL::FileSystem::File(path)
 	};
@@ -126,7 +144,7 @@ aprservice_lua_module_file_instance*                                            
 
 	return file;
 }
-void                                                                                           aprservice_lua_module_file_close(aprservice_lua_module_file_instance* file)
+void                                                                         aprservice_lua_module_file_close(aprservice_lua_module_file* file)
 {
 	file->file.Close();
 
@@ -134,9 +152,9 @@ void                                                                            
 }
 
 // @return success, byte_buffer, byte_buffer_size
-aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance*, AL::size_t> aprservice_lua_module_file_read(aprservice_lua_module_file_instance* file, AL::size_t byte_buffer_size, APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN byte_buffer_endian)
+AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*, AL::size_t> aprservice_lua_module_file_read(aprservice_lua_module_file* file, AL::size_t byte_buffer_size, APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN byte_buffer_endian)
 {
-	aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance*, AL::size_t> value(false, aprservice_lua_module_byte_buffer_create(byte_buffer_endian, byte_buffer_size), 0);
+	AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*, AL::size_t> value(false, aprservice_lua_module_byte_buffer_create(byte_buffer_endian, byte_buffer_size), 0);
 
 	try
 	{
@@ -153,7 +171,7 @@ aprservice_lua_module_file_read_value<aprservice_lua_module_byte_buffer_instance
 
 	return value;
 }
-bool                                                                                           aprservice_lua_module_file_write(aprservice_lua_module_file_instance* file, aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t byte_buffer_size)
+bool                                                                         aprservice_lua_module_file_write(aprservice_lua_module_file* file, aprservice_lua_module_byte_buffer* byte_buffer, AL::size_t byte_buffer_size)
 {
 	auto buffer = reinterpret_cast<const AL::uint8*>(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer));
 
@@ -171,36 +189,4 @@ bool                                                                            
 	}
 
 	return true;
-}
-
-aprservice_lua_module_file* aprservice_lua_module_file_init(aprservice_lua* lua)
-{
-	auto file = new aprservice_lua_module_file
-	{
-	};
-
-	auto lua_state = aprservice_lua_get_state(lua);
-
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_READ);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_WRITE);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_APPEND);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_FILE_OPEN_MODE_TRUNCATE);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_get_size);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_copy);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_move);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_delete);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_exists);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_open);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_close);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_read);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_file_write);
-
-	return file;
-}
-void                        aprservice_lua_module_file_deinit(aprservice_lua_module_file* file)
-{
-	delete file;
 }

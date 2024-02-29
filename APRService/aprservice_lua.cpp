@@ -7,12 +7,9 @@
 
 #include <AL/Collections/UnorderedSet.hpp>
 
-struct aprservice_lua_modules;
-
 struct aprservice_lua
 {
-	AL::Lua54::Lua          state;
-	aprservice_lua_modules* modules;
+	AL::Lua54::Lua state;
 };
 
 struct lua_aprservice;
@@ -585,9 +582,6 @@ bool                    lua_aprservice_console_write_exception(const AL::Excepti
 	return aprservice_console_write_exception(value);
 }
 
-aprservice_lua_modules* lua_aprservice_modules_init(aprservice_lua* lua);
-void                    lua_aprservice_modules_deinit(aprservice_lua_modules* lua_modules);
-
 bool                    lua_aprservice_commands_execute(lua_aprservice* lua_service, const AL::String& sender, const AL::String& message)
 {
 	return aprservice_commands_execute(lua_service->service, sender, message);
@@ -706,6 +700,8 @@ void                  aprservice_lua_register_globals(aprservice_lua* lua)
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_commands_register,                           "aprservice_commands_register");
 }
 
+void                  aprservice_lua_modules_register_globals(aprservice_lua* lua);
+
 aprservice_lua*       aprservice_lua_init()
 {
 	auto lua = new aprservice_lua
@@ -743,24 +739,12 @@ aprservice_lua*       aprservice_lua_init()
 	}
 
 	aprservice_lua_register_globals(lua);
-
-	if ((lua->modules = lua_aprservice_modules_init(lua)) == nullptr)
-	{
-		lua->state.Destroy();
-
-		delete lua;
-
-		aprservice_console_write_line("Error initializing modules");
-
-		return nullptr;
-	}
+	aprservice_lua_modules_register_globals(lua);
 
 	return lua;
 }
 void                  aprservice_lua_deinit(aprservice_lua* lua)
 {
-	lua_aprservice_modules_deinit(lua->modules);
-
 	lua->state.Destroy();
 
 	delete lua;

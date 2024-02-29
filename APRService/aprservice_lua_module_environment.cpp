@@ -1,19 +1,21 @@
 #include "aprservice.hpp"
 #include "aprservice_lua.hpp"
-
-#include <AL/Lua54/Lua.hpp>
+#include "aprservice_lua_module_environment.hpp"
 
 #include <AL/OS/Environment.hpp>
 
-struct aprservice_lua_module_environment
+void                                     aprservice_lua_module_environment_register_globals(aprservice_lua* lua)
 {
-};
+	auto lua_state = aprservice_lua_get_state(lua);
 
-// @return false to stop enumerating
-typedef AL::Lua54::Function<bool(const AL::String& name, const AL::String& value)> aprservice_lua_module_environment_enum_callback;
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_environment_get);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_environment_set);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_environment_delete);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_environment_enumerate);
+}
 
 // @return exists, value
-auto aprservice_lua_module_environment_get(const AL::String& name)
+AL::Collections::Tuple<bool, AL::String> aprservice_lua_module_environment_get(const AL::String& name)
 {
 	AL::Collections::Tuple<bool, AL::String> value;
 
@@ -31,7 +33,7 @@ auto aprservice_lua_module_environment_get(const AL::String& name)
 
 	return value;
 }
-bool aprservice_lua_module_environment_set(const AL::String& name, const AL::String& value)
+bool                                     aprservice_lua_module_environment_set(const AL::String& name, const AL::String& value)
 {
 	try
 	{
@@ -47,7 +49,7 @@ bool aprservice_lua_module_environment_set(const AL::String& name, const AL::Str
 
 	return true;
 }
-bool aprservice_lua_module_environment_delete(const AL::String& name)
+bool                                     aprservice_lua_module_environment_delete(const AL::String& name)
 {
 	try
 	{
@@ -63,7 +65,7 @@ bool aprservice_lua_module_environment_delete(const AL::String& name)
 
 	return true;
 }
-bool aprservice_lua_module_environment_enumerate(aprservice_lua_module_environment_enum_callback callback)
+bool                                     aprservice_lua_module_environment_enumerate(aprservice_lua_module_environment_enum_callback callback)
 {
 	AL::OS::EnvironmentOnEnumCallback callback_detour([&callback](const AL::String& name, const AL::String& value)
 	{
@@ -83,24 +85,4 @@ bool aprservice_lua_module_environment_enumerate(aprservice_lua_module_environme
 	}
 
 	return true;
-}
-
-aprservice_lua_module_environment* aprservice_lua_module_environment_init(aprservice_lua* lua)
-{
-	auto environment = new aprservice_lua_module_environment
-	{
-	};
-
-	auto lua_state = aprservice_lua_get_state(lua);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_environment_get);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_environment_set);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_environment_delete);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_environment_enumerate);
-
-	return environment;
-}
-void                               aprservice_lua_module_environment_deinit(aprservice_lua_module_environment* environment)
-{
-	delete environment;
 }

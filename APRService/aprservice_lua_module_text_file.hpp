@@ -18,18 +18,17 @@ enum APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDINGS : AL::uint8
 	APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_AUTO
 };
 
-struct aprservice_lua_module_text_file_instance;
+struct aprservice_lua_module_text_file;
 
-template<typename ... T>
-using aprservice_lua_module_text_file_read_value = AL::Collections::Tuple<bool, T ...>;
+void                                           aprservice_lua_module_text_file_register_globals(aprservice_lua* lua);
 
-aprservice_lua_module_text_file_instance*                    aprservice_lua_module_text_file_open(const AL::String& path, AL::uint8 mode, AL::uint8 line_ending);
-void                                                         aprservice_lua_module_text_file_close(aprservice_lua_module_text_file_instance* text_file);
-
-// @return success, end_of_file, string
-aprservice_lua_module_text_file_read_value<bool, AL::String> aprservice_lua_module_text_file_read(aprservice_lua_module_text_file_instance* text_file, AL::size_t length);
-bool                                                         aprservice_lua_module_text_file_write(aprservice_lua_module_text_file_instance* text_file, const AL::String& value);
+aprservice_lua_module_text_file*               aprservice_lua_module_text_file_open(const AL::String& path, AL::uint8 mode, AL::uint8 line_ending);
+void                                           aprservice_lua_module_text_file_close(aprservice_lua_module_text_file* text_file);
 
 // @return success, end_of_file, string
-aprservice_lua_module_text_file_read_value<bool, AL::String> aprservice_lua_module_text_file_read_line(aprservice_lua_module_text_file_instance* text_file);
-bool                                                         aprservice_lua_module_text_file_write_line(aprservice_lua_module_text_file_instance* text_file, const AL::String& value);
+AL::Collections::Tuple<bool, bool, AL::String> aprservice_lua_module_text_file_read(aprservice_lua_module_text_file* text_file, AL::size_t length);
+bool                                           aprservice_lua_module_text_file_write(aprservice_lua_module_text_file* text_file, const AL::String& value);
+
+// @return success, end_of_file, string
+AL::Collections::Tuple<bool, bool, AL::String> aprservice_lua_module_text_file_read_line(aprservice_lua_module_text_file* text_file);
+bool                                           aprservice_lua_module_text_file_write_line(aprservice_lua_module_text_file* text_file, const AL::String& value);

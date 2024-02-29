@@ -1,18 +1,26 @@
 #include "aprservice.hpp"
 #include "aprservice_lua.hpp"
+#include "aprservice_lua_module_thread.hpp"
 
 #include <AL/OS/Thread.hpp>
 
-#include <AL/Lua54/Lua.hpp>
-
 struct aprservice_lua_module_thread
 {
+	AL::OS::Thread thread;
 };
 
-typedef AL::Lua54::Function<void()> aprservice_lua_module_thread_main;
-typedef AL::OS::Thread              aprservice_lua_module_thread_instance;
+void                          aprservice_lua_module_thread_register_globals(aprservice_lua* lua)
+{
+	auto lua_state = aprservice_lua_get_state(lua);
 
-bool                                   aprservice_lua_module_thread_run(aprservice_lua_module_thread_main main)
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_thread_run);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_thread_is_running);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_thread_start);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_thread_join);
+}
+
+bool                          aprservice_lua_module_thread_run(aprservice_lua_module_thread_main main)
 {
 	try
 	{
@@ -29,17 +37,18 @@ bool                                   aprservice_lua_module_thread_run(aprservi
 	return true;
 }
 
-bool                                   aprservice_lua_module_thread_is_running(aprservice_lua_module_thread_instance* thread)
+bool                          aprservice_lua_module_thread_is_running(aprservice_lua_module_thread* thread)
 {
-	return thread->IsRunning();
+	return thread->thread.IsRunning();
 }
-aprservice_lua_module_thread_instance* aprservice_lua_module_thread_start(aprservice_lua_module_thread_main main)
+
+aprservice_lua_module_thread* aprservice_lua_module_thread_start(aprservice_lua_module_thread_main main)
 {
-	auto thread = new aprservice_lua_module_thread_instance();
+	auto thread = new aprservice_lua_module_thread();
 
 	try
 	{
-		thread->Start([main]() { main(); });
+		thread->thread.Start([main]() { main(); });
 	}
 	catch (const AL::Exception& exception)
 	{
@@ -53,11 +62,11 @@ aprservice_lua_module_thread_instance* aprservice_lua_module_thread_start(aprser
 
 	return thread;
 }
-void                                   aprservice_lua_module_thread_join(aprservice_lua_module_thread_instance* thread)
+void                          aprservice_lua_module_thread_join(aprservice_lua_module_thread* thread)
 {
 	try
 	{
-		thread->Join();
+		thread->thread.Join();
 	}
 	catch (const AL::Exception& exception)
 	{
@@ -65,26 +74,5 @@ void                                   aprservice_lua_module_thread_join(aprserv
 		aprservice_console_write_exception(exception);
 	}
 
-	delete thread;
-}
-
-aprservice_lua_module_thread* aprservice_lua_module_thread_init(aprservice_lua* lua)
-{
-	auto thread = new aprservice_lua_module_thread
-	{
-	};
-
-	auto lua_state = aprservice_lua_get_state(lua);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_thread_run);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_thread_is_running);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_thread_start);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_thread_join);
-
-	return thread;
-}
-void                          aprservice_lua_module_thread_deinit(aprservice_lua_module_thread* thread)
-{
 	delete thread;
 }

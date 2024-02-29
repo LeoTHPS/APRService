@@ -1,23 +1,20 @@
 #include "aprservice.hpp"
 #include "aprservice_lua.hpp"
+#include "aprservice_lua_module_socket.hpp"
 
 #include <AL/Lua54/Lua.hpp>
+
+#include <AL/Network/TcpSocket.hpp>
+#include <AL/Network/UdpSocket.hpp>
+#include <AL/Network/UnixSocket.hpp>
 
 struct aprservice_lua_module_socket
 {
 };
 
-aprservice_lua_module_socket* aprservice_lua_module_socket_init(aprservice_lua* lua)
+void                          aprservice_lua_module_socket_register_globals(aprservice_lua* lua)
 {
-	auto socket = new aprservice_lua_module_socket
-	{
-	};
-
 	auto lua_state = aprservice_lua_get_state(lua);
 
-	return socket;
-}
-void                          aprservice_lua_module_socket_deinit(aprservice_lua_module_socket* socket)
-{
-	delete socket;
+	// TODO: implement
 }

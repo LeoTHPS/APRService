@@ -1,55 +1,108 @@
 #include "aprservice.hpp"
 #include "aprservice_lua.hpp"
-#include "aprservice_lua_module_byte_buffer.hpp"
+#include "aprservice_lua_module_http.hpp"
 
 #include <AL/Lua54/Lua.hpp>
 
-#include <AL/Network/HTTP/Client.hpp>
+#include <AL/Network/HTTP/Request.hpp>
+#include <AL/Network/HTTP/Response.hpp>
 
-struct aprservice_lua_module_http
+struct aprservice_lua_module_http_request
 {
+	AL::Network::HTTP::Request request;
 };
 
-typedef typename AL::Get_Enum_Or_Integer_Base<AL::Network::HTTP::Versions>::Type       APRSERVICE_LUA_MODULE_HTTP_VERSION;
-typedef typename AL::Get_Enum_Or_Integer_Base<AL::Network::HTTP::RequestMethods>::Type APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD;
-
-enum APRSERVICE_LUA_MODULE_HTTP_VERSIONS : APRSERVICE_LUA_MODULE_HTTP_VERSION
+struct aprservice_lua_module_http_response
 {
-	APRSERVICE_LUA_MODULE_HTTP_VERSION_1_0 = static_cast<APRSERVICE_LUA_MODULE_HTTP_VERSION>(AL::Network::HTTP::Versions::HTTP_1_0),
-	APRSERVICE_LUA_MODULE_HTTP_VERSION_1_1 = static_cast<APRSERVICE_LUA_MODULE_HTTP_VERSION>(AL::Network::HTTP::Versions::HTTP_1_1)
+	AL::Network::HTTP::Response response;
 };
 
-enum APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHODS : APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD
+void                                                                         aprservice_lua_module_http_register_globals(aprservice_lua* lua)
 {
-	APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_GET     = static_cast<APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD>(AL::Network::HTTP::RequestMethods::GET),
-	APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_HEAD    = static_cast<APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD>(AL::Network::HTTP::RequestMethods::HEAD),
-	APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_POST    = static_cast<APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD>(AL::Network::HTTP::RequestMethods::POST),
-	APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_PUT     = static_cast<APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD>(AL::Network::HTTP::RequestMethods::PUT),
-	APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_DELETE  = static_cast<APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD>(AL::Network::HTTP::RequestMethods::DELETE),
-	APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_CONNECT = static_cast<APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD>(AL::Network::HTTP::RequestMethods::CONNECT),
-	APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_OPTIONS = static_cast<APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD>(AL::Network::HTTP::RequestMethods::OPTIONS),
-	APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_TRACE   = static_cast<APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD>(AL::Network::HTTP::RequestMethods::TRACE),
-	APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_PATCH   = static_cast<APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD>(AL::Network::HTTP::RequestMethods::PATCH)
-};
+	auto lua_state = aprservice_lua_get_state(lua);
 
-typedef AL::Network::HTTP::Request  aprservice_lua_module_http_request;
-typedef AL::Network::HTTP::Response aprservice_lua_module_http_response;
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_VERSION_1_0);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_VERSION_1_1);
 
-aprservice_lua_module_http_request*       aprservice_lua_module_http_request_create(APRSERVICE_LUA_MODULE_HTTP_VERSION version, APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD method)
-{
-	return new aprservice_lua_module_http_request(static_cast<AL::Network::HTTP::Versions>(version), static_cast<AL::Network::HTTP::RequestMethods>(method));
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_GET);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_POST);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_create);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_destroy);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_get_header);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_set_header);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_get_method);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_get_version);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_download_string);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_download_byte_buffer);
 }
-void                                      aprservice_lua_module_http_request_destroy(aprservice_lua_module_http_request* http_request)
+
+AL::uint8                                                                    aprservice_lua_module_http_version_to_lua(AL::Network::HTTP::Versions value)
+{
+	switch (value)
+	{
+		case AL::Network::HTTP::Versions::HTTP_1_0: return APRSERVICE_LUA_MODULE_HTTP_VERSION_1_0;
+		case AL::Network::HTTP::Versions::HTTP_1_1: return APRSERVICE_LUA_MODULE_HTTP_VERSION_1_1;
+	}
+
+	return APRSERVICE_LUA_MODULE_HTTP_VERSION_1_1;
+}
+AL::Network::HTTP::Versions                                                  aprservice_lua_module_http_version_from_lua(AL::uint8 value)
+{
+	switch (value)
+	{
+		case APRSERVICE_LUA_MODULE_HTTP_VERSION_1_0: return AL::Network::HTTP::Versions::HTTP_1_0;
+		case APRSERVICE_LUA_MODULE_HTTP_VERSION_1_1: return AL::Network::HTTP::Versions::HTTP_1_1;
+	}
+
+	return AL::Network::HTTP::Versions::HTTP_1_1;
+}
+
+AL::uint8                                                                    aprservice_lua_module_http_request_method_to_lua(AL::Network::HTTP::RequestMethods value)
+{
+	switch (value)
+	{
+		case AL::Network::HTTP::RequestMethods::GET:  return APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_GET;
+		case AL::Network::HTTP::RequestMethods::POST: return APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_POST;
+		default:                                      break;
+	}
+
+	return APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_GET;
+}
+AL::Network::HTTP::RequestMethods                                            aprservice_lua_module_http_request_method_from_lua(AL::uint8 value)
+{
+	switch (value)
+	{
+		case APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_GET:  return AL::Network::HTTP::RequestMethods::GET;
+		case APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_POST: return AL::Network::HTTP::RequestMethods::POST;
+	}
+
+	return AL::Network::HTTP::RequestMethods::GET;
+}
+
+aprservice_lua_module_http_request*                                          aprservice_lua_module_http_request_create(AL::uint8 version, AL::uint8 method)
+{
+	auto http_request = new aprservice_lua_module_http_request
+	{
+		.request = AL::Network::HTTP::Request(aprservice_lua_module_http_version_from_lua(version), aprservice_lua_module_http_request_method_from_lua(method))
+	};
+
+	return http_request;
+}
+void                                                                         aprservice_lua_module_http_request_destroy(aprservice_lua_module_http_request* http_request)
 {
 	delete http_request;
 }
 
 // @return exists, string
-auto                                      aprservice_lua_module_http_request_get_header(aprservice_lua_module_http_request* http_request, const AL::String& key)
+AL::Collections::Tuple<bool, AL::String>                                     aprservice_lua_module_http_request_get_header(aprservice_lua_module_http_request* http_request, const AL::String& key)
 {
 	AL::Collections::Tuple<bool, AL::String> value(false, "");
 
-	if (auto it = http_request->GetHeader().Find(key); it != http_request->GetHeader().end())
+	if (auto it = http_request->request.GetHeader().Find(key); it != http_request->request.GetHeader().end())
 	{
 		value.Set<0>(true);
 		value.Set<1>(it->Value);
@@ -57,28 +110,28 @@ auto                                      aprservice_lua_module_http_request_get
 
 	return value;
 }
-void                                      aprservice_lua_module_http_request_set_header(aprservice_lua_module_http_request* http_request, const AL::String& key, const AL::String& value)
+void                                                                         aprservice_lua_module_http_request_set_header(aprservice_lua_module_http_request* http_request, const AL::String& key, const AL::String& value)
 {
-	http_request->GetHeader()[key] = value;
+	http_request->request.GetHeader()[key] = value;
 }
 
-APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD aprservice_lua_module_http_request_get_method(aprservice_lua_module_http_request* http_request)
+AL::uint8                                                                    aprservice_lua_module_http_request_get_method(aprservice_lua_module_http_request* http_request)
 {
-	return static_cast<APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD>(http_request->GetMethod());
+	return aprservice_lua_module_http_request_method_to_lua(http_request->request.GetMethod());
 }
-APRSERVICE_LUA_MODULE_HTTP_VERSION        aprservice_lua_module_http_request_get_version(aprservice_lua_module_http_request* http_request)
+AL::uint8                                                                    aprservice_lua_module_http_request_get_version(aprservice_lua_module_http_request* http_request)
 {
-	return static_cast<APRSERVICE_LUA_MODULE_HTTP_VERSION>(http_request->GetVersion());
+	return aprservice_lua_module_http_version_to_lua(http_request->request.GetVersion());
 }
 
 // @return success, status_code, string
-auto                                      aprservice_lua_module_http_request_download_string(aprservice_lua_module_http_request* http_request, const AL::String& url)
+AL::Collections::Tuple<bool, AL::uint16, AL::String>                         aprservice_lua_module_http_request_download_string(aprservice_lua_module_http_request* http_request, const AL::String& url)
 {
 	AL::Collections::Tuple<bool, AL::uint16, AL::String> value(false, 0, "");
 
 	try
 	{
-		auto http_response = http_request->Execute(AL::Network::HTTP::Uri::FromString(url));
+		auto http_response = http_request->request.Execute(AL::Network::HTTP::Uri::FromString(url));
 		value.Set<1>(static_cast<AL::uint16>(http_response.GetStatus()));
 
 		if (http_response.GetStatus() == AL::Network::HTTP::StatusCodes::OK)
@@ -96,18 +149,18 @@ auto                                      aprservice_lua_module_http_request_dow
 	return value;
 }
 // @return success, status_code, byte_buffer
-auto                                      aprservice_lua_module_http_request_download_byte_buffer(aprservice_lua_module_http_request* http_request, const AL::String& url)
+AL::Collections::Tuple<bool, AL::uint16, aprservice_lua_module_byte_buffer*> aprservice_lua_module_http_request_download_byte_buffer(aprservice_lua_module_http_request* http_request, const AL::String& url, APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN byte_buffer_endian)
 {
-	AL::Collections::Tuple<bool, AL::uint16, aprservice_lua_module_byte_buffer_instance*> value(false, 0, nullptr);
+	AL::Collections::Tuple<bool, AL::uint16, aprservice_lua_module_byte_buffer*> value(false, 0, nullptr);
 
 	try
 	{
-		auto http_response = http_request->Execute(AL::Network::HTTP::Uri::FromString(url));
+		auto http_response = http_request->request.Execute(AL::Network::HTTP::Uri::FromString(url));
 		value.Set<1>(static_cast<AL::uint16>(http_response.GetStatus()));
 
 		if (http_response.GetStatus() == AL::Network::HTTP::StatusCodes::OK)
 		{
-			auto byte_buffer = aprservice_lua_module_byte_buffer_create(APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN_MACHINE, http_response.GetContent().GetLength());
+			auto byte_buffer = aprservice_lua_module_byte_buffer_create(byte_buffer_endian, http_response.GetContent().GetLength());
 			aprservice_lua_module_byte_buffer_write(byte_buffer, http_response.GetContent().GetCString(), http_response.GetContent().GetLength());
 
 			value.Set<0>(true);
@@ -121,44 +174,4 @@ auto                                      aprservice_lua_module_http_request_dow
 	}
 
 	return value;
-}
-
-aprservice_lua_module_http* aprservice_lua_module_http_init(aprservice_lua* lua)
-{
-	auto http = new aprservice_lua_module_http
-	{
-	};
-
-	auto lua_state = aprservice_lua_get_state(lua);
-
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_VERSION_1_0);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_VERSION_1_1);
-
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_GET);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_HEAD);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_POST);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_PUT);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_DELETE);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_CONNECT);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_OPTIONS);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_TRACE);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_PATCH);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_create);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_destroy);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_get_header);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_set_header);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_get_method);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_get_version);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_download_string);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_http_request_download_byte_buffer);
-
-	return http;
-}
-void                        aprservice_lua_module_http_deinit(aprservice_lua_module_http* http)
-{
-	delete http;
 }

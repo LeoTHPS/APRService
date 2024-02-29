@@ -8,16 +8,35 @@
 
 struct aprservice_lua_module_text_file
 {
-};
-
-struct aprservice_lua_module_text_file_instance
-{
 	AL::FileSystem::TextFile file;
 };
 
-aprservice_lua_module_text_file_instance*                    aprservice_lua_module_text_file_open(const AL::String& path, AL::uint8 mode, AL::uint8 line_ending)
+void                                           aprservice_lua_module_text_file_register_globals(aprservice_lua* lua)
 {
-	auto text_file = new aprservice_lua_module_text_file_instance
+	auto lua_state = aprservice_lua_get_state(lua);
+
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_READ);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_WRITE);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_APPEND);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_TRUNCATE);
+
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_LF);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_CRLF);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_AUTO);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_open);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_close);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_read);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_write);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_read_line);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_write_line);
+}
+
+aprservice_lua_module_text_file*               aprservice_lua_module_text_file_open(const AL::String& path, AL::uint8 mode, AL::uint8 line_ending)
+{
+	auto text_file = new aprservice_lua_module_text_file
 	{
 		.file = AL::FileSystem::TextFile(path)
 	};
@@ -56,7 +75,7 @@ aprservice_lua_module_text_file_instance*                    aprservice_lua_modu
 
 	return text_file;
 }
-void                                                         aprservice_lua_module_text_file_close(aprservice_lua_module_text_file_instance* text_file)
+void                                           aprservice_lua_module_text_file_close(aprservice_lua_module_text_file* text_file)
 {
 	text_file->file.Close();
 
@@ -64,9 +83,9 @@ void                                                         aprservice_lua_modu
 }
 
 // @return success, end_of_file, string
-aprservice_lua_module_text_file_read_value<bool, AL::String> aprservice_lua_module_text_file_read(aprservice_lua_module_text_file_instance* text_file, AL::size_t length)
+AL::Collections::Tuple<bool, bool, AL::String> aprservice_lua_module_text_file_read(aprservice_lua_module_text_file* text_file, AL::size_t length)
 {
-	aprservice_lua_module_text_file_read_value<bool, AL::String> value(false, false, "");
+	AL::Collections::Tuple<bool, bool, AL::String> value(false, false, "");
 
 	try
 	{
@@ -81,7 +100,7 @@ aprservice_lua_module_text_file_read_value<bool, AL::String> aprservice_lua_modu
 
 	return value;
 }
-bool                                                         aprservice_lua_module_text_file_write(aprservice_lua_module_text_file_instance* text_file, const AL::String& value)
+bool                                           aprservice_lua_module_text_file_write(aprservice_lua_module_text_file* text_file, const AL::String& value)
 {
 	try
 	{
@@ -99,9 +118,9 @@ bool                                                         aprservice_lua_modu
 }
 
 // @return success, end_of_file, string
-aprservice_lua_module_text_file_read_value<bool, AL::String> aprservice_lua_module_text_file_read_line(aprservice_lua_module_text_file_instance* text_file)
+AL::Collections::Tuple<bool, bool, AL::String> aprservice_lua_module_text_file_read_line(aprservice_lua_module_text_file* text_file)
 {
-	aprservice_lua_module_text_file_read_value<bool, AL::String> value(false, false, "");
+	AL::Collections::Tuple<bool, bool, AL::String> value(false, false, "");
 
 	try
 	{
@@ -116,7 +135,7 @@ aprservice_lua_module_text_file_read_value<bool, AL::String> aprservice_lua_modu
 
 	return value;
 }
-bool                                                         aprservice_lua_module_text_file_write_line(aprservice_lua_module_text_file_instance* text_file, const AL::String& value)
+bool                                           aprservice_lua_module_text_file_write_line(aprservice_lua_module_text_file* text_file, const AL::String& value)
 {
 	try
 	{
@@ -131,37 +150,4 @@ bool                                                         aprservice_lua_modu
 	}
 
 	return true;
-}
-
-aprservice_lua_module_text_file* aprservice_lua_module_text_file_init(aprservice_lua* lua)
-{
-	auto text_file = new aprservice_lua_module_text_file
-	{
-	};
-
-	auto lua_state = aprservice_lua_get_state(lua);
-
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_READ);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_WRITE);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_APPEND);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_OPEN_MODE_TRUNCATE);
-
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_LF);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_CRLF);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_TEXT_FILE_LINE_ENDING_AUTO);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_open);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_close);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_read);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_write);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_read_line);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_text_file_write_line);
-
-	return text_file;
-}
-void                             aprservice_lua_module_text_file_deinit(aprservice_lua_module_text_file* text_file)
-{
-	delete text_file;
 }

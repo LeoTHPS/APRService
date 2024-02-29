@@ -1,6 +1,6 @@
 #include "aprservice.hpp"
 #include "aprservice_lua.hpp"
-#include "aprservice_lua_module_byte_buffer.hpp"
+#include "aprservice_lua_module_spi.hpp"
 
 #include <AL/Lua54/Lua.hpp>
 
@@ -12,45 +12,74 @@
 
 struct aprservice_lua_module_spi
 {
-};
-
 #if defined(APRSERVICE_SPI_SUPPORTED)
-	typedef AL::Hardware::SPIDevice                                             aprservice_lua_module_spi_device;
-
-	typedef typename AL::Get_Enum_Or_Integer_Base<AL::Hardware::SPIModes>::Type APRSERVICE_LUA_MODULE_SPI_MODE;
-#else
-	typedef void*                                                               aprservice_lua_module_spi_device;
-
-	typedef AL::uint8                                                           APRSERVICE_LUA_MODULE_SPI_MODE;
-#endif
-
-enum APRSERVICE_LUA_MODULE_SPI_MODES : APRSERVICE_LUA_MODULE_SPI_MODE
-{
-#if defined(APRSERVICE_SPI_SUPPORTED)
-	APRSERVICE_LUA_MODULE_SPI_MODE_ZERO  = static_cast<APRSERVICE_LUA_MODULE_SPI_MODE>(AL::Hardware::SPIModes::Zero),
-	APRSERVICE_LUA_MODULE_SPI_MODE_ONE   = static_cast<APRSERVICE_LUA_MODULE_SPI_MODE>(AL::Hardware::SPIModes::One),
-	APRSERVICE_LUA_MODULE_SPI_MODE_TWO   = static_cast<APRSERVICE_LUA_MODULE_SPI_MODE>(AL::Hardware::SPIModes::Two),
-	APRSERVICE_LUA_MODULE_SPI_MODE_THREE = static_cast<APRSERVICE_LUA_MODULE_SPI_MODE>(AL::Hardware::SPIModes::Three)
-#else
-	APRSERVICE_LUA_MODULE_SPI_MODE_ZERO  = 0x1,
-	APRSERVICE_LUA_MODULE_SPI_MODE_ONE   = 0x2,
-	APRSERVICE_LUA_MODULE_SPI_MODE_TWO   = 0x4,
-	APRSERVICE_LUA_MODULE_SPI_MODE_THREE = 0x8,
+	AL::Hardware::SPIDevice device;
 #endif
 };
 
-aprservice_lua_module_spi_device* aprservice_lua_module_spi_device_open(const AL::String& path, APRSERVICE_LUA_MODULE_SPI_MODE mode, AL::uint32 speed, AL::uint8 bit_count)
+void                                                             aprservice_lua_module_spi_register_globals(aprservice_lua* lua)
+{
+	auto lua_state = aprservice_lua_get_state(lua);
+
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_SPI_MODE_ZERO);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_SPI_MODE_ONE);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_SPI_MODE_TWO);
+	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_SPI_MODE_THREE);
+
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_open);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_close);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_get_mode);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_get_speed);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_get_bit_count);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_read);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_write);
+	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_write_read);
+}
+
+aprservice_lua_module_spi*                                       aprservice_lua_module_spi_open(const AL::String& path, AL::uint8 mode, AL::uint32 speed, AL::uint8 bit_count)
 {
 #if defined(APRSERVICE_SPI_SUPPORTED)
-	auto spi_device = new aprservice_lua_module_spi_device(AL::FileSystem::Path(path), static_cast<AL::Hardware::SPIModes>(mode), speed, bit_count);
+	AL::Hardware::SPIModes spi_device_mode;
+
+	switch (mode)
+	{
+		case APRSERVICE_LUA_MODULE_SPI_MODE_ZERO:
+			spi_device_mode = AL::Hardware::SPIModes::Zero;
+			break;
+
+		case APRSERVICE_LUA_MODULE_SPI_MODE_ONE:
+			spi_device_mode = AL::Hardware::SPIModes::One;
+			break;
+
+		case APRSERVICE_LUA_MODULE_SPI_MODE_TWO:
+			spi_device_mode = AL::Hardware::SPIModes::Two;
+			break;
+
+		case APRSERVICE_LUA_MODULE_SPI_MODE_THREE:
+			spi_device_mode = AL::Hardware::SPIModes::Three;
+			break;
+
+		default:
+			aprservice_console_write_line("Invalid SPI mode");
+			return nullptr;
+	}
+
+	auto spi = new aprservice_lua_module_spi
+	{
+	#if defined(AL_PLATFORM_LINUX)
+		.device = AL::Hardware::SPIDevice(AL::FileSystem::Path(path), spi_device_mode, speed, bit_count)
+	#else
+		#error Platform not implemented
+	#endif
+	};
 
 	try
 	{
-		spi_device->Open();
+		spi->device.Open();
 	}
 	catch (const AL::Exception& exception)
 	{
-		delete spi_device;
+		delete spi;
 
 		aprservice_console_write_line("Error opening AL::Hardware::SPIDevice");
 		aprservice_console_write_exception(exception);
@@ -58,7 +87,7 @@ aprservice_lua_module_spi_device* aprservice_lua_module_spi_device_open(const AL
 		return nullptr;
 	}
 
-	return spi_device;
+	return spi;
 #else
 	aprservice_console_write_line("Error opening AL::Hardware::SPIDevice");
 	aprservice_console_write_exception(AL::PlatformNotSupportedException());
@@ -66,18 +95,27 @@ aprservice_lua_module_spi_device* aprservice_lua_module_spi_device_open(const AL
 	return nullptr;
 #endif
 }
-void                              aprservice_lua_module_spi_device_close(aprservice_lua_module_spi_device* spi_device)
+void                                                             aprservice_lua_module_spi_close(aprservice_lua_module_spi* spi)
 {
 #if defined(APRSERVICE_SPI_SUPPORTED)
-	spi_device->Close();
+	spi->device.Close();
 
-	delete spi_device;
+	delete spi;
 #endif
 }
-APRSERVICE_LUA_MODULE_SPI_MODE    aprservice_lua_module_spi_device_get_mode(aprservice_lua_module_spi_device* spi_device)
+
+AL::uint8                                                        aprservice_lua_module_spi_get_mode(aprservice_lua_module_spi* spi)
 {
 #if defined(APRSERVICE_SPI_SUPPORTED)
-	return static_cast<APRSERVICE_LUA_MODULE_SPI_MODE>(spi_device->GetMode());
+	switch (spi->device.GetMode())
+	{
+		case AL::Hardware::SPIModes::Zero:  return APRSERVICE_LUA_MODULE_SPI_MODE_ZERO;
+		case AL::Hardware::SPIModes::One:   return APRSERVICE_LUA_MODULE_SPI_MODE_ONE;
+		case AL::Hardware::SPIModes::Two:   return APRSERVICE_LUA_MODULE_SPI_MODE_TWO;
+		case AL::Hardware::SPIModes::Three: return APRSERVICE_LUA_MODULE_SPI_MODE_THREE;
+	}
+
+	return 0xFF;
 #else
 	aprservice_console_write_line("Error getting AL::Hardware::SPIDevice mode");
 	aprservice_console_write_exception(AL::PlatformNotSupportedException());
@@ -85,10 +123,10 @@ APRSERVICE_LUA_MODULE_SPI_MODE    aprservice_lua_module_spi_device_get_mode(aprs
 	return APRSERVICE_LUA_MODULE_SPI_MODE_ZERO;
 #endif
 }
-AL::uint32                        aprservice_lua_module_spi_device_get_speed(aprservice_lua_module_spi_device* spi_device)
+AL::uint32                                                       aprservice_lua_module_spi_get_speed(aprservice_lua_module_spi* spi)
 {
 #if defined(APRSERVICE_SPI_SUPPORTED)
-	return spi_device->GetSpeed();
+	return spi->device.GetSpeed();
 #else
 	aprservice_console_write_line("Error getting AL::Hardware::SPIDevice speed");
 	aprservice_console_write_exception(AL::PlatformNotSupportedException());
@@ -96,10 +134,10 @@ AL::uint32                        aprservice_lua_module_spi_device_get_speed(apr
 	return 0;
 #endif
 }
-AL::uint8                         aprservice_lua_module_spi_device_get_bit_count(aprservice_lua_module_spi_device* spi_device)
+AL::uint8                                                        aprservice_lua_module_spi_get_bit_count(aprservice_lua_module_spi* spi)
 {
 #if defined(APRSERVICE_SPI_SUPPORTED)
-	return spi_device->GetBitCount();
+	return spi->device.GetBitCount();
 #else
 	aprservice_console_write_line("Error getting AL::Hardware::SPIDevice bit count");
 	aprservice_console_write_exception(AL::PlatformNotSupportedException());
@@ -107,15 +145,16 @@ AL::uint8                         aprservice_lua_module_spi_device_get_bit_count
 	return 0;
 #endif
 }
+
 // @return success, byte_buffer
-auto                              aprservice_lua_module_spi_device_read(aprservice_lua_module_spi_device* spi_device, AL::size_t byte_buffer_size, APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN byte_buffer_endian, bool change_cs)
+AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*> aprservice_lua_module_spi_read(aprservice_lua_module_spi* spi, AL::size_t byte_buffer_size, APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN byte_buffer_endian, bool change_cs)
 {
-	AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer_instance*> value(false, aprservice_lua_module_byte_buffer_create(byte_buffer_endian, byte_buffer_size));
+	AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*> value(false, aprservice_lua_module_byte_buffer_create(byte_buffer_endian, byte_buffer_size));
 
 #if defined(APRSERVICE_SPI_SUPPORTED)
 	try
 	{
-		spi_device->Read(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>()), byte_buffer_size, change_cs);
+		spi->device.Read(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>()), byte_buffer_size, change_cs);
 		value.Set<0>(true);
 	}
 	catch (const AL::Exception& exception)
@@ -133,12 +172,12 @@ auto                              aprservice_lua_module_spi_device_read(aprservi
 
 	return value;
 }
-bool                              aprservice_lua_module_spi_device_write(aprservice_lua_module_spi_device* spi_device, aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t byte_buffer_size, bool change_cs)
+bool                                                             aprservice_lua_module_spi_write(aprservice_lua_module_spi* spi, aprservice_lua_module_byte_buffer* byte_buffer, AL::size_t byte_buffer_size, bool change_cs)
 {
 #if defined(APRSERVICE_SPI_SUPPORTED)
 	try
 	{
-		spi_device->Write(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer), byte_buffer_size, change_cs);
+		spi->device.Write(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer), byte_buffer_size, change_cs);
 	}
 	catch (const AL::Exception& exception)
 	{
@@ -157,14 +196,14 @@ bool                              aprservice_lua_module_spi_device_write(aprserv
 #endif
 }
 // @return success, byte_buffer
-auto                              aprservice_lua_module_spi_device_write_read(aprservice_lua_module_spi_device* spi_device, aprservice_lua_module_byte_buffer_instance* byte_buffer, AL::size_t byte_buffer_size, APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN rx_byte_buffer_endian, bool change_cs)
+AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*> aprservice_lua_module_spi_write_read(aprservice_lua_module_spi* spi, aprservice_lua_module_byte_buffer* byte_buffer, AL::size_t byte_buffer_size, APRSERVICE_LUA_MODULE_BYTE_BUFFER_ENDIAN rx_byte_buffer_endian, bool change_cs)
 {
-	AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer_instance*> value(false, aprservice_lua_module_byte_buffer_create(rx_byte_buffer_endian, byte_buffer_size));
+	AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*> value(false, aprservice_lua_module_byte_buffer_create(rx_byte_buffer_endian, byte_buffer_size));
 
 #if defined(APRSERVICE_SPI_SUPPORTED)
 	try
 	{
-		spi_device->WriteRead(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer), aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>()), byte_buffer_size, change_cs);
+		spi->device.WriteRead(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer), aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>()), byte_buffer_size, change_cs);
 		value.Set<0>(true);
 	}
 	catch (const AL::Exception& exception)
@@ -181,33 +220,4 @@ auto                              aprservice_lua_module_spi_device_write_read(ap
 #endif
 
 	return value;
-}
-
-aprservice_lua_module_spi* aprservice_lua_module_spi_init(aprservice_lua* lua)
-{
-	auto spi = new aprservice_lua_module_spi
-	{
-	};
-
-	auto lua_state = aprservice_lua_get_state(lua);
-
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_SPI_MODE_ZERO);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_SPI_MODE_ONE);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_SPI_MODE_TWO);
-	aprservice_lua_state_register_global(lua_state, APRSERVICE_LUA_MODULE_SPI_MODE_THREE);
-
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_device_open);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_device_close);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_device_get_mode);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_device_get_speed);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_device_get_bit_count);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_device_read);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_device_write);
-	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_spi_device_write_read);
-
-	return spi;
-}
-void                       aprservice_lua_module_spi_deinit(aprservice_lua_module_spi* spi)
-{
-	delete spi;
 }

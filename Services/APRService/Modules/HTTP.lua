@@ -7,14 +7,7 @@ APRService.Modules.HTTP.HTTP_VERSION_1_0 = APRSERVICE_LUA_MODULE_HTTP_VERSION_1_
 APRService.Modules.HTTP.HTTP_VERSION_1_1 = APRSERVICE_LUA_MODULE_HTTP_VERSION_1_1;
 
 APRService.Modules.HTTP.REQUEST_METHOD_GET     = APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_GET;
-APRService.Modules.HTTP.REQUEST_METHOD_HEAD    = APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_HEAD;
 APRService.Modules.HTTP.REQUEST_METHOD_POST    = APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_POST;
-APRService.Modules.HTTP.REQUEST_METHOD_PUT     = APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_PUT;
-APRService.Modules.HTTP.REQUEST_METHOD_DELETE  = APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_DELETE;
-APRService.Modules.HTTP.REQUEST_METHOD_CONNECT = APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_CONNECT;
-APRService.Modules.HTTP.REQUEST_METHOD_OPTIONS = APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_OPTIONS;
-APRService.Modules.HTTP.REQUEST_METHOD_TRACE   = APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_TRACE;
-APRService.Modules.HTTP.REQUEST_METHOD_PATCH   = APRSERVICE_LUA_MODULE_HTTP_REQUEST_METHOD_PATCH;
 
 -- @return http_request
 function APRService.Modules.HTTP.CreateRequest(version, method)
@@ -50,6 +43,6 @@ function APRService.Modules.HTTP.Request.DownloadString(http_request, url)
 end
 
 -- @return success, status_code, byte_buffer
-function APRService.Modules.HTTP.Request.DownloadByteBuffer(http_request, url)
-	return aprservice_lua_module_http_request_download_byte_buffer(http_request, tostring(url));
+function APRService.Modules.HTTP.Request.DownloadByteBuffer(http_request, url, byte_buffer_endian)
+	return aprservice_lua_module_http_request_download_byte_buffer(http_request, tostring(url), byte_buffer_endian);
 end

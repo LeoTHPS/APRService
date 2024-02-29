@@ -313,10 +313,6 @@ function APRService.Modules.I2C.Device.WriteRead(i2c_device, byte_buffer, byte_b
 ```lua
 -- Coming soon
 ```
-##### IRC
-```lua
--- Coming soon
-```
 ##### JSON
 ```lua
 -- Coming soon

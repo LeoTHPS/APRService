@@ -19,7 +19,7 @@ local aprs_is_config =
 local database_config =
 {
 	['Path']           = './IGateMapper.db',
-	['UpdateInterval'] = 2 * 60
+	['UpdateInterval'] = 10 * 60
 };
 
 local IGateMapper = {};
@@ -172,6 +172,10 @@ function IGateMapper.DB.Init()
 
 		APRService.Modules.File.Close(file);
 
+		if not success then
+			APRService.Console.WriteLine('Error initializing database');
+		end
+
 		return success;
 	end
 
@@ -181,6 +185,8 @@ function IGateMapper.DB.Init()
 	if not file then
 		APRService.Modules.Timer.Destroy(timer);
 
+		APRService.Console.WriteLine('Error opening database');
+
 		return false;
 	end
 
@@ -189,6 +195,8 @@ function IGateMapper.DB.Init()
 	if not success then
 		APRService.Modules.File.Close(file);
 		APRService.Modules.Timer.Destroy(timer);
+
+		APRService.Console.WriteLine('Error reading database header');
 
 		return false;
 	end
@@ -202,6 +210,8 @@ function IGateMapper.DB.Init()
 		if not station_success then
 			APRService.Modules.File.Close(file);
 			APRService.Modules.Timer.Destroy(timer);
+
+			APRService.Console.WriteLine('Error reading database station entry');
 
 			return false;
 		end
@@ -225,6 +235,8 @@ function IGateMapper.DB.Save()
 	if not file then
 		APRService.Modules.Timer.Destroy(timer);
 
+		APRService.Console.WriteLine('Error creating database');
+
 		return false;
 	end
 
@@ -232,11 +244,19 @@ function IGateMapper.DB.Save()
 		APRService.Modules.File.Close(file);
 		APRService.Modules.Timer.Destroy(timer);
 
+		APRService.Console.WriteLine('Error writing database header');
+
 		return false;
 	end
 
 	IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set)
-		return IGateMapper.DB.Private.WriteStation(file, callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set);
+		if not IGateMapper.DB.Private.WriteStation(file, callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set) then
+			APRService.Console.WriteLine('Error writing database station entry');
+
+			return false;
+		end
+
+		return true;
 	end);
 
 	APRService.Modules.File.Close(file);
@@ -249,12 +269,11 @@ function IGateMapper.DB.Save()
 end
 
 function IGateMapper.DB.Export()
-	local timer     = APRService.Modules.Timer.Create();
-	local text_file = APRService.Modules.TextFile.Open(string.format('%s.stations.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
+	local timer         = APRService.Modules.Timer.Create();
+	local text_file     = APRService.Modules.TextFile.Open(string.format('%s.stations.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
+	local station_count = 0;
 
 	if text_file then
-		local station_count = 0;
-
 		APRService.Modules.TextFile.WriteLine(text_file, '<?xml version="1.0" encoding="UTF-8"?>');
 		APRService.Modules.TextFile.WriteLine(text_file, '<kml xmlns="http://www.opengis.net/kml/2.2">');
 		APRService.Modules.TextFile.WriteLine(text_file, '\t<Document>');
@@ -275,72 +294,73 @@ function IGateMapper.DB.Export()
 		APRService.Modules.TextFile.WriteLine(text_file, '\t</Document>');
 		APRService.Modules.TextFile.WriteLine(text_file, '</kml>');
 		APRService.Modules.TextFile.Close(text_file);
+
 		APRService.Console.WriteLine(string.format('Exported %u stations to disk in %ums', station_count, APRService.Modules.Timer.GetElapsedMS(timer)));
+	end
 
-		APRService.Modules.Timer.Reset(timer);
-		text_file     = APRService.Modules.TextFile.Open(string.format('%s.digis.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
-		station_count = 0;
+	APRService.Modules.Timer.Reset(timer);
 
-		if text_file then
-			APRService.Modules.TextFile.WriteLine(text_file, '<?xml version="1.0" encoding="UTF-8"?>');
-			APRService.Modules.TextFile.WriteLine(text_file, '<kml xmlns="http://www.opengis.net/kml/2.2">');
-			APRService.Modules.TextFile.WriteLine(text_file, '\t<Document>');
+	text_file     = APRService.Modules.TextFile.Open(string.format('%s.digis.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
+	station_count = 0;
 
-			IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set)
-				if is_location_set and (packet_count_digi ~= 0) then
-					APRService.Modules.TextFile.WriteLine(text_file, '\t\t<Placemark>');
-					APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<name>%s</name>', callsign));
-					APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<description>http://aprs.fi/#!call=%s</description>', callsign));
-					APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude));
-					APRService.Modules.TextFile.WriteLine(text_file, '\t\t</Placemark>');
-					station_count = station_count + 1;
-				end
+	if text_file then
+		APRService.Modules.TextFile.WriteLine(text_file, '<?xml version="1.0" encoding="UTF-8"?>');
+		APRService.Modules.TextFile.WriteLine(text_file, '<kml xmlns="http://www.opengis.net/kml/2.2">');
+		APRService.Modules.TextFile.WriteLine(text_file, '\t<Document>');
 
-				return true;
-			end);
-
-			APRService.Modules.TextFile.WriteLine(text_file, '\t</Document>');
-			APRService.Modules.TextFile.WriteLine(text_file, '</kml>');
-			APRService.Modules.TextFile.Close(text_file);
-			APRService.Console.WriteLine(string.format('Exported %u digipeaters to disk in %ums', station_count, APRService.Modules.Timer.GetElapsedMS(timer)));
-
-			APRService.Modules.Timer.Reset(timer);
-			text_file     = APRService.Modules.TextFile.Open(string.format('%s.igates.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
-			station_count = 0;
-
-			if text_file then
-				APRService.Modules.TextFile.WriteLine(text_file, '<?xml version="1.0" encoding="UTF-8"?>');
-				APRService.Modules.TextFile.WriteLine(text_file, '<kml xmlns="http://www.opengis.net/kml/2.2">');
-				APRService.Modules.TextFile.WriteLine(text_file, '\t<Document>');
-
-				IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set)
-					if is_location_set and (packet_count_igate ~= 0) then
-						APRService.Modules.TextFile.WriteLine(text_file, '\t\t<Placemark>');
-						APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<name>%s</name>', callsign));
-						APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<description>http://aprs.fi/#!call=%s</description>', callsign));
-						APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude));
-						APRService.Modules.TextFile.WriteLine(text_file, '\t\t</Placemark>');
-						station_count = station_count + 1;
-					end
-
-					return true;
-				end);
-
-				APRService.Modules.TextFile.WriteLine(text_file, '\t</Document>');
-				APRService.Modules.TextFile.WriteLine(text_file, '</kml>');
-				APRService.Modules.TextFile.Close(text_file);
-				APRService.Console.WriteLine(string.format('Exported %u gateways to disk in %ums', station_count, APRService.Modules.Timer.GetElapsedMS(timer)));
-
-				APRService.Modules.Timer.Destroy(timer);
-
-				return true;
+		IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set)
+			if is_location_set and (packet_count_digi ~= 0) then
+				APRService.Modules.TextFile.WriteLine(text_file, '\t\t<Placemark>');
+				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<name>%s</name>', callsign));
+				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<description>http://aprs.fi/#!call=%s</description>', callsign));
+				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude));
+				APRService.Modules.TextFile.WriteLine(text_file, '\t\t</Placemark>');
+				station_count = station_count + 1;
 			end
-		end
+
+			return true;
+		end);
+
+		APRService.Modules.TextFile.WriteLine(text_file, '\t</Document>');
+		APRService.Modules.TextFile.WriteLine(text_file, '</kml>');
+		APRService.Modules.TextFile.Close(text_file);
+
+		APRService.Console.WriteLine(string.format('Exported %u digipeaters to disk in %ums', station_count, APRService.Modules.Timer.GetElapsedMS(timer)));
+	end
+
+	APRService.Modules.Timer.Reset(timer);
+
+	text_file     = APRService.Modules.TextFile.Open(string.format('%s.igates.kml', database_config['Path']), APRService.Modules.TextFile.OPEN_MODE_WRITE | APRService.Modules.TextFile.OPEN_MODE_TRUNCATE, APRService.Modules.TextFile.LINE_ENDING_LF);
+	station_count = 0;
+
+	if text_file then
+		APRService.Modules.TextFile.WriteLine(text_file, '<?xml version="1.0" encoding="UTF-8"?>');
+		APRService.Modules.TextFile.WriteLine(text_file, '<kml xmlns="http://www.opengis.net/kml/2.2">');
+		APRService.Modules.TextFile.WriteLine(text_file, '\t<Document>');
+
+		IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set)
+			if is_location_set and (packet_count_igate ~= 0) then
+				APRService.Modules.TextFile.WriteLine(text_file, '\t\t<Placemark>');
+				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<name>%s</name>', callsign));
+				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<description>http://aprs.fi/#!call=%s</description>', callsign));
+				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude));
+				APRService.Modules.TextFile.WriteLine(text_file, '\t\t</Placemark>');
+				station_count = station_count + 1;
+			end
+
+			return true;
+		end);
+
+		APRService.Modules.TextFile.WriteLine(text_file, '\t</Document>');
+		APRService.Modules.TextFile.WriteLine(text_file, '</kml>');
+		APRService.Modules.TextFile.Close(text_file);
+
+		APRService.Console.WriteLine(string.format('Exported %u gateways to disk in %ums', station_count, APRService.Modules.Timer.GetElapsedMS(timer)));
 	end
 
 	APRService.Modules.Timer.Destroy(timer);
 
-	return false;
+	return true;
 end
 
 -- @return exists, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set

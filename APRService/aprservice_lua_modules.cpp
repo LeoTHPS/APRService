@@ -10,7 +10,6 @@
 #include "aprservice_lua_module_ini.hpp"
 #include "aprservice_lua_module_json.hpp"
 #include "aprservice_lua_module_mutex.hpp"
-#include "aprservice_lua_module_process.hpp"
 #include "aprservice_lua_module_socket.hpp"
 #include "aprservice_lua_module_spi.hpp"
 #include "aprservice_lua_module_sqlite3.hpp"
@@ -32,7 +31,6 @@ void aprservice_lua_modules_register_globals(aprservice_lua* lua)
 	aprservice_lua_module_ini_register_globals(lua);
 	aprservice_lua_module_json_register_globals(lua);
 	aprservice_lua_module_mutex_register_globals(lua);
-	aprservice_lua_module_process_register_globals(lua);
 	aprservice_lua_module_socket_register_globals(lua);
 	aprservice_lua_module_spi_register_globals(lua);
 	aprservice_lua_module_sqlite3_register_globals(lua);

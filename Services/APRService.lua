@@ -87,8 +87,8 @@ function APRService.APRS.SendWeather(service, month, day, hours, minutes, wind_s
 end
 
 -- @return encoding_failed, connection_closed
-function APRService.APRS.SendPosition(service, altitude, latitude, longitude, speed_mph, course, comment)
-	return aprservice_aprs_send_position(service, tonumber(altitude), tonumber(latitude), tonumber(longitude), tonumber(speed_mph), tonumber(course), tostring(comment));
+function APRService.APRS.SendPosition(service, altitude_ft, latitude, longitude, speed_mph, course, comment)
+	return aprservice_aprs_send_position(service, tonumber(altitude_ft), tonumber(latitude), tonumber(longitude), tonumber(speed_mph), tonumber(course), tostring(comment));
 end
 
 -- @return encoding_failed, connection_closed
@@ -197,11 +197,11 @@ function APRService.Config.Events.SetOnReceiveWeather(config, handler)
 	aprservice_config_events_set_on_receive_weather(config, handler);
 end
 
--- @param handler(service, station, path, igate, altitude, latitude, longitude, speed_mph, course, symbol_table, symbol_table_key, comment, flags)
+-- @param handler(service, station, path, igate, altitude_ft, latitude, longitude, speed_mph, course, symbol_table, symbol_table_key, comment, flags)
 function APRService.Config.Events.SetOnSendPosition(config, handler)
 	aprservice_config_events_set_on_send_position(config, handler);
 end
--- @param handler(service, station, path, igate, altitude, latitude, longitude, speed_mph, course, symbol_table, symbol_table_key, comment, flags)
+-- @param handler(service, station, path, igate, altitude_ft, latitude, longitude, speed_mph, course, symbol_table, symbol_table_key, comment, flags)
 function APRService.Config.Events.SetOnReceivePosition(config, handler)
 	aprservice_config_events_set_on_receive_position(config, handler);
 end

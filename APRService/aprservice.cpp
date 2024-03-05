@@ -32,7 +32,10 @@ void             aprservice_aprs_add_packet_monitor(aprservice_aprs* aprs, aprse
 int              aprservice_aprs_send_message(aprservice_aprs* aprs, const AL::String& destination, const AL::String& content);
 // @return 0 on connection closed
 // @return -1 on encoding error
-int              aprservice_aprs_send_position(aprservice_aprs* aprs, AL::int32 altitude, AL::Float latitude, AL::Float longitude, const AL::String& comment);
+int              aprservice_aprs_send_weather(aprservice_aprs* aprs, const AL::DateTime& time, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hours_inches, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa);
+// @return 0 on connection closed
+// @return -1 on encoding error
+int              aprservice_aprs_send_position(aprservice_aprs* aprs, AL::int32 altitude_ft, AL::Float latitude, AL::Float longitude, AL::Float speed_mph, AL::uint16 course, const AL::String& comment);
 // @return 0 on connection closed
 // @return -1 on encoding error
 int              aprservice_aprs_send_telemetry(aprservice_aprs* aprs, const AL::uint8(&analog)[5], const bool(&digital)[8]);
@@ -168,9 +171,15 @@ int         aprservice_aprs_send_message(aprservice* service, const AL::String& 
 }
 // @return 0 on connection closed
 // @return -1 on encoding error
-int         aprservice_aprs_send_position(aprservice* service, AL::int32 altitude, AL::Float latitude, AL::Float longitude, const AL::String& comment)
+int         aprservice_aprs_send_weather(aprservice* service, const AL::DateTime& time, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hours_inches, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa)
 {
-	return aprservice_aprs_send_position(service->aprs, altitude, latitude, longitude, comment);
+	return aprservice_aprs_send_weather(service->aprs, time, wind_speed_mph, wind_speed_gust_mph, wind_direction, rainfall_last_hour_inches, rainfall_last_24_hours_inches, rainfall_since_midnight_inches, humidity, temperature_f, barometric_pressure_pa);
+}
+// @return 0 on connection closed
+// @return -1 on encoding error
+int         aprservice_aprs_send_position(aprservice* service, AL::int32 altitude_ft, AL::Float latitude, AL::Float longitude, AL::Float speed_mph, AL::uint16 course, const AL::String& comment)
+{
+	return aprservice_aprs_send_position(service->aprs, altitude_ft, latitude, longitude, speed_mph, course, comment);
 }
 // @return 0 on connection closed
 // @return -1 on encoding error

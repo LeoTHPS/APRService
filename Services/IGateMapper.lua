@@ -26,7 +26,7 @@ local IGateMapper = {};
 
 IGateMapper.DB                       = {};
 IGateMapper.DB.Private               = {};
-IGateMapper.DB.Private.stations      = {}; -- [id] = { callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set }
+IGateMapper.DB.Private.stations      = {}; -- [id] = { callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude_ft, packet_count_digi, packet_count_igate, is_location_set }
 IGateMapper.DB.Private.station_count = 0;
 
 -- @return success, station_count
@@ -75,7 +75,7 @@ function IGateMapper.DB.Private.WriteHeader(file, station_count)
 	return true;
 end
 
--- @return success, callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set
+-- @return success, callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude_ft, packet_count_digi, packet_count_igate, is_location_set
 function IGateMapper.DB.Private.ReadStation(file)
 	local success, byte_buffer, byte_buffer_size = APRService.Modules.File.Read(file, 4, APRService.Modules.ByteBuffer.ENDIAN_BIG);
 
@@ -110,24 +110,24 @@ function IGateMapper.DB.Private.ReadStation(file)
 	local station_last_seen_timestamp_success,  station_last_seen_timestamp  = APRService.Modules.ByteBuffer.ReadUInt64(byte_buffer);
 	local station_latitude_success,             station_latitude             = APRService.Modules.ByteBuffer.ReadFloat(byte_buffer);
 	local station_longitude_success,            station_longitude            = APRService.Modules.ByteBuffer.ReadFloat(byte_buffer);
-	local station_altitude_success,             station_altitude             = APRService.Modules.ByteBuffer.ReadInt32(byte_buffer);
+	local station_altitude_ft_success,          station_altitude_ft          = APRService.Modules.ByteBuffer.ReadInt32(byte_buffer);
 	local station_packet_count_digi_success,    station_packet_count_digi    = APRService.Modules.ByteBuffer.ReadUInt64(byte_buffer);
 	local station_packet_count_igate_success,   station_packet_count_igate   = APRService.Modules.ByteBuffer.ReadUInt64(byte_buffer);
 	local station_is_location_set_success,      station_is_location_set      = APRService.Modules.ByteBuffer.ReadBoolean(byte_buffer);
 
 	APRService.Modules.ByteBuffer.Destroy(byte_buffer);
 
-	return true, station_callsign, station_first_seen_timestamp, station_last_seen_timestamp, station_latitude, station_longitude, station_altitude, station_packet_count_digi, station_packet_count_igate, station_is_location_set;
+	return true, station_callsign, station_first_seen_timestamp, station_last_seen_timestamp, station_latitude, station_longitude, station_altitude_ft, station_packet_count_digi, station_packet_count_igate, station_is_location_set;
 end
 
-function IGateMapper.DB.Private.WriteStation(file, callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set)
+function IGateMapper.DB.Private.WriteStation(file, callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude_ft, packet_count_digi, packet_count_igate, is_location_set)
 	local byte_buffer = APRService.Modules.ByteBuffer.Create(APRService.Modules.ByteBuffer.ENDIAN_BIG, 0x50);
 	APRService.Modules.ByteBuffer.WriteString(byte_buffer,  callsign);
 	APRService.Modules.ByteBuffer.WriteUInt64(byte_buffer,  first_seen_timestamp);
 	APRService.Modules.ByteBuffer.WriteUInt64(byte_buffer,  last_seen_timestamp);
 	APRService.Modules.ByteBuffer.WriteFloat(byte_buffer,   latitude);
 	APRService.Modules.ByteBuffer.WriteFloat(byte_buffer,   longitude);
-	APRService.Modules.ByteBuffer.WriteInt32(byte_buffer,   altitude);
+	APRService.Modules.ByteBuffer.WriteInt32(byte_buffer,   altitude_ft);
 	APRService.Modules.ByteBuffer.WriteUInt64(byte_buffer,  packet_count_digi);
 	APRService.Modules.ByteBuffer.WriteUInt64(byte_buffer,  packet_count_igate);
 	APRService.Modules.ByteBuffer.WriteBoolean(byte_buffer, is_location_set);
@@ -205,7 +205,7 @@ function IGateMapper.DB.Init()
 	IGateMapper.DB.Private.station_count = 0;
 
 	for i = 1, station_count do
-		local station_success, station_callsign, station_first_seen_timestamp, station_last_seen_timestamp, station_latitude, station_longitude, station_altitude, station_packet_count_digi, station_packet_count_igate, station_is_location_set = IGateMapper.DB.Private.ReadStation(file);
+		local station_success, station_callsign, station_first_seen_timestamp, station_last_seen_timestamp, station_latitude, station_longitude, station_altitude_ft, station_packet_count_digi, station_packet_count_igate, station_is_location_set = IGateMapper.DB.Private.ReadStation(file);
 
 		if not station_success then
 			APRService.Modules.File.Close(file);
@@ -216,7 +216,7 @@ function IGateMapper.DB.Init()
 			return false;
 		end
 
-		IGateMapper.DB.Private.stations[IGateMapper.DB.Private.station_count] = { station_callsign, station_first_seen_timestamp, station_last_seen_timestamp, station_latitude, station_longitude, station_altitude, station_packet_count_digi, station_packet_count_igate, station_is_location_set };
+		IGateMapper.DB.Private.stations[IGateMapper.DB.Private.station_count] = { station_callsign, station_first_seen_timestamp, station_last_seen_timestamp, station_latitude, station_longitude, station_altitude_ft, station_packet_count_digi, station_packet_count_igate, station_is_location_set };
 		IGateMapper.DB.Private.station_count                                  = IGateMapper.DB.Private.station_count + 1;
 	end
 
@@ -249,8 +249,8 @@ function IGateMapper.DB.Save()
 		return false;
 	end
 
-	IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set)
-		if not IGateMapper.DB.Private.WriteStation(file, callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set) then
+	IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude_ft, packet_count_digi, packet_count_igate, is_location_set)
+		if not IGateMapper.DB.Private.WriteStation(file, callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude_ft, packet_count_digi, packet_count_igate, is_location_set) then
 			APRService.Console.WriteLine('Error writing database station entry');
 
 			return false;
@@ -278,12 +278,12 @@ function IGateMapper.DB.Export()
 		APRService.Modules.TextFile.WriteLine(text_file, '<kml xmlns="http://www.opengis.net/kml/2.2">');
 		APRService.Modules.TextFile.WriteLine(text_file, '\t<Document>');
 
-		IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set)
+		IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude_ft, packet_count_digi, packet_count_igate, is_location_set)
 			if is_location_set then
 				APRService.Modules.TextFile.WriteLine(text_file, '\t\t<Placemark>');
 				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<name>%s</name>', callsign));
 				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<description>http://aprs.fi/#!call=%s</description>', callsign));
-				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude));
+				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude_ft));
 				APRService.Modules.TextFile.WriteLine(text_file, '\t\t</Placemark>');
 				station_count = station_count + 1;
 			end
@@ -308,12 +308,12 @@ function IGateMapper.DB.Export()
 		APRService.Modules.TextFile.WriteLine(text_file, '<kml xmlns="http://www.opengis.net/kml/2.2">');
 		APRService.Modules.TextFile.WriteLine(text_file, '\t<Document>');
 
-		IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set)
+		IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude_ft, packet_count_digi, packet_count_igate, is_location_set)
 			if is_location_set and (packet_count_digi ~= 0) then
 				APRService.Modules.TextFile.WriteLine(text_file, '\t\t<Placemark>');
 				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<name>%s</name>', callsign));
 				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<description>http://aprs.fi/#!call=%s</description>', callsign));
-				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude));
+				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude_ft));
 				APRService.Modules.TextFile.WriteLine(text_file, '\t\t</Placemark>');
 				station_count = station_count + 1;
 			end
@@ -338,12 +338,12 @@ function IGateMapper.DB.Export()
 		APRService.Modules.TextFile.WriteLine(text_file, '<kml xmlns="http://www.opengis.net/kml/2.2">');
 		APRService.Modules.TextFile.WriteLine(text_file, '\t<Document>');
 
-		IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set)
+		IGateMapper.DB.EnumerateStations(function(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude_ft, packet_count_digi, packet_count_igate, is_location_set)
 			if is_location_set and (packet_count_igate ~= 0) then
 				APRService.Modules.TextFile.WriteLine(text_file, '\t\t<Placemark>');
 				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<name>%s</name>', callsign));
 				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<description>http://aprs.fi/#!call=%s</description>', callsign));
-				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude));
+				APRService.Modules.TextFile.WriteLine(text_file, string.format('\t\t\t<Point><coordinates>%f,%f,%i</coordinates></Point>', longitude, latitude, altitude_ft));
 				APRService.Modules.TextFile.WriteLine(text_file, '\t\t</Placemark>');
 				station_count = station_count + 1;
 			end
@@ -363,7 +363,7 @@ function IGateMapper.DB.Export()
 	return true;
 end
 
--- @return exists, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set
+-- @return exists, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude_ft, packet_count_digi, packet_count_igate, is_location_set
 function IGateMapper.DB.GetStation(callsign)
 	local station = IGateMapper.DB.Private.FindStation(callsign);
 
@@ -397,7 +397,7 @@ function IGateMapper.DB.GetStatistics()
 	return IGateMapper.DB.Private.station_count, gateway_count, digipeater_count;
 end
 
--- @param callback(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude, packet_count_digi, packet_count_igate, is_location_set)->boolean
+-- @param callback(callsign, first_seen_timestamp, last_seen_timestamp, latitude, longitude, altitude_ft, packet_count_digi, packet_count_igate, is_location_set)->boolean
 function IGateMapper.DB.EnumerateStations(callback)
 	for station_id, station in pairs(IGateMapper.DB.Private.stations) do
 		if not callback(station[1], station[2], station[3], station[4], station[5], station[6], station[7], station[8], station[9]) then
@@ -406,7 +406,7 @@ function IGateMapper.DB.EnumerateStations(callback)
 	end
 end
 
-function IGateMapper.DB.SetStationLocation(callsign, latitude, longitude, altitude)
+function IGateMapper.DB.SetStationLocation(callsign, latitude, longitude, altitude_ft)
 	local station = IGateMapper.DB.Private.FindStation(callsign);
 
 	if not station then
@@ -416,7 +416,7 @@ function IGateMapper.DB.SetStationLocation(callsign, latitude, longitude, altitu
 	station[3] = APRService.Modules.System.GetTimestamp();
 	station[4] = latitude;
 	station[5] = longitude;
-	station[6] = altitude;
+	station[6] = altitude_ft;
 	station[9] = true;
 
 	return true;
@@ -515,15 +515,15 @@ function IGateMapper.Init()
 		end
 	end);
 
-	APRService.Config.Events.SetOnReceivePosition(IGateMapper.ServiceConfig, function(service, station, path, igate, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
-		local station_exists, station_first_seen_timestamp, station_last_seen_timestamp, station_latitude, station_longitude, station_altitude, station_packet_count_digi, station_packet_count_igate, station_is_location_set = IGateMapper.DB.GetStation(station);
+	APRService.Config.Events.SetOnReceivePosition(IGateMapper.ServiceConfig, function(service, station, path, igate, altitude_ft, latitude, longitude, speed_mph, course, symbol_table, symbol_table_key, comment, flags)
+		local station_exists, station_first_seen_timestamp, station_last_seen_timestamp, station_latitude, station_longitude, station_altitude_ft, station_packet_count_digi, station_packet_count_igate, station_is_location_set = IGateMapper.DB.GetStation(station);
 
-		IGateMapper.DB.SetStationLocation(station, latitude, longitude, altitude);
+		IGateMapper.DB.SetStationLocation(station, latitude, longitude, altitude_ft);
 
 		if not station_exists or not station_is_location_set then
-			APRService.Console.WriteLine(string.format('Discovered station %s at %.6f, %.6f', station, latitude, longitude));
+			APRService.Console.WriteLine(string.format('Discovered station %s at %.6f, %.6f [Speed: %.f MPH, Course: %u, Altitude: %i FT]', station, latitude, longitude, speed_mph, course, altitude_ft));
 		elseif station_is_location_set and ((station_latitude ~= latitude) or (station_longitude ~= longitude)) then
-			APRService.Console.WriteLine(string.format('Updated position of station %s to %.6f, %.6f', station, latitude, longitude));
+			APRService.Console.WriteLine(string.format('Updated position of station %s to %.6f, %.6f [Speed: %.f MPH, Course: %u, Altitude: %i FT]', station, latitude, longitude, speed_mph, course, altitude_ft));
 		end
 	end);
 

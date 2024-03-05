@@ -32,6 +32,7 @@ APRService.APRS.KISS.Serial = {};
 
 APRService.APRS.PACKET_TYPE_UNKNOWN                     = APRSERVICE_APRS_PACKET_TYPE_UNKNOWN;
 APRService.APRS.PACKET_TYPE_MESSAGE                     = APRSERVICE_APRS_PACKET_TYPE_MESSAGE;
+APRService.APRS.PACKET_TYPE_WEATHER                     = APRSERVICE_APRS_PACKET_TYPE_WEATHER;
 APRService.APRS.PACKET_TYPE_POSITION                    = APRSERVICE_APRS_PACKET_TYPE_POSITION;
 APRService.APRS.PACKET_TYPE_TELEMETRY                   = APRSERVICE_APRS_PACKET_TYPE_TELEMETRY;
 
@@ -81,8 +82,13 @@ function APRService.APRS.SendMessage(service, destination, content)
 end
 
 -- @return encoding_failed, connection_closed
-function APRService.APRS.SendPosition(service, altitude, latitude, longitude, comment)
-	return aprservice_aprs_send_position(service, tonumber(altitude), tonumber(latitude), tonumber(longitude), tostring(comment));
+function APRService.APRS.SendWeather(service, month, day, hours, minutes, wind_speed_mph, wind_speed_gust_mph, wind_direction, rainfall_last_hour_inches, rainfall_last_24_hours_inches, rainfall_since_midnight_inches, humidity, temperature_f, barometric_pressure_pa)
+	return aprservice_aprs_send_weather(service, tonumber(month), tonumber(day), tonumber(hours), tonumber(minutes), tonumber(wind_speed_mph), tonumber(wind_speed_gust_mph), tonumber(wind_direction), tonumber(rainfall_last_hour_inches), tonumber(rainfall_last_24_hours_inches), tonumber(rainfall_since_midnight_inches), tonumber(humidity), tonumber(temperature_f), tonumber(barometric_pressure_pa));
+end
+
+-- @return encoding_failed, connection_closed
+function APRService.APRS.SendPosition(service, altitude, latitude, longitude, speed_mph, course, comment)
+	return aprservice_aprs_send_position(service, tonumber(altitude), tonumber(latitude), tonumber(longitude), tonumber(speed_mph), tonumber(course), tostring(comment));
 end
 
 -- @return encoding_failed, connection_closed
@@ -182,11 +188,20 @@ function APRService.Config.Events.SetOnReceiveMessage(config, handler)
 	aprservice_config_events_set_on_receive_message(config, handler);
 end
 
--- @param handler(service, station, path, igate, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
+-- @param handler(service, station, path, igate, month, day, hours, minutes, wind_speed_mph, wind_speed_gust_mph, wind_direction, rainfall_last_hour_inches, rainfall_last_24_hours_inches, rainfall_since_midnight_inches, humidity, temperature_f, barometric_pressure_pa)
+function APRService.Config.Events.SetOnSendWeather(config, handler)
+	aprservice_config_events_set_on_send_weather(config, handler);
+end
+-- @param handler(service, station, path, igate, month, day, hours, minutes, wind_speed_mph, wind_speed_gust_mph, wind_direction, rainfall_last_hour_inches, rainfall_last_24_hours_inches, rainfall_since_midnight_inches, humidity, temperature_f, barometric_pressure_pa)
+function APRService.Config.Events.SetOnReceiveWeather(config, handler)
+	aprservice_config_events_set_on_receive_weather(config, handler);
+end
+
+-- @param handler(service, station, path, igate, altitude, latitude, longitude, speed_mph, course, symbol_table, symbol_table_key, comment, flags)
 function APRService.Config.Events.SetOnSendPosition(config, handler)
 	aprservice_config_events_set_on_send_position(config, handler);
 end
--- @param handler(service, station, path, igate, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
+-- @param handler(service, station, path, igate, altitude, latitude, longitude, speed_mph, course, symbol_table, symbol_table_key, comment, flags)
 function APRService.Config.Events.SetOnReceivePosition(config, handler)
 	aprservice_config_events_set_on_receive_position(config, handler);
 end
@@ -211,6 +226,10 @@ APRService.Math.MEASUREMENT_TYPE_FEET       = APRSERVICE_MEASUREMENT_TYPE_FEET;
 APRService.Math.MEASUREMENT_TYPE_MILES      = APRSERVICE_MEASUREMENT_TYPE_MILES;
 APRService.Math.MEASUREMENT_TYPE_METERS     = APRSERVICE_MEASUREMENT_TYPE_METERS;
 APRService.Math.MEASUREMENT_TYPE_KILOMETERS = APRSERVICE_MEASUREMENT_TYPE_KILOMETERS;
+
+function APRService.Math.ConvertSpeed(value, measurement_type_input, measurement_type_output)
+	return aprservice_math_convert_speed(tonumber(value), measurement_type_input, measurement_type_output);
+end
 
 function APRService.Math.GetDistanceBetweenPoints(latitude1, longitude1, latitude2, longitude2, measurement_type)
 	return aprservice_math_get_distance_between_points(tonumber(latitude1), tonumber(longitude1), tonumber(latitude2), tonumber(longitude2), measurement_type);

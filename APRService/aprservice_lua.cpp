@@ -14,32 +14,35 @@ struct aprservice_lua
 
 struct lua_aprservice;
 
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service)>                                                                                                                                                                                                                                                                                                                                           lua_aprservice_event_handler;
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& sender, const AL::String& command_name, const AL::String& command_params)>                                                                                                                                                                                                                                               lua_aprservice_command_handler;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service)>                                                                                                                                                                                                                                                                                                                                                                                                                                                lua_aprservice_event_handler;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& sender, const AL::String& command_name, const AL::String& command_params)>                                                                                                                                                                                                                                                                                                                                                    lua_aprservice_command_handler;
 
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service)>                                                                                                                                                                                                                                                                                                                                           lua_aprservice_aprs_message_callback;
-typedef AL::Lua54::Function<bool(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content)>                                                                                                                                                                                                          lua_aprservice_aprs_packet_filter_callback;
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content)>                                                                                                                                                                                                          lua_aprservice_aprs_packet_monitor_callback;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service)>                                                                                                                                                                                                                                                                                                                                                                                                                                                lua_aprservice_aprs_message_callback;
+typedef AL::Lua54::Function<bool(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content)>                                                                                                                                                                                                                                                                                                               lua_aprservice_aprs_packet_filter_callback;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content)>                                                                                                                                                                                                                                                                                                               lua_aprservice_aprs_packet_monitor_callback;
 
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, AL::uint8 type)>                                                                                                                                                                                                                                                                                                                           lua_aprservice_aprs_on_connect;
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, AL::uint8 reason)>                                                                                                                                                                                                                                                                                                                         lua_aprservice_aprs_on_disconnect;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, AL::uint8 type)>                                                                                                                                                                                                                                                                                                                                                                                                                                lua_aprservice_aprs_on_connect;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, AL::uint8 reason)>                                                                                                                                                                                                                                                                                                                                                                                                                              lua_aprservice_aprs_on_disconnect;
 
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& value)>                                                                                                                                                                                                                                                                                                                  lua_aprservice_aprs_on_send;
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& value)>                                                                                                                                                                                                                                                                                                                  lua_aprservice_aprs_on_receive;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& value)>                                                                                                                                                                                                                                                                                                                                                                                                                       lua_aprservice_aprs_on_send;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& value)>                                                                                                                                                                                                                                                                                                                                                                                                                       lua_aprservice_aprs_on_receive;
 
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content)>                                                                                                                                                                                                          lua_aprservice_aprs_on_send_packet;
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content)>                                                                                                                                                                                                          lua_aprservice_aprs_on_receive_packet;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content)>                                                                                                                                                                                                                                                                                                               lua_aprservice_aprs_on_send_packet;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content)>                                                                                                                                                                                                                                                                                                               lua_aprservice_aprs_on_receive_packet;
 
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::String& destination, const AL::String& content)>                                                                                                                                                                                                     lua_aprservice_aprs_on_send_message;
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::String& destination, const AL::String& content)>                                                                                                                                                                                                     lua_aprservice_aprs_on_receive_message;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::String& destination, const AL::String& content)>                                                                                                                                                                                                                                                                                                          lua_aprservice_aprs_on_send_message;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::String& destination, const AL::String& content)>                                                                                                                                                                                                                                                                                                          lua_aprservice_aprs_on_receive_message;
 
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude, float latitude, float longitude, const AL::String& symbol_table, const AL::String& symbol_table_key, const AL::String& comment, AL::uint8 flags)>                                                                                          lua_aprservice_aprs_on_send_position;
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude, float latitude, float longitude, const AL::String& symbol_table, const AL::String& symbol_table_key, const AL::String& comment, AL::uint8 flags)>                                                                                          lua_aprservice_aprs_on_receive_position;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::uint8 month, AL::uint8 day, AL::uint8 hours, AL::uint8 minutes, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hours_inches, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa)> lua_aprservice_aprs_on_send_weather;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::uint8 month, AL::uint8 day, AL::uint8 hours, AL::uint8 minutes, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hours_inches, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa)> lua_aprservice_aprs_on_receive_weather;
 
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, AL::uint8 analog_1, AL::uint8 analog_2, AL::uint8 analog_3, AL::uint8 analog_4, AL::uint8 analog_5, bool digital_1, bool digital_2, bool digital_3, bool digital_4, bool digital_5, bool digital_6, bool digital_7, bool digital_8)> lua_aprservice_aprs_on_send_telemetry;
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, AL::uint8 analog_1, AL::uint8 analog_2, AL::uint8 analog_3, AL::uint8 analog_4, AL::uint8 analog_5, bool digital_1, bool digital_2, bool digital_3, bool digital_4, bool digital_5, bool digital_6, bool digital_7, bool digital_8)> lua_aprservice_aprs_on_receive_telemetry;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude_ft, float latitude, float longitude, AL::Float speed_mph, AL::uint16 course, const AL::String& symbol_table, const AL::String& symbol_table_key, const AL::String& comment, AL::uint8 flags)>                                                                                                                                                    lua_aprservice_aprs_on_send_position;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude_ft, float latitude, float longitude, AL::Float speed_mph, AL::uint16 course, const AL::String& symbol_table, const AL::String& symbol_table_key, const AL::String& comment, AL::uint8 flags)>                                                                                                                                                    lua_aprservice_aprs_on_receive_position;
 
-typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content, AL::uint8 type)>                                                                                                                                                                                          lua_aprservice_aprs_on_receive_invalid_packet;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, AL::uint8 analog_1, AL::uint8 analog_2, AL::uint8 analog_3, AL::uint8 analog_4, AL::uint8 analog_5, bool digital_1, bool digital_2, bool digital_3, bool digital_4, bool digital_5, bool digital_6, bool digital_7, bool digital_8)>                                                                                                      lua_aprservice_aprs_on_send_telemetry;
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, AL::uint8 analog_1, AL::uint8 analog_2, AL::uint8 analog_3, AL::uint8 analog_4, AL::uint8 analog_5, bool digital_1, bool digital_2, bool digital_3, bool digital_4, bool digital_5, bool digital_6, bool digital_7, bool digital_8)>                                                                                                      lua_aprservice_aprs_on_receive_telemetry;
+
+typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content, AL::uint8 type)>                                                                                                                                                                                                                                                                                               lua_aprservice_aprs_on_receive_invalid_packet;
 
 struct lua_aprservice_aprs_event_handlers
 {
@@ -54,6 +57,9 @@ struct lua_aprservice_aprs_event_handlers
 
 	lua_aprservice_aprs_on_send_message           on_send_message;
 	lua_aprservice_aprs_on_receive_message        on_receive_message;
+
+	lua_aprservice_aprs_on_send_weather           on_send_weather;
+	lua_aprservice_aprs_on_receive_weather        on_receive_weather;
 
 	lua_aprservice_aprs_on_send_position          on_send_position;
 	lua_aprservice_aprs_on_receive_position       on_receive_position;
@@ -172,15 +178,26 @@ lua_aprservice*         lua_aprservice_init(lua_aprservice_config* lua_config)
 			lua_service->aprs_events.on_receive_message(lua_service, station, path, igate, destination, content);
 	});
 
-	aprservice_aprs_on_send_position on_send_position_detour([](aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude, AL::Float latitude, AL::Float longitude, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param)
+	aprservice_aprs_on_send_weather on_send_weather_detour([](aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::DateTime& time, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hours_inches, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa, void* param)
+	{
+		if (auto lua_service = reinterpret_cast<lua_aprservice*>(param); lua_service->aprs_events.on_send_message)
+			lua_service->aprs_events.on_send_weather(lua_service, station, path, igate, static_cast<AL::uint8>(time.Month), static_cast<AL::uint8>(time.Day), static_cast<AL::uint8>(time.Hour), static_cast<AL::uint8>(time.Minutes), wind_speed_mph, wind_speed_gust_mph, wind_direction, rainfall_last_hour_inches, rainfall_last_24_hours_inches, rainfall_since_midnight_inches, humidity, temperature_f, barometric_pressure_pa);
+	});
+	aprservice_aprs_on_receive_weather on_receive_weather_detour([](aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::DateTime& time, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hours_inches, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa, void* param)
+	{
+		if (auto lua_service = reinterpret_cast<lua_aprservice*>(param); lua_service->aprs_events.on_receive_message)
+			lua_service->aprs_events.on_receive_weather(lua_service, station, path, igate, static_cast<AL::uint8>(time.Month), static_cast<AL::uint8>(time.Day), static_cast<AL::uint8>(time.Hour), static_cast<AL::uint8>(time.Minutes), wind_speed_mph, wind_speed_gust_mph, wind_direction, rainfall_last_hour_inches, rainfall_last_24_hours_inches, rainfall_since_midnight_inches, humidity, temperature_f, barometric_pressure_pa);
+	});
+
+	aprservice_aprs_on_send_position on_send_position_detour([](aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude_ft, AL::Float latitude, AL::Float longitude, AL::Float speed_mph, AL::uint16 course, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param)
 	{
 		if (auto lua_service = reinterpret_cast<lua_aprservice*>(param); lua_service->aprs_events.on_send_position)
-			lua_service->aprs_events.on_send_position(lua_service, station, path, igate, altitude, latitude, longitude, AL::ToString(symbol_table), AL::ToString(symbol_table_key), comment, flags);
+			lua_service->aprs_events.on_send_position(lua_service, station, path, igate, altitude_ft, latitude, longitude, speed_mph, course, AL::ToString(symbol_table), AL::ToString(symbol_table_key), comment, flags);
 	});
-	aprservice_aprs_on_receive_position on_receive_position_detour([](aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude, AL::Float latitude, AL::Float longitude, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param)
+	aprservice_aprs_on_receive_position on_receive_position_detour([](aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude_ft, AL::Float latitude, AL::Float longitude, AL::Float speed_mph, AL::uint16 course, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param)
 	{
 		if (auto lua_service = reinterpret_cast<lua_aprservice*>(param); lua_service->aprs_events.on_receive_position)
-			lua_service->aprs_events.on_receive_position(lua_service, station, path, igate, altitude, latitude, longitude, AL::ToString(symbol_table), AL::ToString(symbol_table_key), comment, flags);
+			lua_service->aprs_events.on_receive_position(lua_service, station, path, igate, altitude_ft, latitude, longitude, speed_mph, course, AL::ToString(symbol_table), AL::ToString(symbol_table_key), comment, flags);
 	});
 
 	aprservice_aprs_on_send_telemetry on_send_telemetry_detour([](aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::uint8(&analog)[5], const bool(&digital)[8], void* param)
@@ -224,6 +241,9 @@ lua_aprservice*         lua_aprservice_init(lua_aprservice_config* lua_config)
 
 				.on_send_message           = lua_config->aprs.events.on_send_message ? on_send_message_detour : nullptr,
 				.on_receive_message        = lua_config->aprs.events.on_receive_message ? on_receive_message_detour : nullptr,
+
+				.on_send_weather           = lua_config->aprs.events.on_send_weather ? on_send_weather_detour : nullptr,
+				.on_receive_weather        = lua_config->aprs.events.on_receive_weather ? on_receive_weather_detour : nullptr,
 
 				.on_send_position          = lua_config->aprs.events.on_send_position ? on_send_position_detour : nullptr,
 				.on_receive_position       = lua_config->aprs.events.on_receive_position ? on_receive_position_detour : nullptr,
@@ -341,11 +361,30 @@ auto                    lua_aprservice_aprs_send_message(lua_aprservice* lua_ser
 	return value;
 }
 // @return encoding_failed, connection_closed
-auto                    lua_aprservice_aprs_send_position(lua_aprservice* lua_service, AL::int32 altitude, AL::Float latitude, AL::Float longitude, const AL::String& comment)
+auto                    lua_aprservice_aprs_send_weather(lua_aprservice* lua_service, AL::uint8 month, AL::uint8 day, AL::uint8 hours, AL::uint8 minutes, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hours_inches, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa)
 {
 	AL::Collections::Tuple<bool, bool> value(false, false);
 
-	switch (aprservice_aprs_send_position(lua_service->service, altitude, latitude, longitude, comment))
+	AL::DateTime time;
+	time.Month   = static_cast<AL::DateTime::Months>(month);
+	time.Day     = day;
+	time.Hour    = hours;
+	time.Minutes = minutes;
+
+	switch (aprservice_aprs_send_weather(lua_service->service, time, wind_speed_mph, wind_speed_gust_mph, wind_direction, rainfall_last_hour_inches, rainfall_last_24_hours_inches, rainfall_since_midnight_inches, humidity, temperature_f, barometric_pressure_pa))
+	{
+		case 0:  value.Set<1>(true); break;
+		case -1: value.Set<0>(true); break;
+	}
+
+	return value;
+}
+// @return encoding_failed, connection_closed
+auto                    lua_aprservice_aprs_send_position(lua_aprservice* lua_service, AL::int32 altitude_ft, AL::Float latitude, AL::Float longitude, AL::uint16 speed_mph, AL::uint16 course, const AL::String& comment)
+{
+	AL::Collections::Tuple<bool, bool> value(false, false);
+
+	switch (aprservice_aprs_send_position(lua_service->service, altitude_ft, latitude, longitude, speed_mph, course, comment))
 	{
 		case 0:  value.Set<1>(true); break;
 		case -1: value.Set<0>(true); break;
@@ -489,6 +528,14 @@ void                    lua_aprservice_config_events_set_on_receive_message(lua_
 {
 	lua_config->aprs.events.on_receive_message = AL::Move(handler);
 }
+void                    lua_aprservice_config_events_set_on_send_weather(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_send_weather handler)
+{
+	lua_config->aprs.events.on_send_weather = AL::Move(handler);
+}
+void                    lua_aprservice_config_events_set_on_receive_weather(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_receive_weather handler)
+{
+	lua_config->aprs.events.on_receive_weather = AL::Move(handler);
+}
 void                    lua_aprservice_config_events_set_on_send_position(lua_aprservice_config* lua_config, lua_aprservice_aprs_on_send_position handler)
 {
 	lua_config->aprs.events.on_send_position = AL::Move(handler);
@@ -510,6 +557,10 @@ void                    lua_aprservice_config_events_set_on_receive_invalid_pack
 	lua_config->aprs.events.on_receive_invalid_packet = AL::Move(handler);
 }
 
+AL::Float               lua_aprservice_math_convert_speed(AL::Float value, AL::uint8 measurement_type_input, AL::uint8 measurement_type_output)
+{
+	return aprservice_math_convert_speed(value, measurement_type_input, measurement_type_output);
+}
 AL::Float               lua_aprservice_math_get_distance_between_points(AL::Float latitude1, AL::Float longitude1, AL::Float latitude2, AL::Float longitude2, AL::uint8 measurement_type)
 {
 	return aprservice_math_get_distance_between_points(latitude1, longitude1, latitude2, longitude2, measurement_type);
@@ -625,6 +676,7 @@ void                  aprservice_lua_register_globals(aprservice_lua* lua)
 
 	aprservice_lua_register_global(lua, APRSERVICE_APRS_PACKET_TYPE_UNKNOWN);
 	aprservice_lua_register_global(lua, APRSERVICE_APRS_PACKET_TYPE_MESSAGE);
+	aprservice_lua_register_global(lua, APRSERVICE_APRS_PACKET_TYPE_WEATHER);
 	aprservice_lua_register_global(lua, APRSERVICE_APRS_PACKET_TYPE_POSITION);
 	aprservice_lua_register_global(lua, APRSERVICE_APRS_PACKET_TYPE_TELEMETRY);
 
@@ -655,6 +707,7 @@ void                  aprservice_lua_register_globals(aprservice_lua* lua)
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_disconnect,                             "aprservice_aprs_disconnect");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_add_packet_monitor,                     "aprservice_aprs_add_packet_monitor");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_send_message,                           "aprservice_aprs_send_message");
+	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_send_weather,                           "aprservice_aprs_send_weather");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_send_position,                          "aprservice_aprs_send_position");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_send_telemetry,                         "aprservice_aprs_send_telemetry");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_aprs_begin_send_message,                     "aprservice_aprs_begin_send_message");
@@ -679,12 +732,15 @@ void                  aprservice_lua_register_globals(aprservice_lua* lua)
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_receive_packet,         "aprservice_config_events_set_on_receive_packet");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_send_message,           "aprservice_config_events_set_on_send_message");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_receive_message,        "aprservice_config_events_set_on_receive_message");
+	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_send_weather,           "aprservice_config_events_set_on_send_weather");
+	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_receive_weather,        "aprservice_config_events_set_on_receive_weather");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_send_position,          "aprservice_config_events_set_on_send_position");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_receive_position,       "aprservice_config_events_set_on_receive_position");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_send_telemetry,         "aprservice_config_events_set_on_send_telemetry");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_receive_telemetry,      "aprservice_config_events_set_on_receive_telemetry");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_config_events_set_on_receive_invalid_packet, "aprservice_config_events_set_on_receive_invalid_packet");
 
+	aprservice_lua_register_global_function_ex(lua, lua_aprservice_math_convert_speed,                          "aprservice_math_convert_speed");
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_math_get_distance_between_points,            "aprservice_math_get_distance_between_points");
 
 	aprservice_lua_register_global_function_ex(lua, lua_aprservice_events_get_count,                            "aprservice_events_get_count");

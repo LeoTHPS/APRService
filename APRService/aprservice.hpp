@@ -19,6 +19,7 @@ enum APRSERVICE_APRS_PACKET_TYPES : AL::uint8
 {
 	APRSERVICE_APRS_PACKET_TYPE_UNKNOWN,
 	APRSERVICE_APRS_PACKET_TYPE_MESSAGE,
+	APRSERVICE_APRS_PACKET_TYPE_WEATHER,
 	APRSERVICE_APRS_PACKET_TYPE_POSITION,
 	APRSERVICE_APRS_PACKET_TYPE_TELEMETRY
 };
@@ -35,7 +36,8 @@ enum APRSERVICE_APRS_CONNECTION_TYPES : AL::uint8
 	APRSERVICE_APRS_CONNECTION_TYPE_NONE,
 	APRSERVICE_APRS_CONNECTION_TYPE_APRS_IS,
 	APRSERVICE_APRS_CONNECTION_TYPE_KISS_TCP,
-	APRSERVICE_APRS_CONNECTION_TYPE_KISS_SERIAL
+	APRSERVICE_APRS_CONNECTION_TYPE_KISS_SERIAL,
+	APRSERVICE_APRS_CONNECTION_TYPE_USER_DEFINED
 };
 
 enum APRSERVICE_APRS_DISCONNECT_REASONS : AL::uint8
@@ -68,8 +70,11 @@ typedef void(*aprservice_aprs_on_receive_packet)(aprservice* service, const AL::
 typedef void(*aprservice_aprs_on_send_message)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::String& destination, const AL::String& content, void* param);
 typedef void(*aprservice_aprs_on_receive_message)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::String& destination, const AL::String& content, void* param);
 
-typedef void(*aprservice_aprs_on_send_position)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude, AL::Float latitude, AL::Float longitude, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param);
-typedef void(*aprservice_aprs_on_receive_position)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude, AL::Float latitude, AL::Float longitude, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param);
+typedef void(*aprservice_aprs_on_send_weather)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::DateTime& time, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hour_inchess, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa, void* param);
+typedef void(*aprservice_aprs_on_receive_weather)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::DateTime& time, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hours_inches, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa, void* param);
+
+typedef void(*aprservice_aprs_on_send_position)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude_ft, AL::Float latitude, AL::Float longitude, AL::Float speed_mph, AL::uint16 course, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param);
+typedef void(*aprservice_aprs_on_receive_position)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude_ft, AL::Float latitude, AL::Float longitude, AL::Float speed_mph, AL::uint16 course, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param);
 
 typedef void(*aprservice_aprs_on_send_telemetry)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::uint8(&analog)[5], const bool(&digital)[8], void* param);
 typedef void(*aprservice_aprs_on_receive_telemetry)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::uint8(&analog)[5], const bool(&digital)[8], void* param);
@@ -91,6 +96,9 @@ struct aprservice_aprs_event_handlers
 
 	aprservice_aprs_on_send_message           on_send_message;
 	aprservice_aprs_on_receive_message        on_receive_message;
+
+	aprservice_aprs_on_send_weather           on_send_weather;
+	aprservice_aprs_on_receive_weather        on_receive_weather;
 
 	aprservice_aprs_on_send_position          on_send_position;
 	aprservice_aprs_on_receive_position       on_receive_position;
@@ -134,7 +142,10 @@ void        aprservice_aprs_add_packet_monitor(aprservice* service, aprservice_a
 int         aprservice_aprs_send_message(aprservice* service, const AL::String& destination, const AL::String& content);
 // @return 0 on connection closed
 // @return -1 on encoding error
-int         aprservice_aprs_send_position(aprservice* service, AL::int32 altitude, AL::Float latitude, AL::Float longitude, const AL::String& comment);
+int         aprservice_aprs_send_weather(aprservice* service, const AL::DateTime& time, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hours_inches, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa);
+// @return 0 on connection closed
+// @return -1 on encoding error
+int         aprservice_aprs_send_position(aprservice* service, AL::int32 altitude_ft, AL::Float latitude, AL::Float longitude, AL::Float speed_mph, AL::uint16 course, const AL::String& comment);
 // @return 0 on connection closed
 // @return -1 on encoding error
 int         aprservice_aprs_send_telemetry(aprservice* service, const AL::uint8(&analog)[5], const bool(&digital)[8]);
@@ -142,6 +153,7 @@ int         aprservice_aprs_send_telemetry(aprservice* service, const AL::uint8(
 // @return -1 on encoding error
 int         aprservice_aprs_begin_send_message(aprservice* service, const AL::String& destination, const AL::String& content, aprservice_aprs_message_callback callback, void* param);
 
+AL::Float   aprservice_math_convert_speed(AL::Float value, AL::uint8 measurement_type_input, AL::uint8 measurement_type_output);
 AL::Float   aprservice_math_get_distance_between_points(AL::Float latitude1, AL::Float longitude1, AL::Float latitude2, AL::Float longitude2, AL::uint8 measurement_type);
 
 AL::uint32  aprservice_events_get_count(aprservice* service);

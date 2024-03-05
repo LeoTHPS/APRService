@@ -41,6 +41,7 @@ AL::uint8  aprservice_aprs_convert_packet_type(AL::APRS::PacketTypes value)
 	{
 		case AL::Serialization::APRS::PacketTypes::Unknown:   return APRSERVICE_APRS_PACKET_TYPE_UNKNOWN;
 		case AL::Serialization::APRS::PacketTypes::Message:   return APRSERVICE_APRS_PACKET_TYPE_MESSAGE;
+		case AL::Serialization::APRS::PacketTypes::Weather:   return APRSERVICE_APRS_PACKET_TYPE_WEATHER;
 		case AL::Serialization::APRS::PacketTypes::Position:  return APRSERVICE_APRS_PACKET_TYPE_POSITION;
 		case AL::Serialization::APRS::PacketTypes::Telemetry: return APRSERVICE_APRS_PACKET_TYPE_TELEMETRY;
 	}
@@ -67,6 +68,7 @@ AL::uint8  aprservice_aprs_convert_connection_type(AL::APRS::ClientConnectionTyp
 		case AL::APRS::ClientConnectionTypes::APRS_IS:     return APRSERVICE_APRS_CONNECTION_TYPE_APRS_IS;
 		case AL::APRS::ClientConnectionTypes::KISS_Tcp:    return APRSERVICE_APRS_CONNECTION_TYPE_KISS_TCP;
 		case AL::APRS::ClientConnectionTypes::KISS_Serial: return APRSERVICE_APRS_CONNECTION_TYPE_KISS_SERIAL;
+		case AL::APRS::ClientConnectionTypes::UserDefined: return APRSERVICE_APRS_CONNECTION_TYPE_USER_DEFINED;
 	}
 
 	return APRSERVICE_APRS_CONNECTION_TYPE_NONE;
@@ -118,8 +120,11 @@ void       aprservice_aprs_register_events(aprservice_aprs* aprs, const aprservi
 	if (events.on_send_message)           aprs->client.OnSendMessage.Register([aprs, &events](const AL::APRS::Message& value) { events.on_send_message(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetDestination(), value.GetContent(), events.param); });
 	if (events.on_receive_message)        aprs->client.OnReceiveMessage.Register([aprs, &events](const AL::APRS::Message& value) { if (!value.GetDestination().Compare(aprs->client.GetStation(), AL::True)) events.on_receive_message(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetDestination(), value.GetContent(), events.param); else if (!aprservice_commands_execute(aprs->service, value.GetSender(), value.GetContent())) events.on_receive_message(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetDestination(), value.GetContent(), events.param); });
 
-	if (events.on_send_position)          aprs->client.OnSendPosition.Register([aprs, &events](const AL::APRS::Position& value) { events.on_send_position(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetAltitude(), value.GetLatitude(), value.GetLongitude(), value.GetSymbolTable(), value.GetSymbolTableKey(), value.GetComment(), aprservice_aprs_convert_position_flags(value), events.param); });
-	if (events.on_receive_position)       aprs->client.OnReceivePosition.Register([aprs, &events](const AL::APRS::Position& value) { events.on_receive_position(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetAltitude(), value.GetLatitude(), value.GetLongitude(), value.GetSymbolTable(), value.GetSymbolTableKey(), value.GetComment(), aprservice_aprs_convert_position_flags(value), events.param); });
+	if (events.on_send_weather)           aprs->client.OnSendWeather.Register([aprs, &events](const AL::APRS::Weather& value) { events.on_send_weather(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetTime(), value.GetWindSpeed(), value.GetWindSpeedGust(), value.GetWindDirection(), value.GetRainfallLastHour(), value.GetRainfallLast24Hours(), value.GetRainfallSinceMidnight(), value.GetHumidity(), value.GetTemperature(), value.GetBarometricPressure(), events.param); });
+	if (events.on_receive_weather)        aprs->client.OnReceiveWeather.Register([aprs, &events](const AL::APRS::Weather& value) { events.on_receive_weather(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetTime(), value.GetWindSpeed(), value.GetWindSpeedGust(), value.GetWindDirection(), value.GetRainfallLastHour(), value.GetRainfallLast24Hours(), value.GetRainfallSinceMidnight(), value.GetHumidity(), value.GetTemperature(), value.GetBarometricPressure(), events.param); });
+
+	if (events.on_send_position)          aprs->client.OnSendPosition.Register([aprs, &events](const AL::APRS::Position& value) { events.on_send_position(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetAltitude(), value.GetLatitude(), value.GetLongitude(), value.GetSpeed() * 1.151f, value.GetCourse(), value.GetSymbolTable(), value.GetSymbolTableKey(), value.GetComment(), aprservice_aprs_convert_position_flags(value), events.param); });
+	if (events.on_receive_position)       aprs->client.OnReceivePosition.Register([aprs, &events](const AL::APRS::Position& value) { events.on_receive_position(aprs->service, value.GetSender(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), value.GetAltitude(), value.GetLatitude(), value.GetLongitude(), value.GetSpeed() * 1.151f, value.GetCourse(), value.GetSymbolTable(), value.GetSymbolTableKey(), value.GetComment(), aprservice_aprs_convert_position_flags(value), events.param); });
 
 	if (events.on_send_telemetry)         aprs->client.OnSendTelemetry.Register([aprs, &events](const AL::APRS::Telemetry& value) { AL::uint8 a[5]; bool d[8]; value.GetValues(a, d); events.on_send_telemetry(aprs->service, value.GetSender(), value.GetToCall(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), a, d, events.param); });
 	if (events.on_receive_telemetry)      aprs->client.OnReceiveTelemetry.Register([aprs, &events](const AL::APRS::Telemetry& value) { AL::uint8 a[5]; bool d[8]; value.GetValues(a, d); events.on_receive_telemetry(aprs->service, value.GetSender(), value.GetToCall(), aprservice_aprs_convert_path(value.GetPath()), value.GetIGate(), a, d, events.param); });
@@ -359,14 +364,47 @@ int              aprservice_aprs_send_message(aprservice_aprs* aprs, const AL::S
 }
 // @return 0 on connection closed
 // @return -1 on encoding error
-int              aprservice_aprs_send_position(aprservice_aprs* aprs, AL::int32 altitude, AL::Float latitude, AL::Float longitude, const AL::String& comment)
+int              aprservice_aprs_send_weather(aprservice_aprs* aprs, const AL::DateTime& time, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hours_inches, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa)
 {
 	if (!aprservice_aprs_is_connected(aprs))
 		return 0;
 
 	try
 	{
-		if (!aprs->client.SendPosition(altitude, latitude, longitude, comment))
+		if (!aprs->client.SendWeather(time, AL::BitConverter::FromFloat<AL::uint16>(wind_speed_mph), AL::BitConverter::FromFloat<AL::uint16>(wind_speed_gust_mph), AL::BitConverter::FromFloat<AL::uint16>(wind_direction), AL::BitConverter::FromFloat<AL::uint16>(rainfall_last_hour_inches), AL::BitConverter::FromFloat<AL::uint16>(rainfall_last_24_hours_inches), AL::BitConverter::FromFloat<AL::uint16>(rainfall_since_midnight_inches), AL::BitConverter::FromFloat<AL::uint8>(humidity), AL::BitConverter::FromFloat<AL::int16>(temperature_f), AL::BitConverter::FromFloat<AL::uint32>(barometric_pressure_pa)))
+		{
+			aprservice_aprs_disconnect(aprs);
+
+			return 0;
+		}
+	}
+	catch (const AL::Exception& exception)
+	{
+		aprservice_console_write_line("Error sending weather");
+		aprservice_console_write_exception(exception);
+
+		if (!aprs->client.IsConnected())
+		{
+			aprservice_aprs_disconnect(aprs);
+
+			return 0;
+		}
+
+		return -1;
+	}
+
+	return 1;
+}
+// @return 0 on connection closed
+// @return -1 on encoding error
+int              aprservice_aprs_send_position(aprservice_aprs* aprs, AL::int32 altitude_ft, AL::Float latitude, AL::Float longitude, AL::Float speed_mph, AL::uint16 course, const AL::String& comment)
+{
+	if (!aprservice_aprs_is_connected(aprs))
+		return 0;
+
+	try
+	{
+		if (!aprs->client.SendPosition(altitude_ft, latitude, longitude, AL::BitConverter::FromFloat<AL::uint16>(speed_mph / 1.151f), course, comment))
 		{
 			aprservice_aprs_disconnect(aprs);
 

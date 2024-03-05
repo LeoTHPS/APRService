@@ -21,10 +21,18 @@ struct aprservice
 aprservice_aprs* aprservice_aprs_init(aprservice* service, const aprservice_aprs_config& config);
 void             aprservice_aprs_deinit(aprservice_aprs* aprs);
 bool             aprservice_aprs_is_connected(aprservice_aprs* aprs);
-bool             aprservice_aprs_connect(aprservice_aprs* aprs, aprservice_aprs_connection_is_blocking is_blocking, aprservice_aprs_connection_is_connected is_connected, aprservice_aprs_connection_connect connect, aprservice_aprs_connection_disconnect disconnect, aprservice_aprs_connection_set_blocking set_blocking, aprservice_aprs_connection_read read, aprservice_aprs_connection_write write, void* param);
-bool             aprservice_aprs_connect_is(aprservice_aprs* aprs, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode);
-bool             aprservice_aprs_connect_kiss_tcp(aprservice_aprs* aprs, const AL::String& remote_host, AL::uint16 remote_port);
-bool             aprservice_aprs_connect_kiss_serial(aprservice_aprs* aprs, const AL::String& device, AL::uint32 speed);
+// @return 0 on error
+// @return -1 on timeout
+int              aprservice_aprs_connect(aprservice_aprs* aprs, const aprservice_aprs_connection& connection, void* param);
+// @return 0 on error
+// @return -1 on timeout
+int              aprservice_aprs_connect_is(aprservice_aprs* aprs, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode);
+// @return 0 on error
+// @return -1 on timeout
+int              aprservice_aprs_connect_kiss_tcp(aprservice_aprs* aprs, const AL::String& remote_host, AL::uint16 remote_port);
+// @return 0 on error
+// @return -1 on timeout
+int              aprservice_aprs_connect_kiss_serial(aprservice_aprs* aprs, const AL::String& device, AL::uint32 speed);
 void             aprservice_aprs_disconnect(aprservice_aprs* aprs);
 bool             aprservice_aprs_update(aprservice_aprs* aprs, AL::TimeSpan delta);
 void             aprservice_aprs_add_packet_monitor(aprservice_aprs* aprs, aprservice_aprs_packet_filter_callback filter, aprservice_aprs_packet_monitor_callback callback, void* param);
@@ -144,19 +152,27 @@ bool        aprservice_aprs_is_connected(aprservice* service)
 {
 	return aprservice_aprs_is_connected(service->aprs);
 }
-bool        aprservice_aprs_connect(aprservice* service, aprservice_aprs_connection_is_blocking is_blocking, aprservice_aprs_connection_is_connected is_connected, aprservice_aprs_connection_connect connect, aprservice_aprs_connection_disconnect disconnect, aprservice_aprs_connection_set_blocking set_blocking, aprservice_aprs_connection_read read, aprservice_aprs_connection_write write, void* param)
+// @return 0 on error
+// @return -1 on timeout
+int         aprservice_aprs_connect(aprservice* service, const aprservice_aprs_connection& connection, void* param)
 {
-	return aprservice_aprs_connect(service->aprs, is_blocking, is_connected, connect, disconnect, set_blocking, read, write, param);
+	return aprservice_aprs_connect(service->aprs, connection, param);
 }
-bool        aprservice_aprs_connect_is(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode)
+// @return 0 on error
+// @return -1 on timeout
+int         aprservice_aprs_connect_is(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode)
 {
 	return aprservice_aprs_connect_is(service->aprs, remote_host, remote_port, passcode);
 }
-bool        aprservice_aprs_connect_kiss_tcp(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port)
+// @return 0 on error
+// @return -1 on timeout
+int         aprservice_aprs_connect_kiss_tcp(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port)
 {
 	return aprservice_aprs_connect_kiss_tcp(service->aprs, remote_host, remote_port);
 }
-bool        aprservice_aprs_connect_kiss_serial(aprservice* service, const AL::String& device, AL::uint32 speed)
+// @return 0 on error
+// @return -1 on timeout
+int         aprservice_aprs_connect_kiss_serial(aprservice* service, const AL::String& device, AL::uint32 speed)
 {
 	return aprservice_aprs_connect_kiss_serial(service->aprs, device, speed);
 }

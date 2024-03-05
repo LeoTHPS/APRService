@@ -62,6 +62,20 @@ typedef int(*aprservice_aprs_connection_read)(AL::String& value, void* param);
 // @return false on connection closed
 typedef bool(*aprservice_aprs_connection_write)(const AL::String& value, void* param);
 
+struct aprservice_aprs_connection
+{
+	aprservice_aprs_connection_is_blocking  is_blocking;
+	aprservice_aprs_connection_is_connected is_connected;
+
+	aprservice_aprs_connection_connect      connect;
+	aprservice_aprs_connection_disconnect   disconnect;
+
+	aprservice_aprs_connection_set_blocking set_blocking;
+
+	aprservice_aprs_connection_read         read;
+	aprservice_aprs_connection_write        write;
+};
+
 typedef void(*aprservice_event_handler)(aprservice* service, void* param);
 typedef void(*aprservice_command_handler)(aprservice* service, const AL::String& sender, const AL::String& command_name, const AL::String& command_params, void* param);
 
@@ -143,10 +157,18 @@ void        aprservice_run(aprservice* service, AL::uint32 tick_rate, AL::uint8 
 void        aprservice_stop(aprservice* service);
 
 bool        aprservice_aprs_is_connected(aprservice* service);
-bool        aprservice_aprs_connect(aprservice* service, aprservice_aprs_connection_is_blocking is_blocking, aprservice_aprs_connection_is_connected is_connected, aprservice_aprs_connection_connect connect, aprservice_aprs_connection_disconnect disconnect, aprservice_aprs_connection_set_blocking set_blocking, aprservice_aprs_connection_read read, aprservice_aprs_connection_write write, void* param);
-bool        aprservice_aprs_connect_is(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode);
-bool        aprservice_aprs_connect_kiss_tcp(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port);
-bool        aprservice_aprs_connect_kiss_serial(aprservice* service, const AL::String& device, AL::uint32 speed);
+// @return 0 on error
+// @return -1 on timeout
+int         aprservice_aprs_connect(aprservice* service, const aprservice_aprs_connection& connection, void* param);
+// @return 0 on error
+// @return -1 on timeout
+int         aprservice_aprs_connect_is(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode);
+// @return 0 on error
+// @return -1 on timeout
+int         aprservice_aprs_connect_kiss_tcp(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port);
+// @return 0 on error
+// @return -1 on timeout
+int         aprservice_aprs_connect_kiss_serial(aprservice* service, const AL::String& device, AL::uint32 speed);
 void        aprservice_aprs_disconnect(aprservice* service);
 void        aprservice_aprs_add_packet_monitor(aprservice* service, aprservice_aprs_packet_filter_callback filter, aprservice_aprs_packet_monitor_callback callback, void* param);
 // @return 0 on connection closed

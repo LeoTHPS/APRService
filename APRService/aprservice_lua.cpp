@@ -14,16 +14,6 @@ struct aprservice_lua
 
 struct lua_aprservice;
 
-typedef AL::Lua54::Function<bool()>                        lua_aprservice_aprs_connection_is_blocking;
-typedef AL::Lua54::Function<bool()>                        lua_aprservice_aprs_connection_is_connected;
-typedef AL::Lua54::Function<bool()>                        lua_aprservice_aprs_connection_connect;
-typedef AL::Lua54::Function<void()>                        lua_aprservice_aprs_connection_disconnect;
-typedef AL::Lua54::Function<bool(bool set)>                lua_aprservice_aprs_connection_set_blocking;
-// @return connection_closed, would_block, string
-typedef AL::Lua54::Function<bool()>                        lua_aprservice_aprs_connection_read;
-// @return false on connection closed
-typedef AL::Lua54::Function<bool(const AL::String& value)> lua_aprservice_aprs_connection_write;
-
 typedef AL::Lua54::Function<void(lua_aprservice* lua_service)>                                                                                                                                                                                                                                                                                                                                                                                                                                                lua_aprservice_event_handler;
 typedef AL::Lua54::Function<void(lua_aprservice* lua_service, const AL::String& sender, const AL::String& command_name, const AL::String& command_params)>                                                                                                                                                                                                                                                                                                                                                    lua_aprservice_command_handler;
 
@@ -316,22 +306,38 @@ bool                    lua_aprservice_aprs_is_connected(lua_aprservice* lua_ser
 {
 	return aprservice_aprs_is_connected(lua_service->service);
 }
-bool                    lua_aprservice_aprs_connect(lua_aprservice* lua_service, lua_aprservice_aprs_connection_is_blocking is_blocking, lua_aprservice_aprs_connection_is_connected is_connected, lua_aprservice_aprs_connection_connect connect, lua_aprservice_aprs_connection_disconnect disconnect, lua_aprservice_aprs_connection_set_blocking set_blocking, lua_aprservice_aprs_connection_read read, lua_aprservice_aprs_connection_write write)
-{
-	// TODO: implement
-	return aprservice_aprs_connect(lua_service->service, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-}
 bool                    lua_aprservice_aprs_connect_is(lua_aprservice* lua_service, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode)
 {
-	return aprservice_aprs_connect_is(lua_service->service, remote_host, remote_port, passcode);
+	switch (aprservice_aprs_connect_is(lua_service->service, remote_host, remote_port, passcode))
+	{
+		case 0:
+		case -1:
+			return false;
+	}
+
+	return true;
 }
 bool                    lua_aprservice_aprs_connect_kiss_tcp(lua_aprservice* lua_service, const AL::String& remote_host, AL::uint16 remote_port)
 {
-	return aprservice_aprs_connect_kiss_tcp(lua_service->service, remote_host, remote_port);
+	switch (aprservice_aprs_connect_kiss_tcp(lua_service->service, remote_host, remote_port))
+	{
+		case 0:
+		case -1:
+			return false;
+	}
+
+	return true;
 }
 bool                    lua_aprservice_aprs_connect_kiss_serial(lua_aprservice* lua_service, const AL::String& device, AL::uint32 speed)
 {
-	return aprservice_aprs_connect_kiss_serial(lua_service->service, device, speed);
+	switch (aprservice_aprs_connect_kiss_serial(lua_service->service, device, speed))
+	{
+		case 0:
+		case -1:
+			return false;
+	}
+
+	return true;
 }
 void                    lua_aprservice_aprs_disconnect(lua_aprservice* lua_service)
 {

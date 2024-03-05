@@ -175,7 +175,9 @@ bool             aprservice_aprs_is_connected(aprservice_aprs* aprs)
 {
 	return aprs->is_connected;
 }
-bool             aprservice_aprs_connect(aprservice_aprs* aprs, aprservice_aprs_connection_is_blocking is_blocking, aprservice_aprs_connection_is_connected is_connected, aprservice_aprs_connection_connect connect, aprservice_aprs_connection_disconnect disconnect, aprservice_aprs_connection_set_blocking set_blocking, aprservice_aprs_connection_read read, aprservice_aprs_connection_write write, void* param)
+// @return 0 on error
+// @return -1 on timeout
+int              aprservice_aprs_connect(aprservice_aprs* aprs, const aprservice_aprs_connection& connection, void* param)
 {
 	class user_defined_connection
 		: public AL::APRS::IClientConnection
@@ -252,22 +254,24 @@ bool             aprservice_aprs_connect(aprservice_aprs* aprs, aprservice_aprs_
 
 	try
 	{
-		if (!aprs->client.Connect<user_defined_connection>(is_blocking, is_connected, connect, disconnect, set_blocking, read, write, param))
-			throw AL::Exception("Connection timed out");
+		if (!aprs->client.Connect<user_defined_connection>(connection.is_blocking, connection.is_connected, connection.connect, connection.disconnect, connection.set_blocking, connection.read, connection.write, param))
+			return -1;
 	}
 	catch (const AL::Exception& exception)
 	{
 		aprservice_console_write_line("Error connecting AL::APRS::Client to user defined");
 		aprservice_console_write_exception(exception);
 
-		return false;
+		return 0;
 	}
 
 	aprs->is_connected = true;
 
-	return true;
+	return 1;
 }
-bool             aprservice_aprs_connect_is(aprservice_aprs* aprs, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode)
+// @return 0 on error
+// @return -1 on timeout
+int              aprservice_aprs_connect_is(aprservice_aprs* aprs, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode)
 {
 	if (aprservice_aprs_is_connected(aprs))
 		aprservice_aprs_disconnect(aprs);
@@ -287,27 +291,29 @@ bool             aprservice_aprs_connect_is(aprservice_aprs* aprs, const AL::Str
 		aprservice_console_write_line(AL::String::Format("Error resolving remote host '%s'", remote_host.GetCString()));
 		aprservice_console_write_exception(exception);
 
-		return false;
+		return 0;
 	}
 
 	try
 	{
 		if (!aprs->client.ConnectIS(remote_end_point, passcode, aprs->is_filter))
-			throw AL::Exception("Connection timed out");
+			return -1;
 	}
 	catch (const AL::Exception& exception)
 	{
 		aprservice_console_write_line("Error connecting AL::APRS::Client to APRS-IS");
 		aprservice_console_write_exception(exception);
 
-		return false;
+		return 0;
 	}
 
 	aprs->is_connected = true;
 
-	return true;
+	return 1;
 }
-bool             aprservice_aprs_connect_kiss_tcp(aprservice_aprs* aprs, const AL::String& remote_host, AL::uint16 remote_port)
+// @return 0 on error
+// @return -1 on timeout
+int              aprservice_aprs_connect_kiss_tcp(aprservice_aprs* aprs, const AL::String& remote_host, AL::uint16 remote_port)
 {
 	if (aprservice_aprs_is_connected(aprs))
 		aprservice_aprs_disconnect(aprs);
@@ -327,27 +333,29 @@ bool             aprservice_aprs_connect_kiss_tcp(aprservice_aprs* aprs, const A
 		aprservice_console_write_line(AL::String::Format("Error resolving remote host '%s'", remote_host.GetCString()));
 		aprservice_console_write_exception(exception);
 
-		return false;
+		return 0;
 	}
 
 	try
 	{
 		if (!aprs->client.ConnectKISS(remote_end_point))
-			throw AL::Exception("Connection timed out");
+			return -1;
 	}
 	catch (const AL::Exception& exception)
 	{
 		aprservice_console_write_line("Error connecting AL::APRS::Client to tcp KISS TNC");
 		aprservice_console_write_exception(exception);
 
-		return false;
+		return 0;
 	}
 
 	aprs->is_connected = true;
 
-	return true;
+	return 1;
 }
-bool             aprservice_aprs_connect_kiss_serial(aprservice_aprs* aprs, const AL::String& device, AL::uint32 speed)
+// @return 0 on error
+// @return -1 on timeout
+int              aprservice_aprs_connect_kiss_serial(aprservice_aprs* aprs, const AL::String& device, AL::uint32 speed)
 {
 	if (aprservice_aprs_is_connected(aprs))
 		aprservice_aprs_disconnect(aprs);
@@ -355,19 +363,19 @@ bool             aprservice_aprs_connect_kiss_serial(aprservice_aprs* aprs, cons
 	try
 	{
 		if (!aprs->client.ConnectKISS(device, speed))
-			throw AL::Exception("Connection timed out");
+			return -1;
 	}
 	catch (const AL::Exception& exception)
 	{
 		aprservice_console_write_line("Error connecting AL::APRS::Client to serial KISS TNC");
 		aprservice_console_write_exception(exception);
 
-		return false;
+		return 0;
 	}
 
 	aprs->is_connected = true;
 
-	return true;
+	return 1;
 }
 void             aprservice_aprs_disconnect(aprservice_aprs* aprs)
 {

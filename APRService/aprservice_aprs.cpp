@@ -175,6 +175,98 @@ bool             aprservice_aprs_is_connected(aprservice_aprs* aprs)
 {
 	return aprs->is_connected;
 }
+bool             aprservice_aprs_connect(aprservice_aprs* aprs, aprservice_aprs_connection_is_blocking is_blocking, aprservice_aprs_connection_is_connected is_connected, aprservice_aprs_connection_connect connect, aprservice_aprs_connection_disconnect disconnect, aprservice_aprs_connection_set_blocking set_blocking, aprservice_aprs_connection_read read, aprservice_aprs_connection_write write, void* param)
+{
+	class user_defined_connection
+		: public AL::APRS::IClientConnection
+	{
+		void*                                   param;
+
+		aprservice_aprs_connection_is_blocking  is_blocking;
+		aprservice_aprs_connection_is_connected is_connected;
+
+		aprservice_aprs_connection_connect      connect;
+		aprservice_aprs_connection_disconnect   disconnect;
+
+		aprservice_aprs_connection_set_blocking set_blocking;
+
+		aprservice_aprs_connection_read         read;
+		aprservice_aprs_connection_write        write;
+
+	public:
+		virtual AL::Bool IsBlocking() const override
+		{
+			return is_blocking(param);
+		}
+
+		virtual AL::Bool IsConnected() const override
+		{
+			return is_connected(param);
+		}
+
+		// @throw AL::Exception
+		// @return AL::False on timeout
+		virtual AL::Bool Connect(aprservice_aprs_connection_is_blocking is_blocking, aprservice_aprs_connection_is_connected is_connected, aprservice_aprs_connection_connect connect, aprservice_aprs_connection_disconnect disconnect, aprservice_aprs_connection_set_blocking set_blocking, aprservice_aprs_connection_read read, aprservice_aprs_connection_write write, void* param)
+		{
+			this->is_blocking  = is_blocking;
+			this->is_connected = is_connected;
+			this->connect      = connect;
+			this->disconnect   = disconnect;
+			this->set_blocking = set_blocking;
+			this->read         = read;
+			this->write        = write;
+
+			return connect(param);
+		}
+
+		virtual AL::Void Disconnect() override
+		{
+			disconnect(param);
+		}
+
+		// @throw AL::Exception
+		virtual AL::Void SetBlocking(AL::Bool set) override
+		{
+			if (!set_blocking(set, param))
+				throw AL::Exception("Error setting blocking state");
+		}
+
+		// @throw AL::Exception
+		// @return 0 on connection closed
+		// @return -1 if would block
+		virtual int Read(AL::String& value) override
+		{
+			return read(value, param);
+		}
+
+		// @throw AL::Exception
+		// @return AL::False on connection closed
+		virtual AL::Bool Write(const AL::String& value) override
+		{
+			return write(value, param);
+		}
+	};
+
+	if (aprservice_aprs_is_connected(aprs))
+		aprservice_aprs_disconnect(aprs);
+
+	try
+	{
+		if (!aprs->client.Connect<user_defined_connection>(is_blocking, is_connected, connect, disconnect, set_blocking, read, write, param))
+			throw AL::Exception("Connection timed out");
+	}
+	catch (const AL::Exception& exception)
+	{
+		aprservice_console_write_line("Error connecting AL::APRS::Client to user defined");
+		aprservice_console_write_exception(exception);
+
+		return false;
+	}
+
+	aprs->is_connected = true;
+
+	return true;
+}
 bool             aprservice_aprs_connect_is(aprservice_aprs* aprs, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode)
 {
 	if (aprservice_aprs_is_connected(aprs))

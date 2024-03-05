@@ -27,6 +27,8 @@ APRService.Config.Events.SetOnConnect(config, function(service, type)
 		APRService.Console.WriteLine('Connected via KISS TNC (TCP)');
 	elseif type == APRService.APRS.CONNECTION_TYPE_KISS_SERIAL then
 		APRService.Console.WriteLine('Connected via KISS TNC (Serial)');
+	elseif type == APRService.APRS.CONNECTION_TYPE_USER_DEFINED then
+		APRService.Console.WriteLine('Connected via User Defined');
 	end
 end);
 APRService.Config.Events.SetOnDisconnect(config, function(service, reason)
@@ -46,11 +48,11 @@ APRService.Config.Events.SetOnReceiveMessage(config, function(service, station, 
 	APRService.Console.WriteLine(string.format('[Message] %s -> %s: %s', station, destination, content));
 end);
 
-APRService.Config.Events.SetOnSendPosition(config, function(service, station, path, igate, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
-	APRService.Console.WriteLine(string.format('[Position] %s: Latitude = %.06f, Longitude = %.06f, Altitude = %i ft, Comment = %s', station, latitude, longitude, altitude, comment));
+APRService.Config.Events.SetOnSendPosition(config, function(service, station, path, igate, altitude_ft, latitude, longitude, speed_mph, course, symbol_table, symbol_table_key, comment, flags)
+	APRService.Console.WriteLine(string.format('[Position] %s: Latitude = %.06f, Longitude = %.06f, Altitude = %i FT, Speed = %.f MPH, Course = %u, Comment = %s', station, latitude, longitude, altitude_ft, speed_mph, course, comment));
 end);
-APRService.Config.Events.SetOnReceivePosition(config, function(service, station, path, igate, altitude, latitude, longitude, symbol_table, symbol_table_key, comment, flags)
-	APRService.Console.WriteLine(string.format('[Position] %s: Latitude = %.06f, Longitude = %.06f, Altitude = %i ft, Comment = %s', station, latitude, longitude, altitude, comment));
+APRService.Config.Events.SetOnReceivePosition(config, function(service, station, path, igate, altitude_ft, latitude, longitude, speed_mph, course, symbol_table, symbol_table_key, comment, flags)
+	APRService.Console.WriteLine(string.format('[Position] %s: Latitude = %.06f, Longitude = %.06f, Altitude = %i FT, Speed = %.f MPH, Course = %u, Comment = %s', station, latitude, longitude, altitude_ft, speed_mph, course, comment));
 end);
 
 APRService.Config.Events.SetOnSendTelemetry(config, function(service, station, tocall, path, igate, analog_1, analog_2, analog_3, analog_4, analog_5, digital_1, digital_2, digital_3, digital_4, digital_5, digital_6, digital_7, digital_8)

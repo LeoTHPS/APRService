@@ -493,7 +493,7 @@ AL::size_t                                                                      
 
 	try
 	{
-		for (AL::size_t total_bytes_sent = 0, number_of_bytes_sent; total_bytes_sent < byte_buffer_size; total_bytes_sent += number_of_bytes_sent)
+		for (AL::size_t total_bytes_sent = 0; total_bytes_sent < byte_buffer_size; )
 		{
 			switch (aprservice_lua_module_socket_get_type(socket))
 			{
@@ -503,7 +503,7 @@ AL::size_t                                                                      
 					throw AL::Exception("Invalid socket type");
 
 				case APRSERVICE_LUA_MODULE_SOCKET_TYPE_UDP:
-					number_of_bytes_sent = socket->udp->Send(&buffer[total_bytes_sent], byte_buffer_size - total_bytes_sent, remote_ep);
+					total_bytes_sent += socket->udp->Send(&buffer[total_bytes_sent], byte_buffer_size - total_bytes_sent, remote_ep);
 			}
 		}
 	}

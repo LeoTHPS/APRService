@@ -140,7 +140,7 @@ aprservice_lua_module_socket*                                                   
 		.type           = APRSERVICE_LUA_MODULE_SOCKET_TYPE_UNIX_TCP,
 		.address_family = address_family,
 
-		.unix_tcp       = new AL::Network::UnixSocket<AL::Network::TcpSocket>(AL::FileSystem::Path(path), static_cast<AL::Network::AddressFamilies>(address_family))
+		.unix_tcp       = new AL::Network::UnixSocket<AL::Network::TcpSocket>(path, static_cast<AL::Network::AddressFamilies>(address_family))
 	};
 
 	socket->is_blocking = socket->unix_tcp->IsBlocking();

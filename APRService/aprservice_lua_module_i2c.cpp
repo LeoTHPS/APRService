@@ -198,12 +198,12 @@ AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*> aprservice_lua_
 #if defined(APRSERVICE_I2C_SUPPORTED)
 	try
 	{
-		i2c_device->device.Read(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>()), byte_buffer_size);
+		i2c_device->device.Read(const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>())), byte_buffer_size);
 		value.Set<0>(true);
 	}
 	catch (const AL::Exception& exception)
 	{
-		delete value.Get<1>();
+		aprservice_lua_module_byte_buffer_destroy(value.Get<1>());
 
 		aprservice_console_write_line("Error reading AL::Hardware::I2CDevice");
 		aprservice_console_write_exception(exception);
@@ -246,8 +246,8 @@ AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*> aprservice_lua_
 #if defined(APRSERVICE_I2C_SUPPORTED)
 	try
 	{
-		i2c_device->device.WriteRead(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer), byte_buffer_size, aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>()), rx_byte_buffer_size);
-		value.Set<1>(true);
+		i2c_device->device.WriteRead(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer), byte_buffer_size, const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>())), rx_byte_buffer_size);
+		value.Set<0>(true);
 	}
 	catch (const AL::Exception& exception)
 	{

@@ -31,8 +31,6 @@
 - [AbstractionLayer](//github.com/LeoTHPS/AbstractionLayer)
 
 ### Quick Start
-###### Note: The current Lua API has issues compiling on GCC 10.2 - You will need a more recent version until this is fixed.
-
 #### Linux - Debian
 ```sh
 # Install dependencies

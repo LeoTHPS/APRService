@@ -97,7 +97,7 @@ AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*> aprservice_lua_
 	}
 	catch (const AL::Exception& exception)
 	{
-		delete value.Get<1>();
+		aprservice_lua_module_byte_buffer_destroy(value.Get<1>());
 
 		aprservice_console_write_line("Error reading AL::Hardware::I2CBus");
 		aprservice_console_write_exception(exception);

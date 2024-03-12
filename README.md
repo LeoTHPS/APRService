@@ -40,7 +40,7 @@ apt install git liblua5.4-dev libssl-dev libsqlite3-dev
 # Clone AbstractionLayer and set temporary environment variable
 
 git clone https://github.com/LeoTHPS/AbstractionLayer AbstractionLayer
-export AL_INCLUDE=../../../../AbstractionLayer
+export AL_INCLUDE=../../AbstractionLayer
 
 # Clone and build APRService
 
@@ -55,7 +55,7 @@ make -C APRService/APRService -e COMPILER=GNU PLATFORM=LINUX
 # Clone AbstractionLayer and set temporary environment variable
 
 git clone https://github.com/LeoTHPS/AbstractionLayer AbstractionLayer
-export AL_INCLUDE=../../../../AbstractionLayer
+export AL_INCLUDE=../../AbstractionLayer
 
 # Clone and build APRService
 
@@ -71,7 +71,7 @@ pacman -S git mingw-w64-x86_64-lua mingw-w64-x86_64-openssl mingw-w64-x86_64-sql
 # Clone AbstractionLayer and set temporary environment variable
 
 git clone https://github.com/LeoTHPS/AbstractionLayer AbstractionLayer
-export AL_INCLUDE=../../../../AbstractionLayer
+export AL_INCLUDE=../../AbstractionLayer
 
 # Clone and build APRService
 

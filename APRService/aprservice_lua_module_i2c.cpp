@@ -180,10 +180,6 @@ aprservice_lua_module_i2c_device*                                aprservice_lua_
 }
 void                                                             aprservice_lua_module_i2c_device_close(aprservice_lua_module_i2c_device* i2c_device)
 {
-#if defined(APRSERVICE_I2C_SUPPORTED)
-	i2c_device->device.Close();
-#endif
-
 	delete i2c_device;
 }
 AL::uint16                                                       aprservice_lua_module_i2c_device_get_address(aprservice_lua_module_i2c_device* i2c_device)

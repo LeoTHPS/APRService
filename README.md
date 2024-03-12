@@ -35,7 +35,7 @@
 ```sh
 # Install dependencies
 
-apt install git liblua5.4-dev libssl-dev libsqlite3-dev
+apt install git liblua5.4-dev libssl-dev libsqlite3-dev libi2c-dev libgpiod-dev
 
 # Clone AbstractionLayer and set temporary environment variable
 
@@ -50,7 +50,7 @@ make -C APRService/APRService -e COMPILER=GNU PLATFORM=LINUX
 #### Linux - Other
 ```sh
 # Install dependencies
-# - You need to install git, OpenSSL, SQLite3 and Lua 5.4 c development packages for your distribution
+# - You need to install git, libi2c libgpiod, OpenSSL, SQLite3 and Lua 5.4 c development packages for your distribution
 
 # Clone AbstractionLayer and set temporary environment variable
 

@@ -503,7 +503,7 @@ AL::size_t                                                                      
 					throw AL::Exception("Invalid socket type");
 
 				case APRSERVICE_LUA_MODULE_SOCKET_TYPE_UDP:
-					return socket->udp->Send(&buffer[total_bytes_sent], byte_buffer_size - total_bytes_sent, remote_ep);
+					number_of_bytes_sent = socket->udp->Send(&buffer[total_bytes_sent], byte_buffer_size - total_bytes_sent, remote_ep);
 			}
 		}
 	}

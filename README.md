@@ -1,10 +1,10 @@
 # APRService
 ###### An APRS client with a Lua 5.4 API
-###### Note: Support for KISS TNC and compressed positions is not complete.
 
 <hr />
 
 ### API
+###### Note: KISS TNC and compressed position reports are not fully implemented.
 
 - [C++](/APRService/aprservice.hpp)
 - [Lua](/Services/APRService.lua)
@@ -31,6 +31,8 @@
 - [AbstractionLayer](//github.com/LeoTHPS/AbstractionLayer)
 
 ### Quick Start
+###### Note: The current Lua API has issues compiling on GCC 10.2 - You will need a more recent version until this is fixed.
+
 #### Linux - Debian
 ```sh
 # Install dependencies

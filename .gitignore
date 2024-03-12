@@ -3,9 +3,8 @@
 
 # Build results
 /APRService/*.o
-
-/Services/APRService
-/Services/APRService.exe
+/APRService/APRService
+/APRService/APRService.exe
 
 # Service generated files
 /Services/*.db

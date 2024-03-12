@@ -46,7 +46,7 @@ endif
 
 .PHONY: clean
 
-../Services/APRService: $(OBJECT_FILES)
+APRService: $(OBJECT_FILES)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 clean:

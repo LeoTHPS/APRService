@@ -154,7 +154,7 @@ AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*> aprservice_lua_
 #if defined(APRSERVICE_SPI_SUPPORTED)
 	try
 	{
-		spi->device.Read(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>()), byte_buffer_size, change_cs);
+		spi->device.Read(const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>())), byte_buffer_size, change_cs);
 		value.Set<0>(true);
 	}
 	catch (const AL::Exception& exception)
@@ -203,7 +203,7 @@ AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*> aprservice_lua_
 #if defined(APRSERVICE_SPI_SUPPORTED)
 	try
 	{
-		spi->device.WriteRead(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer), aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>()), byte_buffer_size, change_cs);
+		spi->device.WriteRead(aprservice_lua_module_byte_buffer_get_buffer(byte_buffer), const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>())), byte_buffer_size, change_cs);
 		value.Set<0>(true);
 	}
 	catch (const AL::Exception& exception)

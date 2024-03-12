@@ -17,7 +17,7 @@ struct aprservice_lua_module_gpio
 #endif
 };
 
-void                        aprservice_lua_module_gpio_register_globals(aprservice_lua* lua)
+void                                    aprservice_lua_module_gpio_register_globals(aprservice_lua* lua)
 {
 	auto lua_state = aprservice_lua_get_state(lua);
 
@@ -43,7 +43,7 @@ void                        aprservice_lua_module_gpio_register_globals(aprservi
 	aprservice_lua_state_register_global_function(lua_state, aprservice_lua_module_gpio_pin_set_direction);
 }
 
-aprservice_lua_module_gpio* aprservice_lua_module_gpio_open(AL::uint8 bus, AL::uint8 pin, AL::uint8 direction, AL::uint8 value)
+aprservice_lua_module_gpio*             aprservice_lua_module_gpio_open(AL::uint8 bus, AL::uint8 pin, AL::uint8 direction, AL::uint8 value)
 {
 #if defined(APRSERVICE_GPIO_SUPPORTED)
 	#if defined(AL_PLATFORM_LINUX)
@@ -98,7 +98,7 @@ AL::Collections::Tuple<bool, AL::uint8> aprservice_lua_module_gpio_pin_read(aprs
 
 		gpio->gpio.Read(_value);
 
-		if (_value == AL::Hardware::GPIO::PinValues::High)
+		if (_value == AL::Hardware::GPIOPinValues::High)
 			value.Set<1>(APRSERVICE_LUA_MODULE_GPIO_PIN_VALUE_HIGH);
 
 		value.Set<0>(true);

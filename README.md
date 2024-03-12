@@ -1,5 +1,6 @@
 # APRService
 ###### An APRS client with a Lua 5.4 API
+###### Note: Support for KISS TNC and compressed positions is not complete.
 
 <hr />
 

@@ -49,6 +49,7 @@ aprservice_lua_module_gpio* aprservice_lua_module_gpio_open(AL::uint8 bus, AL::u
 	#if defined(AL_PLATFORM_LINUX)
 		auto gpio = new aprservice_lua_module_gpio
 		{
+			.gpio = AL::Hardware::GPIO(bus, pin, (direction == APRSERVICE_LUA_MODULE_GPIO_PIN_DIRECTION_IN) ? AL::Hardware::GPIOPinDirections::In : AL::Hardware::GPIOPinDirections::Out, (value == APRSERVICE_LUA_MODULE_GPIO_PIN_VALUE_LOW) ? AL::Hardware::GPIOPinValues::Low : AL::Hardware::GPIOPinValues::High)
 		};
 
 		try

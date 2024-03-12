@@ -140,7 +140,7 @@ AL::Collections::Tuple<bool, aprservice_lua_module_byte_buffer*> aprservice_lua_
 #if defined(APRSERVICE_I2C_SUPPORTED)
 	try
 	{
-		i2c_bus->bus.WriteRead(address, aprservice_lua_module_byte_buffer_get_buffer(byte_buffer), byte_buffer_size, aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>()), rx_byte_buffer_size);
+		i2c_bus->bus.WriteRead(address, aprservice_lua_module_byte_buffer_get_buffer(byte_buffer), byte_buffer_size, const_cast<void*>(aprservice_lua_module_byte_buffer_get_buffer(value.Get<1>())), rx_byte_buffer_size);
 		value.Set<1>(true);
 	}
 	catch (const AL::Exception& exception)

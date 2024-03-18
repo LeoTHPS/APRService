@@ -90,18 +90,23 @@ AL::String aprservice_aprs_build_is_filter(const aprservice_aprs_config& config)
 {
 	AL::StringBuilder sb;
 
-	if (config.events.on_receive_message || config.events.on_receive_position || config.events.on_receive_telemetry)
+	if (config.events.on_receive_packet || config.events.on_receive_message || config.events.on_receive_position || config.events.on_receive_telemetry)
 	{
 		sb << "t/";
 
-		if (config.events.on_receive_message)
-			sb << 'm';
+		if (config.events.on_receive_packet)
+			sb << "mpt";
+		else
+		{
+			if (config.events.on_receive_message)
+				sb << 'm';
 
-		if (config.events.on_receive_position)
-			sb << 'p';
+			if (config.events.on_receive_position)
+				sb << 'p';
 
-		if (config.events.on_receive_telemetry)
-			sb << 't';
+			if (config.events.on_receive_telemetry)
+				sb << 't';
+		}
 	}
 
 	return sb.ToString();

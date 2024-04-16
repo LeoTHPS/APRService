@@ -4,7 +4,7 @@
 <hr />
 
 ### API
-###### Note: KISS TNC and compressed position reports are not fully implemented.
+###### Note: KISS TNC and compressed position reports are in early development.
 
 - [C++](/APRService/aprservice.hpp)
 - [Lua](/Services/APRService.lua)

@@ -55,6 +55,16 @@ function APRService.APRS.IsConnected(service)
 	return aprservice_aprs_is_connected(service);
 end
 
+-- @param is_blocking(service)->bool
+-- @param is_connected(service)->bool
+-- @param connect(service)->bool
+-- @param disconnect(service)
+-- @param read(service, value)->int (0 = connection_closed, -1 = would_block)
+-- @param write(service, value)->bool
+function APRService.APRS.Connect(service, is_blocking, is_connected, connect, disconnect, set_blocking, read, write)
+	return lua_aprservice_aprs_connect(service, is_blocking, is_connected, connect, disconnect, set_blocking, read, write);
+end
+
 function APRService.APRS.IS.Connect(service, remote_host, remote_port, passcode)
 	return aprservice_aprs_connect_is(service, tostring(remote_host), tonumber(remote_port), tonumber(passcode));
 end

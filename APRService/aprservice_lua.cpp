@@ -347,43 +347,51 @@ bool                    lua_aprservice_aprs_connect(lua_aprservice* lua_service,
 	lua_service->aprs_connection.read         = AL::Move(read);
 	lua_service->aprs_connection.write        = AL::Move(write);
 
+	aprservice_aprs_connection_is_blocking is_blocking_detour([](void* param)
+	{
+		auto lua_service = reinterpret_cast<lua_aprservice*>(param);
+		return lua_service->aprs_connection.is_blocking(lua_service);
+	});
+	aprservice_aprs_connection_is_connected is_connected_detour([](void* param)
+	{
+		auto lua_service = reinterpret_cast<lua_aprservice*>(param);
+		return lua_service->aprs_connection.is_connected(lua_service);
+	});
+	aprservice_aprs_connection_connect connect_detour([](void* param)
+	{
+		auto lua_service = reinterpret_cast<lua_aprservice*>(param);
+		return lua_service->aprs_connection.connect(lua_service);
+	});
+	aprservice_aprs_connection_disconnect disconnect_detour([](void* param)
+	{
+		auto lua_service = reinterpret_cast<lua_aprservice*>(param);
+		return lua_service->aprs_connection.disconnect(lua_service);
+	});
+	aprservice_aprs_connection_set_blocking set_blocking_detour([](bool set, void* param)
+	{
+		auto lua_service = reinterpret_cast<lua_aprservice*>(param);
+		return lua_service->aprs_connection.set_blocking(lua_service, set);
+	});
+	aprservice_aprs_connection_read read_detour([](AL::String& value, void* param)
+	{
+		auto lua_service = reinterpret_cast<lua_aprservice*>(param);
+		return lua_service->aprs_connection.read(lua_service, value);
+	});
+	aprservice_aprs_connection_write write_detour([](const AL::String& value, void* param)
+	{
+		auto lua_service = reinterpret_cast<lua_aprservice*>(param);
+		return lua_service->aprs_connection.write(lua_service, value);
+	});
+
 	aprservice_aprs_connection connection =
 	{
-		.is_blocking = [](void* param)
-		{
-			auto lua_service = reinterpret_cast<lua_aprservice*>(param);
-			return lua_service->aprs_connection.is_blocking(lua_service);
-		},
-		.is_connected = [](void* param)
-		{
-			auto lua_service = reinterpret_cast<lua_aprservice*>(param);
-			return lua_service->aprs_connection.is_connected(lua_service);
-		},
-		.connect = [](void* param)
-		{
-			auto lua_service = reinterpret_cast<lua_aprservice*>(param);
-			return lua_service->aprs_connection.connect(lua_service);
-		},
-		.disconnect = [](void* param)
-		{
-			auto lua_service = reinterpret_cast<lua_aprservice*>(param);
-			return lua_service->aprs_connection.disconnect(lua_service);
-		},
-		.set_blocking = [](bool set, void* param)
-		{
-			auto lua_service = reinterpret_cast<lua_aprservice*>(param);
-			return lua_service->aprs_connection.set_blocking(lua_service, set);
-		},
-		.read = [](AL::String& value, void* param)
-		{
-			auto lua_service = reinterpret_cast<lua_aprservice*>(param);
-			return lua_service->aprs_connection.read(lua_service, value);
-		},
-		.write = [](const AL::String& value, void* param)
-		{
-			auto lua_service = reinterpret_cast<lua_aprservice*>(param);
-			return lua_service->aprs_connection.write(lua_service, value);
-		}
+		.is_blocking  = is_blocking_detour,
+		.is_connected = is_connected_detour,
+		.connect      = connect_detour,
+		.disconnect   = disconnect_detour,
+		.set_blocking = set_blocking_detour,
+		.read         = read_detour,
+		.write        = write_detour
 	};
 
 	switch (aprservice_aprs_connect(lua_service->service, connection, lua_service))
@@ -529,7 +537,7 @@ auto                    lua_aprservice_aprs_begin_send_message(lua_aprservice* l
 {
 	AL::Collections::Tuple<bool, bool> value(false, false);
 
-	auto detour = [](aprservice* service, void* param)
+	aprservice_aprs_message_callback callback_detour([](aprservice* service, void* param)
 	{
 		if (auto context = reinterpret_cast<lua_aprservice_aprs_begin_send_message_context*>(param))
 		{
@@ -538,7 +546,7 @@ auto                    lua_aprservice_aprs_begin_send_message(lua_aprservice* l
 
 			delete context;
 		}
-	};
+	});
 
 	auto context = new lua_aprservice_aprs_begin_send_message_context
 	{
@@ -546,7 +554,7 @@ auto                    lua_aprservice_aprs_begin_send_message(lua_aprservice* l
 		.lua_service = lua_service
 	};
 
-	switch (aprservice_aprs_begin_send_message(lua_service->service, destination, content, detour, context))
+	switch (aprservice_aprs_begin_send_message(lua_service->service, destination, content, callback_detour, context))
 	{
 		case 0:  value.Set<1>(true); delete context; break;
 		case -1: value.Set<0>(true); delete context; break;
@@ -698,7 +706,7 @@ void                    lua_aprservice_events_clear(lua_aprservice* lua_service)
 }
 void                    lua_aprservice_events_schedule(lua_aprservice* lua_service, AL::uint32 seconds, lua_aprservice_event_handler handler)
 {
-	auto detour = [](aprservice* service, void* param)
+	aprservice_event_handler handler_detour([](aprservice* service, void* param)
 	{
 		if (auto context = reinterpret_cast<lua_aprservice_events_schedule_context*>(param))
 		{
@@ -707,7 +715,7 @@ void                    lua_aprservice_events_schedule(lua_aprservice* lua_servi
 
 			delete context;
 		}
-	};
+	});
 
 	auto context = new lua_aprservice_events_schedule_context
 	{
@@ -716,7 +724,7 @@ void                    lua_aprservice_events_schedule(lua_aprservice* lua_servi
 	};
 
 	lua_service->events_schedule_contexts.Add(context);
-	aprservice_events_schedule(lua_service->service, AL::TimeSpan::FromSeconds(seconds), detour, context);
+	aprservice_events_schedule(lua_service->service, AL::TimeSpan::FromSeconds(seconds), handler_detour, context);
 }
 
 bool                    lua_aprservice_console_set_title(const AL::String& value)
@@ -758,7 +766,7 @@ bool                    lua_aprservice_commands_execute(lua_aprservice* lua_serv
 }
 void                    lua_aprservice_commands_register(lua_aprservice* lua_service, const AL::String& name, lua_aprservice_command_handler handler)
 {
-	auto detour = [](aprservice* service, const AL::String& sender, const AL::String& command_name, const AL::String& command_params, void* param)
+	aprservice_command_handler handler_detour([](aprservice* service, const AL::String& sender, const AL::String& command_name, const AL::String& command_params, void* param)
 	{
 		if (auto context = reinterpret_cast<lua_aprservice_commands_register_context*>(param))
 		{
@@ -767,7 +775,7 @@ void                    lua_aprservice_commands_register(lua_aprservice* lua_ser
 
 			delete context;
 		}
-	};
+	});
 
 	auto context = new lua_aprservice_commands_register_context
 	{
@@ -776,7 +784,7 @@ void                    lua_aprservice_commands_register(lua_aprservice* lua_ser
 	};
 
 	lua_service->commands_register_contexts.Add(context);
-	aprservice_commands_register(lua_service->service, name, detour, context);
+	aprservice_commands_register(lua_service->service, name, handler_detour, context);
 }
 
 #define               aprservice_lua_register_global(lua, value)                      aprservice_lua_state_register_global((&lua->state), value)

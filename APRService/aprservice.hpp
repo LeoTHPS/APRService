@@ -1,205 +1,762 @@
 #pragma once
-#include <AL/Common.hpp>
+#include <map>
+#include <list>
+#include <array>
+#include <queue>
+#include <ctime>
+#include <string>
+#include <vector>
+#include <cstdint>
+#include <cstring>
+#include <utility>
+#include <exception>
+#include <functional>
 
-enum APRSERVICE_FLAGS : AL::uint8
+#if defined(APRSERVICE_WIN32)
+	#include <WinSock2.h>
+
+	#undef SendMessage
+#endif
+
+namespace APRService
 {
-	APRSERVICE_FLAG_NONE                    = 0x00,
-	APRSERVICE_FLAG_STOP_ON_APRS_DISCONNECT = 0x01
-};
+	enum POSITION_FLAGS
+	{
+		POSITION_FLAG_COMPRESSED        = 0x1,
+		POSITION_FLAG_MESSAGING_ENABLED = 0x2,
+	};
 
-enum APRSERVICE_MEASUREMENT_TYPES : AL::uint8
-{
-	APRSERVICE_MEASUREMENT_TYPE_FEET,
-	APRSERVICE_MEASUREMENT_TYPE_MILES,
-	APRSERVICE_MEASUREMENT_TYPE_METERS,
-	APRSERVICE_MEASUREMENT_TYPE_KILOMETERS
-};
+	enum class PacketTypes
+	{
+		Unknown,
+		Message,
+		Weather,
+		Position,
+		Telemetry
+	};
 
-enum APRSERVICE_APRS_PACKET_TYPES : AL::uint8
-{
-	APRSERVICE_APRS_PACKET_TYPE_UNKNOWN,
-	APRSERVICE_APRS_PACKET_TYPE_MESSAGE,
-	APRSERVICE_APRS_PACKET_TYPE_WEATHER,
-	APRSERVICE_APRS_PACKET_TYPE_POSITION,
-	APRSERVICE_APRS_PACKET_TYPE_TELEMETRY
-};
+	typedef std::array<std::string, 8>  Path;
 
-enum APRSERVICE_APRS_POSITION_FLAGS : AL::uint8
-{
-	APRSERVICE_APRS_POSITION_FLAG_NONE              = 0x00,
-	APRSERVICE_APRS_POSITION_FLAG_COMPRESSED        = 0x01,
-	APRSERVICE_APRS_POSITION_FLAG_MESSAGING_ENABLED = 0x02
-};
+	typedef std::array<float, 5>        TelemetryAnalog;
+	typedef std::uint8_t                TelemetryDigital;
 
-enum APRSERVICE_APRS_CONNECTION_TYPES : AL::uint8
-{
-	APRSERVICE_APRS_CONNECTION_TYPE_NONE,
-	APRSERVICE_APRS_CONNECTION_TYPE_APRS_IS,
-	APRSERVICE_APRS_CONNECTION_TYPE_KISS_TCP,
-	APRSERVICE_APRS_CONNECTION_TYPE_KISS_SERIAL,
-	APRSERVICE_APRS_CONNECTION_TYPE_USER_DEFINED
-};
+	struct Packet
+	{
+		PacketTypes      Type;
+		APRService::Path Path;
+		std::string      IGate;
+		std::string      ToCall;
+		std::string      Sender;
+		std::string      Content;
+		std::string      QConstruct;
+	};
 
-enum APRSERVICE_APRS_DISCONNECT_REASONS : AL::uint8
-{
-	APRSERVICE_APRS_DISCONNECT_REASON_UNDEFINED,
+	struct Message
+		: public Packet
+	{
+		std::string ID;
+		std::string Body;
+		std::string Destination;
+	};
 
-	APRSERVICE_APRS_DISCONNECT_REASON_USER_REQUESTED,
-	APRSERVICE_APRS_DISCONNECT_REASON_CONNECTION_LOST,
-	APRSERVICE_APRS_DISCONNECT_REASON_AUTHENTICATION_FAILED
-};
+	struct Weather
+		: public Packet
+	{
+		tm            Time;
 
-struct aprservice;
+		std::uint16_t WindSpeed;
+		std::uint16_t WindSpeedGust;
+		std::uint16_t WindDirection;
 
-typedef bool(*aprservice_aprs_connection_is_blocking)(void* param);
-typedef bool(*aprservice_aprs_connection_is_connected)(void* param);
-typedef bool(*aprservice_aprs_connection_connect)(void* param);
-typedef void(*aprservice_aprs_connection_disconnect)(void* param);
-typedef bool(*aprservice_aprs_connection_set_blocking)(bool set, void* param);
-// @return 0 on connection closed
-// @return -1 if would block
-typedef int(*aprservice_aprs_connection_read)(AL::String& value, void* param);
-// @return false on connection closed
-typedef bool(*aprservice_aprs_connection_write)(const AL::String& value, void* param);
+		std::uint16_t RainfallLastHour;
+		std::uint16_t RainfallLast24Hours;
+		std::uint16_t RainfallSinceMidnight;
 
-struct aprservice_aprs_connection
-{
-	aprservice_aprs_connection_is_blocking  is_blocking;
-	aprservice_aprs_connection_is_connected is_connected;
+		std::uint8_t  Humidity;
+		std::int16_t  Temperature;
+		std::uint32_t BarometricPressure;
+	};
 
-	aprservice_aprs_connection_connect      connect;
-	aprservice_aprs_connection_disconnect   disconnect;
+	struct Position
+		: public Packet
+	{
+		int            Flags;
 
-	aprservice_aprs_connection_set_blocking set_blocking;
+		std::uint16_t  Speed;
+		std::uint16_t  Course;
+		std::int32_t   Altitude;
+		float          Latitude;
+		float          Longitude;
 
-	aprservice_aprs_connection_read         read;
-	aprservice_aprs_connection_write        write;
-};
+		std::string    Comment;
 
-typedef void(*aprservice_event_handler)(aprservice* service, void* param);
-typedef void(*aprservice_command_handler)(aprservice* service, const AL::String& sender, const AL::String& command_name, const AL::String& command_params, void* param);
+		char           SymbolTable;
+		char           SymbolTableKey;
 
-typedef void(*aprservice_aprs_message_callback)(aprservice* service, void* param);
-typedef bool(*aprservice_aprs_packet_filter_callback)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content, void* param);
-typedef void(*aprservice_aprs_packet_monitor_callback)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content, void* param);
+		float CalculateDistance(float latitude, float longitude) const;
+		float CalculateDistance3D(float latitude, float longitude, float altitude) const;
+	};
 
-typedef void(*aprservice_aprs_on_connect)(aprservice* service, AL::uint8 type, void* param);
-typedef void(*aprservice_aprs_on_disconnect)(aprservice* service, AL::uint8 reason, void* param);
+	struct Telemetry
+		: public Packet
+	{
+		TelemetryAnalog  Analog;
+		TelemetryDigital Digital;
+		std::uint16_t    Sequence;
+	};
 
-typedef void(*aprservice_aprs_on_send)(aprservice* service, const AL::String& value, void* param);
-typedef void(*aprservice_aprs_on_receive)(aprservice* service, const AL::String& value, void* param);
+	class Exception
+		: public std::exception
+	{
+		std::string message;
 
-typedef void(*aprservice_aprs_on_send_packet)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content, void* param);
-typedef void(*aprservice_aprs_on_receive_packet)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content, void* param);
+	public:
+		explicit Exception(std::string&& message)
+			: message(std::move(message))
+		{
+		}
 
-typedef void(*aprservice_aprs_on_send_message)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::String& destination, const AL::String& content, void* param);
-typedef void(*aprservice_aprs_on_receive_message)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::String& destination, const AL::String& content, void* param);
+		virtual const char* what() const noexcept override
+		{
+			return message.c_str();
+		}
+	};
 
-typedef void(*aprservice_aprs_on_send_weather)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::DateTime& time, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hour_inchess, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa, void* param);
-typedef void(*aprservice_aprs_on_receive_weather)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, const AL::DateTime& time, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hours_inches, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa, void* param);
+	class RegexException
+		: public Exception
+	{
+	public:
+		explicit RegexException(std::string&& what)
+			: Exception(std::move(what))
+		{
+		}
+	};
 
-typedef void(*aprservice_aprs_on_send_position)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude_ft, AL::Float latitude, AL::Float longitude, AL::Float speed_mph, AL::uint16 course, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param);
-typedef void(*aprservice_aprs_on_receive_position)(aprservice* service, const AL::String& station, const AL::String& path, const AL::String& igate, AL::int32 altitude_ft, AL::Float latitude, AL::Float longitude, AL::Float speed_mph, AL::uint16 course, char symbol_table, char symbol_table_key, const AL::String& comment, AL::uint8 flags, void* param);
+	class SystemException
+		: public Exception
+	{
+	public:
+		explicit SystemException(const std::string& function);
 
-typedef void(*aprservice_aprs_on_send_telemetry)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::uint8(&analog)[5], const bool(&digital)[8], void* param);
-typedef void(*aprservice_aprs_on_receive_telemetry)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::uint8(&analog)[5], const bool(&digital)[8], void* param);
+		SystemException(const std::string& function, int error);
+	};
 
-typedef void(*aprservice_aprs_on_receive_invalid_packet)(aprservice* service, const AL::String& station, const AL::String& tocall, const AL::String& path, const AL::String& igate, const AL::String& content, AL::uint8 packet_type, void* param);
+	class AuthFailedException
+		: public Exception
+	{
+	public:
+		explicit AuthFailedException(const std::string& message)
+			: Exception("Authentication failed: " + message)
+		{
+		}
+	};
 
-struct aprservice_aprs_event_handlers
-{
-	void*                                     param;
+	class InvalidPathException
+		: public Exception
+	{
+	public:
+		explicit InvalidPathException(const Path& path)
+			: Exception("Invalid Path: " + Path_ToString(path))
+		{
+		}
 
-	aprservice_aprs_on_connect                on_connect;
-	aprservice_aprs_on_disconnect             on_disconnect;
+	private:
+		static std::string Path_ToString(const Path& path);
+	};
 
-	aprservice_aprs_on_send                   on_send;
-	aprservice_aprs_on_receive                on_receive;
+	class InvalidFormatException
+		: public Exception
+	{
+	public:
+		explicit InvalidFormatException(const std::string& format)
+			: Exception("Invalid format: " + format)
+		{
+		}
+	};
 
-	aprservice_aprs_on_send_packet            on_send_packet;
-	aprservice_aprs_on_receive_packet         on_receive_packet;
+	class InvalidPacketException
+		: public Exception
+	{
+	public:
+		InvalidPacketException(PacketTypes type, const std::string& field, const std::string& value)
+			: Exception("Invalid Packet [Type: " + PacketTypesToString(type) + ", Field: " + field + ", Value: " + value + "]")
+		{
+		}
 
-	aprservice_aprs_on_send_message           on_send_message;
-	aprservice_aprs_on_receive_message        on_receive_message;
+	private:
+		static std::string PacketTypesToString(PacketTypes type);
+	};
 
-	aprservice_aprs_on_send_weather           on_send_weather;
-	aprservice_aprs_on_receive_weather        on_receive_weather;
+	class InvalidStationException
+		: public Exception
+	{
+	public:
+		explicit InvalidStationException(const std::string& station)
+			: Exception("Invalid Station: " + station)
+		{
+		}
+	};
 
-	aprservice_aprs_on_send_position          on_send_position;
-	aprservice_aprs_on_receive_position       on_receive_position;
+	class InvalidSymbolTableException
+		: public Exception
+	{
+	public:
+		explicit InvalidSymbolTableException(char table)
+			: Exception("Invalid symbol table: " + table)
+		{
+		}
+	};
 
-	aprservice_aprs_on_send_telemetry         on_send_telemetry;
-	aprservice_aprs_on_receive_telemetry      on_receive_telemetry;
+	class InvalidSymbolTableKeyException
+		: public Exception
+	{
+	public:
+		explicit InvalidSymbolTableKeyException(char key)
+			: Exception("Invalid symbol table key: " + key)
+		{
+		}
+	};
 
-	aprservice_aprs_on_receive_invalid_packet on_receive_invalid_packet;
-};
+	class ConnectionFailedException
+		: public Exception
+	{
+	public:
+		explicit ConnectionFailedException(std::string&& message)
+			: Exception("Connection failed: " + message)
+		{
+		}
+	};
 
-struct aprservice_aprs_config
-{
-	aprservice_aprs_event_handlers events;
+	template<typename F>
+	using EventHandler = std::function<F>;
 
-	AL::String                     path;
-	AL::String                     station;
-	char                           symbol_table;
-	char                           symbol_table_key;
-	bool                           monitor_mode_enabled;
-};
+	template<typename F>
+	class Event;
+	template<typename T, typename ... TArgs>
+	class Event<T(TArgs ...)>
+	{
+		struct Handler
+		{
+			EventHandler<T(TArgs ...)>        Function;
+			const EventHandler<T(TArgs ...)>* FunctionPtr;
+		};
 
-struct aprservice_config
-{
-	aprservice_aprs_config aprs;
-};
+		std::list<Handler> handlers;
 
-aprservice* aprservice_init(const aprservice_config& config);
-void        aprservice_deinit(aprservice* service);
-bool        aprservice_is_running(aprservice* service);
-void        aprservice_run(aprservice* service, AL::uint32 tick_rate, AL::uint8 flags);
-void        aprservice_stop(aprservice* service);
+	public:
+		Event()
+		{
+		}
 
-bool        aprservice_aprs_is_connected(aprservice* service);
-// @return 0 on error
-// @return -1 on timeout
-int         aprservice_aprs_connect(aprservice* service, const aprservice_aprs_connection& connection, void* param);
-// @return 0 on error
-// @return -1 on timeout
-int         aprservice_aprs_connect_is(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port, AL::uint16 passcode);
-// @return 0 on error
-// @return -1 on timeout
-int         aprservice_aprs_connect_kiss_tcp(aprservice* service, const AL::String& remote_host, AL::uint16 remote_port);
-// @return 0 on error
-// @return -1 on timeout
-int         aprservice_aprs_connect_kiss_serial(aprservice* service, const AL::String& device, AL::uint32 speed);
-void        aprservice_aprs_disconnect(aprservice* service);
-void        aprservice_aprs_add_packet_monitor(aprservice* service, aprservice_aprs_packet_filter_callback filter, aprservice_aprs_packet_monitor_callback callback, void* param);
-// @return 0 on connection closed
-// @return -1 on encoding error
-int         aprservice_aprs_send_message(aprservice* service, const AL::String& destination, const AL::String& content);
-// @return 0 on connection closed
-// @return -1 on encoding error
-int         aprservice_aprs_send_weather(aprservice* service, const AL::DateTime& time, AL::Float wind_speed_mph, AL::Float wind_speed_gust_mph, AL::uint16 wind_direction, AL::uint16 rainfall_last_hour_inches, AL::uint16 rainfall_last_24_hours_inches, AL::uint16 rainfall_since_midnight_inches, AL::uint8 humidity, AL::int16 temperature_f, AL::uint32 barometric_pressure_pa);
-// @return 0 on connection closed
-// @return -1 on encoding error
-int         aprservice_aprs_send_position(aprservice* service, AL::int32 altitude_ft, AL::Float latitude, AL::Float longitude, AL::Float speed_mph, AL::uint16 course, const AL::String& comment);
-// @return 0 on connection closed
-// @return -1 on encoding error
-int         aprservice_aprs_send_telemetry(aprservice* service, const AL::uint8(&analog)[5], const bool(&digital)[8]);
-// @return 0 on connection closed
-// @return -1 on encoding error
-int         aprservice_aprs_begin_send_message(aprservice* service, const AL::String& destination, const AL::String& content, aprservice_aprs_message_callback callback, void* param);
+		virtual ~Event()
+		{
+		}
 
-AL::Float   aprservice_math_convert_speed(AL::Float value, AL::uint8 measurement_type_input, AL::uint8 measurement_type_output);
-AL::Float   aprservice_math_get_distance_between_points(AL::Float latitude1, AL::Float longitude1, AL::Float latitude2, AL::Float longitude2, AL::uint8 measurement_type);
+		void Clear()
+		{
+			handlers.clear();
+		}
 
-AL::uint32  aprservice_events_get_count(aprservice* service);
-void        aprservice_events_clear(aprservice* service);
-void        aprservice_events_schedule(aprservice* service, AL::TimeSpan delay, aprservice_event_handler handler, void* param);
+		auto Execute(TArgs ... args) const
+		{
+			if constexpr (std::is_same<T, void>::value)
+				for (auto& handler : handlers)
+					handler.Function(std::forward<TArgs>(args) ...);
+			else
+			{
+				T value;
 
-bool        aprservice_console_set_title(const AL::String& value);
-bool        aprservice_console_read(char& value);
-bool        aprservice_console_read_line(AL::String& value);
-bool        aprservice_console_write(const AL::String& value);
-bool        aprservice_console_write_line(const AL::String& value);
-bool        aprservice_console_write_exception(const AL::Exception& value);
+				for (auto& handler : handlers)
+					if (!(value = handler.Function(std::forward<TArgs>(args) ...)))
+						break;
 
-bool        aprservice_commands_execute(aprservice* service, const AL::String& sender, const AL::String& message);
-void        aprservice_commands_register(aprservice* service, const AL::String& name, aprservice_command_handler handler, void* param);
+				return value;
+			}
+		}
+		template<typename T_RETURN = typename std::enable_if<true, T>::type>
+		auto Execute(TArgs ... args, T_RETURN&& false_value = T_RETURN()) const
+		{
+			if constexpr (std::is_same<T, void>::value)
+				for (auto& handler : handlers)
+					handler.Function(std::forward<TArgs>(args) ...);
+			else
+			{
+				T value;
+
+				for (auto& handler : handlers)
+					if ((value = handler.Function(std::forward<TArgs>(args) ...)) == false_value)
+						break;
+
+				return value;
+			}
+		}
+
+		void Register(EventHandler<T(TArgs ...)>&& handler)
+		{
+			handlers.push_front({ .Function = std::move(handler), .FunctionPtr = nullptr });
+		}
+		void Register(const EventHandler<T(TArgs ...)>& handler)
+		{
+			handlers.push_front({ .Function = handler, .FunctionPtr = &handler });
+		}
+		void Unregister(const EventHandler<T(TArgs ...)>& handler)
+		{
+			for (auto it = handlers.begin(); it != handlers.end(); ++it)
+			{
+				if (it->FunctionPtr == &handler)
+				{
+					handlers.erase(it);
+
+					break;
+				}
+			}
+		}
+	};
+	template<typename T, typename ... TArgs>
+	class Event<EventHandler<T(TArgs ...)>>
+		: public Event<T(TArgs ...)>
+	{
+	public:
+		using Event<T(TArgs ...)>::Event;
+	};
+
+	typedef EventHandler<void()>                                                   OnConnectHandler;
+	typedef EventHandler<void()>                                                   OnDisconnectHandler;
+	typedef EventHandler<void(const std::string& message)>                         OnAuthenticateHandler;
+
+	typedef EventHandler<void(const std::string& raw)>                             OnSendHandler;
+	typedef EventHandler<void(const std::string& raw)>                             OnReceiveHandler;
+
+	typedef EventHandler<void(const std::string& raw, const Exception& exception)> OnDecodeErrorHandler;
+
+	typedef EventHandler<void(const Packet& packet)>                               OnReceivePacketHandler;
+	typedef EventHandler<void(const Message& message)>                             OnReceiveMessageHandler;
+	typedef EventHandler<void(const Weather& weather)>                             OnReceiveWeatherHandler;
+	typedef EventHandler<void(const Position& position)>                           OnReceivePositionHandler;
+	typedef EventHandler<void(const Telemetry& telemetry)>                         OnReceiveTelemetryHandler;
+
+	class Client
+	{
+		enum IO_RESULTS
+		{
+			IO_RESULT_SUCCESS,
+			IO_RESULT_DISCONNECT,
+			IO_RESULT_WOULD_BLOCK
+		};
+
+		enum AUTH_STATES
+		{
+			AUTH_STATE_NONE,
+			AUTH_STATE_SENT,
+			AUTH_STATE_RECEIVED
+		};
+
+		struct Auth
+		{
+			bool        Success;
+			bool        Verified;
+
+			std::string Message;
+		};
+
+		struct SendQueueEntry
+		{
+			std::string Buffer;
+			std::size_t Offset;
+			std::size_t OffsetEOL;
+		};
+
+		class DNS
+		{
+			DNS() = delete;
+
+		public:
+			struct Entry;
+
+			// @throw Exception
+			// @return false on not found
+			static bool Resolve(const std::string& host, Entry& entry);
+		};
+
+#if defined(APRSERVICE_WIN32)
+		class WinSock
+		{
+			WinSock() = delete;
+
+		public:
+			// @throw Exception
+			static void Load();
+			static void Unload();
+		};
+#endif
+
+		class TcpSocket
+		{
+			bool   is_connected = false;
+
+#if defined(APRSERVICE_UNIX)
+			int    handle;
+#elif defined(APRSERVICE_WIN32)
+			SOCKET handle;
+#endif
+
+			TcpSocket(TcpSocket&&) = delete;
+			TcpSocket(const TcpSocket&) = delete;
+
+		public:
+			TcpSocket()
+			{
+			}
+
+			~TcpSocket()
+			{
+				if (IsConnected())
+					Disconnect();
+			}
+
+			bool IsConnected() const
+			{
+				return is_connected;
+			}
+
+			// @throw Exception
+			void Connect(const std::string& host, std::uint16_t port);
+			void Disconnect();
+
+			// @throw Exception
+			// @return false on connection closed
+			bool Send(const void* buffer, std::size_t size, std::size_t& number_of_bytes_sent);
+
+			// @throw Exception
+			// @return false on connection closed
+			bool Receive(void* buffer, std::size_t size, std::size_t& number_of_bytes_received);
+		};
+
+		static constexpr const char  EOL[]    = { '\r', '\n' };
+		static constexpr std::size_t EOL_SIZE = sizeof(EOL);
+
+		bool                       is_read_only            = false;
+		bool                       is_connected            = false;
+		bool                       is_auto_ack_enabled     = true;
+		bool                       is_messaging_enabled    = true;
+		bool                       is_compression_enabled  = false;
+		bool                       is_monitor_mode_enabled = false;
+
+		Path                       path;
+		TcpSocket*                 socket;
+		const std::string          station;
+		char                       symbol_table;
+		char                       symbol_table_key;
+
+		Auth                       auth;
+		AUTH_STATES                auth_state;
+
+		std::queue<SendQueueEntry> send_queue;
+
+		std::vector<char>          receive_buffer;
+		std::size_t                receive_buffer_offset = 0;
+		std::string                receive_buffer_string;
+		Packet                     receive_buffer_packet;
+
+		std::uint16_t              message_ack_counter = 0;
+		std::uint16_t              telemetry_sequence_counter = 0;
+
+		Client(Client&&) = delete;
+		Client(const Client&) = delete;
+
+	public:
+		Event<OnConnectHandler>           OnConnect;
+		Event<OnDisconnectHandler>        OnDisconnect;
+		Event<OnAuthenticateHandler>      OnAuthenticate;
+
+		Event<OnDecodeErrorHandler>       OnDecodeError;
+
+		Event<OnSendHandler>              OnSend;
+		Event<OnReceiveHandler>           OnReceive;
+
+		Event<OnReceivePacketHandler>     OnReceivePacket;
+		Event<OnReceiveMessageHandler>    OnReceiveMessage;
+		Event<OnReceiveWeatherHandler>    OnReceiveWeather;
+		Event<OnReceivePositionHandler>   OnReceivePosition;
+		Event<OnReceiveTelemetryHandler>  OnReceiveTelemetry;
+
+		// @throw Exception
+		Client(std::string&& station, Path&& path, char symbol_table, char symbol_table_key);
+
+		virtual ~Client()
+		{
+			if (IsConnected())
+				Disconnect();
+		}
+
+		bool IsReadOnly() const
+		{
+			return is_read_only;
+		}
+
+		bool IsConnected() const
+		{
+			return is_connected;
+		}
+
+		bool IsAuthenticated() const
+		{
+			return (auth_state == AUTH_STATE_RECEIVED) && auth.Success;
+		}
+
+		bool IsAuthenticating() const
+		{
+			return auth_state == AUTH_STATE_SENT;
+		}
+
+		bool IsAutoAckEnabled() const
+		{
+			return is_auto_ack_enabled;
+		}
+
+		bool IsMessagingEnabled() const
+		{
+			return is_messaging_enabled;
+		}
+
+		bool IsMonitorModeEnabled() const
+		{
+			return is_monitor_mode_enabled;
+		}
+
+		bool IsCompressionEnabled() const
+		{
+			return is_compression_enabled;
+		}
+
+		auto& GetPath() const
+		{
+			return path;
+		}
+
+		auto& GetStation() const
+		{
+			return station;
+		}
+
+		auto GetSymbolTable() const
+		{
+			return symbol_table;
+		}
+
+		auto GetSymbolTableKey() const
+		{
+			return symbol_table_key;
+		}
+
+		void SetPath(Path&& path)
+		{
+			if (!Path_IsValid(path))
+				throw InvalidPathException(path);
+
+			this->path = std::move(path);
+		}
+
+		void SetSymbol(char table, char key)
+		{
+			if (!SymbolTable_IsValid(table))
+				throw InvalidSymbolTableException(table);
+
+			if (!SymbolTableKey_IsValid(table, key))
+				throw InvalidSymbolTableKeyException(key);
+
+			symbol_table     = table;
+			symbol_table_key = key;
+		}
+
+		void EnableAutoAck(bool set = true)
+		{
+			is_auto_ack_enabled = set;
+		}
+
+		void EnableMessaging(bool set = true)
+		{
+			is_messaging_enabled = set;
+		}
+
+		void EnableMonitorMode(bool set = true)
+		{
+			is_monitor_mode_enabled = set;
+		}
+
+		void EnableCompression(bool set = true)
+		{
+			is_compression_enabled = set;
+		}
+
+		// @throw Exception
+		void Connect(const std::string& host, std::uint16_t port, std::int32_t passcode);
+		void Disconnect();
+
+		void Send(std::string&& raw);
+		void Send(const std::string& raw)
+		{
+			Send(std::string(raw));
+		}
+
+		// @throw Exception
+		void SendPacket(const std::string& content);
+
+		// @throw Exception
+		void SendMessage(const std::string& destination, const std::string& message);
+		// @throw Exception
+		void SendMessage(const std::string& destination, const std::string& message, const std::string& id);
+
+		// @throw Exception
+		void SendWeather(std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type);
+
+		// @throw Exception
+		void SendPosition(std::uint16_t speed, std::uint16_t course, std::int32_t altitude, float latitude, float longitude, const std::string& comment = "");
+
+		// @throw Exception
+		void SendTelemetry(const TelemetryAnalog& analog, TelemetryDigital digital);
+		// @throw Exception
+		void SendTelemetry(const TelemetryAnalog& analog, TelemetryDigital digital, std::uint16_t sequence);
+
+		// @throw Exception
+		// @return false on connection closed
+		virtual bool Update();
+
+	protected:
+		// @throw Exception
+		virtual void HandlePacket(const std::string& raw, Packet& packet);
+		// @throw Exception
+		virtual void HandleMessage(const std::string& raw, Message& message);
+		// @throw Exception
+		virtual void HandleWeather(const std::string& raw, Weather& weather);
+		// @throw Exception
+		virtual void HandlePosition(const std::string& raw, Position& position);
+		// @throw Exception
+		virtual void HandleTelemetry(const std::string& raw, Telemetry& telemetry);
+
+		// @throw Exception
+		virtual void HandleDecodeError(const std::string& raw, Exception& exception);
+
+	private:
+		// @throw Exception
+		IO_RESULTS SendOnce();
+
+		// @throw Exception
+		IO_RESULTS ReceiveOnce();
+
+		// @throw Exception
+		static bool Auth_FromString(Auth& auth, const std::string& string);
+
+		// @throw Exception
+		static bool Path_IsValid(const Path& path);
+
+		// @throw Exception
+		static bool Station_IsValid(const std::string& station);
+
+		// @throw Exception
+		static bool SymbolTable_IsValid(char table);
+
+		// @throw Exception
+		static bool SymbolTableKey_IsValid(char table, char key);
+
+		// @throw Exception
+		static std::string Packet_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, const std::string& content);
+		// @throw Exception
+		static bool        Packet_FromString(Packet& packet, const std::string& string);
+
+		// @throw Exception
+		static std::string Message_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& body, const std::string& id = "");
+		// @throw Exception
+		static std::string Message_ToString_Ack(const APRService::Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& id);
+		// @throw Exception
+		static std::string Message_ToString_Reject(const APRService::Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& id);
+		// @throw Exception
+		static bool        Message_FromPacket(Message& message, Packet&& packet);
+
+		// @throw Exception
+		static std::string Weather_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, tm time, std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type);
+		// @throw Exception
+		static bool        Weather_FromPacket(Weather& weather, Packet&& packet);
+
+		// @throw Exception
+		static std::string Position_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, std::uint16_t speed, std::uint16_t course, std::int32_t altitude, float latitude, float longitude, const std::string& comment, char symbol_table, char symbol_table_key, int flags);
+		// @throw Exception
+		static bool        Position_FromPacket(Position& position, Packet&& packet);
+
+		// @throw Exception
+		static std::string Telemetry_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, const TelemetryAnalog& analog, TelemetryDigital digital, std::uint16_t sequence);
+		// @throw Exception
+		static bool        Telemetry_FromPacket(Telemetry& telemetry, Packet&& packet);
+
+		// @throw Exception
+		template<std::size_t S, typename ... TArgs>
+		static inline std::string sprintf(const char(&format)[S], TArgs ... args)
+		{
+			auto string_length = snprintf(nullptr, 0, format, args ...);
+
+			if (string_length < 0)
+				throw InvalidFormatException(format);
+
+			std::string string(string_length, '\0');
+			snprintf(&string[0], string_length + 1, format, args ...);
+
+			return string;
+		}
+	};
+
+	class Service;
+
+	struct Command
+		: public Message
+	{
+		std::string Name;
+		std::string Params;
+	};
+
+	// @return true to reschedule
+	typedef std::function<bool(std::uint32_t& seconds)> TaskHandler;
+	typedef std::function<void(const Command& command)> CommandHandler;
+
+	class Service
+		: public Client
+	{
+		struct Task
+		{
+			std::uint32_t Seconds;
+			TaskHandler   Handler;
+		};
+
+		struct Command
+		{
+			std::string    Name;
+			CommandHandler Handler;
+		};
+
+		time_t                            time;
+		std::map<time_t, std::list<Task>> tasks;
+		APRService::Command               command;
+		std::list<Command>                commands;
+
+	public:
+		// @throw Exception
+		Service(std::string&& station, Path&& path, char symbol_table, char symbol_table_key);
+
+		void ScheduleTask(std::uint32_t seconds, TaskHandler&& handler);
+
+		bool ExecuteCommand(const std::string& name, const APRService::Command& command);
+		void RegisterCommand(std::string&& name, CommandHandler&& handler);
+		void UnregisterCommand(const std::string& name);
+
+		// @throw Exception
+		// @return false on connection closed
+		virtual bool Update();
+
+	protected:
+		// @throw Exception
+		virtual void HandleMessage(const std::string& raw, Message& message) override;
+
+	private:
+		// @throw Exception
+		static bool Command_FromMessage(APRService::Command& command, Message&& message);
+	};
+}

@@ -759,4 +759,8 @@ namespace APRService
 		// @throw Exception
 		static bool Command_FromMessage(APRService::Command& command, Message&& message);
 	};
+
+	bool        Path_IsValid(const Path& path);
+	std::string Path_ToString(const Path& path);
+	Path        Path_FromString(const std::string& string);
 }

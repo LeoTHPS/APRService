@@ -979,28 +979,12 @@ bool        APRService::Client::Packet_FromString(Packet& packet, const std::str
 	}
 
 	packet.Type       = PacketTypes::Unknown;
-	packet.Path       = {};
+	packet.Path       = Path_FromString(path);
 	packet.IGate      = match_path[4].str();
 	packet.Sender     = match[1].str();
 	packet.ToCall     = match[2].str();
 	packet.Content    = match[4].str();
 	packet.QConstruct = match_path[3].str();
-
-	std::size_t path_i     = 0;
-	std::size_t path_end   = 0;
-	std::size_t path_start = 0;
-
-	do
-	{
-		if ((path_end = path.find_first_of(',', path_start)) == std::string::npos)
-			packet.Path[path_i] = path.substr(path_start);
-		else
-		{
-			packet.Path[path_i++] = path.substr(path_start, path_end - path_start);
-			path_start            = path_end + 1;
-		}
-	}
-	while (path_end != std::string::npos);
 
 	if (packet.Content.starts_with(':'))
 		packet.Type = PacketTypes::Message;
@@ -1579,4 +1563,72 @@ bool APRService::Service::Command_FromMessage(APRService::Command& command, Mess
 	};
 
 	return true;
+}
+
+bool             APRService::Path_IsValid(const Path& path)
+{
+	static const std::regex regex("^([A-Za-z0-9\\-]{2,9}\\*?)$");
+
+	if (!path[0].length())
+		return false;
+
+	for (std::size_t i = 1; i < path.size(); ++i)
+	{
+		if (!path[i].length())
+		{
+			for (std::size_t j = i + 1; j < path.size(); ++j)
+				if (path[j].length())
+					return false;
+
+			break;
+		}
+
+		try
+		{
+			if (!std::regex_match(path[i], regex))
+				return false;
+		}
+		catch (const std::regex_error& error)
+		{
+
+			return false;
+		}
+	}
+
+	return true;
+}
+std::string      APRService::Path_ToString(const Path& path)
+{
+	std::stringstream ss;
+
+	if (path[0].length())
+	{
+		ss << path[0];
+
+		for (std::size_t i = 1; (i < path.size()) && path[i].length(); ++i)
+			ss << ',' << path[i];
+	}
+
+	return ss.str();
+}
+APRService::Path APRService::Path_FromString(const std::string& string)
+{
+	Path        path;
+	std::size_t path_i     = 0;
+	std::size_t path_end   = 0;
+	std::size_t path_start = 0;
+
+	do
+	{
+		if ((path_end = string.find_first_of(',', path_start)) == std::string::npos)
+			path[path_i] = string.substr(path_start);
+		else
+		{
+			path[path_i++] = string.substr(path_start, path_end - path_start);
+			path_start     = path_end + 1;
+		}
+	}
+	while (path_end != std::string::npos);
+
+	return path;
 }

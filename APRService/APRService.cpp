@@ -62,7 +62,7 @@ static WSADATA     aprservice_winsock_data;
 static std::size_t aprservice_winsock_load_count = 0;
 #endif
 
-static constexpr float RADIANS_TO_DEGREES = 360 / (M_PI * 2);
+static constexpr float RADIANS_TO_DEGREES = 360 / (3.14159265358979323846 * 2);
 
 float APRService::Position::CalculateDistance(float latitude, float longitude) const
 {
@@ -1628,7 +1628,7 @@ APRService::Path APRService::Path_FromString(const std::string& string)
 			path_start     = path_end + 1;
 		}
 	}
-	while (path_end != std::string::npos);
+	while ((path_end != std::string::npos) && (path_i < path.size()));
 
 	return path;
 }

@@ -1,6 +1,6 @@
 /.vs/
 /.vscode/
-/build/
 
-*.sln
-*.json
+build/
+
+CMakePresets.json

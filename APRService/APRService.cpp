@@ -21,8 +21,6 @@
 	#include <MSWSock.h>
 #endif
 
-// TODO: append to rx string as needed instead of filling rx buffer until EOL
-
 // https://www.aprs.org/doc/APRS101.PDF#page=27
 
 template<std::size_t ... I>
@@ -424,7 +422,6 @@ bool APRService::Client::TcpSocket::Receive(void* buffer, std::size_t size, std:
 APRService::Client::Client(std::string&& station, Path&& path, char symbol_table, char symbol_table_key)
 	: path(std::move(path)),
 	station(std::move(station)),
-	receive_buffer(APRSERVICE_RX_BUFFER_SIZE),
 	symbol_table(symbol_table),
 	symbol_table_key(symbol_table_key)
 {
@@ -821,28 +818,73 @@ APRService::Client::IO_RESULTS APRService::Client::SendOnce()
 // @throw Exception
 APRService::Client::IO_RESULTS APRService::Client::ReceiveOnce()
 {
+	if (recieve_buffer_is_complete)
+	{
+		recieve_buffer_is_complete = false;
+		receive_buffer_string.clear();
+	}
+
 	std::size_t number_of_bytes_received;
 
-	if (!socket->Receive(&receive_buffer[receive_buffer_offset], APRSERVICE_RX_BUFFER_SIZE - receive_buffer_offset, number_of_bytes_received))
+	if (!socket->Receive(&receive_buffer[receive_buffer_offset], receive_buffer.size() - receive_buffer_offset, number_of_bytes_received))
 		return IO_RESULT_DISCONNECT;
+
+	if (number_of_bytes_received == 0)
+		return IO_RESULT_WOULD_BLOCK;
 
 	receive_buffer_offset += number_of_bytes_received;
 
-	for (std::size_t i = 0; (receive_buffer_offset - i) >= 2; ++i)
+	// @return 0 if not found
+	// @return 1 if CR is found
+	// @return 2 if CRLF is found
+	auto receive_buffer_find_eol = [](const char* buffer, std::size_t length, std::size_t& index)->int
 	{
-		if ((receive_buffer[i] == EOL[0]) && (receive_buffer[i + 1] == EOL[1]))
+		for (std::size_t i = 0; i < length; ++i, ++buffer)
 		{
-			receive_buffer_string.assign(&receive_buffer[0], i);
+			if (buffer[0] == EOL[0])
+			{
+				index = i;
 
-			if ((receive_buffer_offset - i) > 2)
-				std::memmove(&receive_buffer[0], &receive_buffer[i + 2], APRSERVICE_RX_BUFFER_SIZE - (i + 2));
+				if ((++i < length) && (buffer[1] == EOL[1]))
+				{
+					index = i - 1;
 
-			receive_buffer_offset -= i + 2;
+					return 2;
+				}
 
-			OnReceive.Execute(receive_buffer_string);
-
-			return IO_RESULT_SUCCESS;
+				return 1;
+			}
 		}
+
+		return 0;
+	};
+
+	std::size_t receive_buffer_eol;
+
+	switch (receive_buffer_find_eol(&receive_buffer[0], receive_buffer_offset, receive_buffer_eol))
+	{
+		case 0:
+			receive_buffer_string.append(&receive_buffer[0], receive_buffer_offset);
+			receive_buffer_offset = 0;
+			break;
+
+		case 1:
+			if (receive_buffer_eol)
+				receive_buffer_string.append(&receive_buffer[0], receive_buffer_eol);
+			if (receive_buffer_eol < receive_buffer_offset)
+				std::memmove(&receive_buffer[0], &receive_buffer[receive_buffer_eol], receive_buffer_offset - receive_buffer_eol);
+			receive_buffer_offset -= receive_buffer_eol;
+			break;
+
+		case 2:
+			if (receive_buffer_eol)
+				receive_buffer_string.append(&receive_buffer[0], receive_buffer_eol);
+			if ((receive_buffer_eol + 2) < receive_buffer_offset)
+				std::memmove(&receive_buffer[0], &receive_buffer[receive_buffer_eol + 2], receive_buffer_offset - (receive_buffer_eol + 2));
+			receive_buffer_offset -= receive_buffer_eol + 2;
+			recieve_buffer_is_complete = true;
+			OnReceive.Execute(receive_buffer_string);
+			return IO_RESULT_SUCCESS;
 	}
 
 	return IO_RESULT_WOULD_BLOCK;

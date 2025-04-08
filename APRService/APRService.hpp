@@ -5,7 +5,6 @@
 #include <queue>
 #include <ctime>
 #include <string>
-#include <vector>
 #include <cstdint>
 #include <cstring>
 #include <utility>
@@ -35,10 +34,10 @@ namespace APRService
 		Telemetry
 	};
 
-	typedef std::array<std::string, 8>  Path;
+	typedef std::array<std::string, 8> Path;
 
-	typedef std::array<float, 5>        TelemetryAnalog;
-	typedef std::uint8_t                TelemetryDigital;
+	typedef std::array<float, 5>       TelemetryAnalog;
+	typedef std::uint8_t               TelemetryDigital;
 
 	struct Packet
 	{
@@ -202,7 +201,7 @@ namespace APRService
 	{
 	public:
 		explicit InvalidSymbolTableException(char table)
-			: Exception("Invalid symbol table: " + table)
+			: Exception(std::string("Invalid symbol table: ") + table)
 		{
 		}
 	};
@@ -212,7 +211,7 @@ namespace APRService
 	{
 	public:
 		explicit InvalidSymbolTableKeyException(char key)
-			: Exception("Invalid symbol table key: " + key)
+			: Exception(std::string("Invalid symbol table key: ") + key)
 		{
 		}
 	};
@@ -453,12 +452,14 @@ namespace APRService
 
 		std::queue<SendQueueEntry> send_queue;
 
-		std::vector<char>          receive_buffer;
+		bool                       recieve_buffer_is_complete = false;
+		std::array<char, 128>      receive_buffer;
 		std::size_t                receive_buffer_offset = 0;
 		std::string                receive_buffer_string;
 		Packet                     receive_buffer_packet;
 
 		std::uint16_t              message_ack_counter = 0;
+
 		std::uint16_t              telemetry_sequence_counter = 0;
 
 		Client(Client&&) = delete;

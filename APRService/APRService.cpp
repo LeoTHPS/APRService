@@ -1187,7 +1187,7 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 	std::uint16_t longitude_seconds    = 0;
 	char          longitude_west_east  = 'E';
 
-	auto match_get_int16  = [](std::smatch& match, std::size_t offset)->std::int16_t
+	auto match_get_int16  = [](const std::smatch& match, std::size_t offset)->std::int16_t
 	{
 		auto source      = match[offset].str();
 		bool is_positive = *source.c_str() != '-';
@@ -1205,7 +1205,7 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 
 		return strtol(source.c_str(), nullptr, 10);
 	};
-	auto match_get_uint16 = [](std::smatch& match, std::size_t offset)->std::uint16_t
+	auto match_get_uint16 = [](const std::smatch& match, std::size_t offset)->std::uint16_t
 	{
 		auto source = match[offset].str();
 
@@ -1222,7 +1222,7 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 
 		return strtoul(source.c_str(), nullptr, 10);
 	};
-	auto match_decompress = [&symbol_table, &symbol_table_key, &latitude, &longitude, &comment, &altitude](std::smatch& match)
+	auto match_decompress = [&symbol_table, &symbol_table_key, &latitude, &longitude, &comment, &altitude](const std::smatch& match)
 	{
 		auto match_is_valid = [](const std::string& value)
 		{
@@ -1311,8 +1311,8 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 	// Lat/Long Position Report Format - with Data Extension and Timestamp
 	else if (packet.Content.starts_with('/') || (is_messaging_enabled = packet.Content.starts_with('@')))
 	{
-		static const std::regex regex("^[\\/@]((\\d+)[hz\\/](\\d{2})(\\d{2})\\.(\\d{2})([NS])(.)(\\d{3})(\\d{2})\\.(\\d{2})([EW])(.))(.*)$");
-		static const std::regex regex_compressed("^[\\/@]((.)([!-{]){4}([!-{]){4}(.)([!-{]){2}(.))(.*)$");
+		static const std::regex regex("^[/@]((\\d+)[hz/](\\d{2})(\\d{2})\\.(\\d{2})([NS])(.)(\\d{3})(\\d{2})\\.(\\d{2})([EW])(.))(.*)$");
+		static const std::regex regex_compressed("^[/@]((.)([!-{]){4}([!-{]){4}(.)([!-{]){2}(.))(.*)$");
 
 		std::smatch match;
 
@@ -1351,24 +1351,29 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 
 	if (is_decoded && !is_compression_enabled)
 	{
-		static const std::regex regex_altitude("(\\/A=(-?\\d+))");
-		static const std::regex regex_speed_course("^((\\d{3})\\/(\\d{3}))");
+		static const std::regex regex_altitude("(/A=(-?\\d+))");
+		static const std::regex regex_speed_course("^((\\d{3})/(\\d{3}))");
 
 		std::smatch match_altitude;
 		std::smatch match_speed_course;
 
 		try
 		{
-			if (std::regex_match(packet.Content, match_altitude, regex_altitude))
+			if (std::regex_search(comment, match_altitude, regex_altitude))
 			{
-				comment  = comment.substr(1);
 				altitude = match_get_int16(match_altitude, 2);
+
+				auto match_altitude_length  = match_altitude[1].length();
+				auto comment_altitude_begin = comment.find(match_altitude[1].str(), 0);
+
+				comment.erase(comment_altitude_begin, match_altitude_length);
 			}
-			else if (std::regex_match(packet.Content, match_speed_course, regex_speed_course))
+
+			if (std::regex_search(comment, match_speed_course, regex_speed_course))
 			{
 				speed   = match_get_uint16(match_speed_course, 3);
 				course  = match_get_uint16(match_speed_course, 2);
-				comment = comment.substr(1);
+				comment = comment.substr(match_speed_course[1].length());
 			}
 		}
 		catch (const std::regex_error& error)

@@ -1490,12 +1490,37 @@ APRService::Service::Service(std::string&& station, Path&& path, char symbol_tab
 {
 }
 
-void APRService::Service::ScheduleTask(std::uint32_t seconds, TaskHandler&& handler)
+bool                   APRService::Service::CancelTask(TaskHandle handle)
 {
-	tasks[time + seconds].push_back({
-		.Seconds = seconds,
-		.Handler = std::move(handler)
-	});
+	// TODO: optimize
+
+	for (auto it = tasks.begin(); it != tasks.end(); ++it)
+	{
+		for (auto jt = it->second.begin(); jt != it->second.end(); ++jt)
+		{
+			if (&jt->Handle == handle)
+			{
+				it->second.erase(jt);
+
+				if (it->second.empty())
+					tasks.erase(it);
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+APRService::TaskHandle APRService::Service::ScheduleTask(std::uint32_t seconds, TaskHandler&& handler)
+{
+	Task task =
+	{
+		.Handler = std::move(handler),
+		.Seconds = seconds
+	};
+
+	return &tasks[time + seconds].emplace_back(std::move(task)).Handle;
 }
 
 bool APRService::Service::ExecuteCommand(const std::string& name, const APRService::Command& command)

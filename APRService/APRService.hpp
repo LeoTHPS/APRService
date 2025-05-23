@@ -244,8 +244,7 @@ namespace APRService
 	template<typename F>
 	using EventHandler = std::function<F>;
 
-	struct EventHandlerContext {};
-
+	struct  EventHandlerContext {};
 	typedef EventHandlerContext* EventHandle;
 
 	template<typename F>
@@ -742,13 +741,17 @@ namespace APRService
 	typedef std::function<bool(std::uint32_t& seconds)> TaskHandler;
 	typedef std::function<void(const Command& command)> CommandHandler;
 
+	struct  TaskHandlerContext {};
+	typedef TaskHandlerContext* TaskHandle;
+
 	class Service
 		: public Client
 	{
 		struct Task
 		{
-			std::uint32_t Seconds;
-			TaskHandler   Handler;
+			TaskHandlerContext Handle;
+			TaskHandler        Handler;
+			std::uint32_t      Seconds;
 		};
 
 		struct Command
@@ -766,7 +769,8 @@ namespace APRService
 		// @throw Exception
 		Service(std::string&& station, Path&& path, char symbol_table, char symbol_table_key);
 
-		void ScheduleTask(std::uint32_t seconds, TaskHandler&& handler);
+		bool       CancelTask(TaskHandle handle);
+		TaskHandle ScheduleTask(std::uint32_t seconds, TaskHandler&& handler);
 
 		bool ExecuteCommand(const std::string& name, const APRService::Command& command);
 		void RegisterCommand(std::string&& name, CommandHandler&& handler);

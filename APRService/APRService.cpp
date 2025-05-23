@@ -62,7 +62,7 @@ static std::size_t aprservice_winsock_load_count = 0;
 
 static constexpr float RADIANS_TO_DEGREES = 360 / (3.14159265358979323846 * 2);
 
-float APRService::Position::CalculateDistance(float latitude, float longitude) const
+float APRService::Position::CalculateDistance(float latitude, float longitude, DISTANCES type) const
 {
 	// TODO: debug
 
@@ -73,9 +73,19 @@ float APRService::Position::CalculateDistance(float latitude, float longitude) c
 	auto a               = std::sinf(latitude_delta / 2) * std::sinf(latitude_delta / 2) + std::sinf(longitude_delta / 2) * std::sinf(longitude_delta / 2) * std::cosf(latitude_1) * std::cosf(latitude_2);
 	auto distance        = 2 * std::atan2f(std::sqrtf(a), std::sqrtf(1 - a));
 
-	return (distance * 6371) * 3280.84f;
+	auto distance_in_feet = (distance * 6371) * 3280.84f;
+
+	switch (type)
+	{
+		case DISTANCE_FEET:       return distance_in_feet;
+		case DISTANCE_MILES:      return distance_in_feet / 5280;
+		case DISTANCE_METERS:     return distance_in_feet / 3.281f;
+		case DISTANCE_KILOMETERS: return distance_in_feet / 3281;
+	}
+
+	return 0;
 }
-float APRService::Position::CalculateDistance3D(float latitude, float longitude, float altitude) const
+float APRService::Position::CalculateDistance3D(float latitude, float longitude, float altitude, DISTANCES type) const
 {
 	// TODO: debug
 
@@ -92,7 +102,17 @@ float APRService::Position::CalculateDistance3D(float latitude, float longitude,
 	else
 		distance_z = static_cast<float>(altitude - Altitude);
 
-	return ((distance * 6371) * 3280.84f) + distance_z;
+	auto distance_in_feet = ((distance * 6371) * 3280.84f) + distance_z;
+
+	switch (type)
+	{
+		case DISTANCE_FEET:       return distance_in_feet;
+		case DISTANCE_MILES:      return distance_in_feet / 5280;
+		case DISTANCE_METERS:     return distance_in_feet / 3.281f;
+		case DISTANCE_KILOMETERS: return distance_in_feet / 3281;
+	}
+
+	return 0;
 }
 
 APRService::SystemException::SystemException(const std::string& function)
@@ -1164,6 +1184,8 @@ std::string APRService::Client::Position_ToString(const APRService::Path& path, 
 // @throw Exception
 bool        APRService::Client::Position_FromPacket(Position& position, Packet&& packet)
 {
+	// TODO: fix decompression
+
 	bool         is_decoded             = false;
 	bool         is_messaging_enabled   = false;
 	bool         is_compression_enabled = false;

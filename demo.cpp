@@ -80,8 +80,8 @@ void demo_dump_position_fields(APRService::Service* service, const APRService::P
 	std::cout << "\tComment: " << position.Comment << std::endl;
 	std::cout << "\tSymbolTable: " << position.SymbolTable << std::endl;
 	std::cout << "\tSymbolTableKey: " << position.SymbolTableKey << std::endl;
-	std::cout << "\tDistance: " << position.CalculateDistance(APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE) << std::endl;
-	std::cout << "\tDistance3D: " << position.CalculateDistance3D(APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRS_BEACON_ALTITUDE) << std::endl;
+	std::cout << "\tDistance: " << position.CalculateDistance(APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRService::DISTANCE_MILES) << " miles" << std::endl;
+	std::cout << "\tDistance3D: " << position.CalculateDistance3D(APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRS_BEACON_ALTITUDE, APRService::DISTANCE_MILES) << " miles" << std::endl;
 }
 void demo_dump_telemetry_fields(APRService::Service* service, const APRService::Telemetry& telemetry)
 {

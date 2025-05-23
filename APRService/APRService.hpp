@@ -19,6 +19,12 @@
 
 namespace APRService
 {
+	enum DISTANCES
+	{
+		DISTANCE_FEET,   DISTANCE_MILES,
+		DISTANCE_METERS, DISTANCE_KILOMETERS
+	};
+
 	enum POSITION_FLAGS
 	{
 		POSITION_FLAG_COMPRESSED        = 0x1,
@@ -92,8 +98,17 @@ namespace APRService
 		char           SymbolTable;
 		char           SymbolTableKey;
 
-		float CalculateDistance(float latitude, float longitude) const;
-		float CalculateDistance3D(float latitude, float longitude, float altitude) const;
+		float CalculateDistance(const Position& position, DISTANCES type) const
+		{
+			return CalculateDistance(position.Latitude, position.Longitude, type);
+		}
+		float CalculateDistance(float latitude, float longitude, DISTANCES type) const;
+
+		float CalculateDistance3D(const Position& position, DISTANCES type) const
+		{
+			return CalculateDistance3D(position.Latitude, position.Longitude, position.Altitude, type);
+		}
+		float CalculateDistance3D(float latitude, float longitude, float altitude, DISTANCES type) const;
 	};
 
 	struct Telemetry

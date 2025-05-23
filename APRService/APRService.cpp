@@ -1292,14 +1292,14 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 				symbol_table_key     = *match[11].str().c_str();
 				comment              = match[12].str();
 			}
-			else if (std::regex_match(packet.Content, match, regex_compressed))
-			{
-				is_decoded             = true;
-				is_compression_enabled = true;
+			// else if (std::regex_match(packet.Content, match, regex_compressed))
+			// {
+			// 	is_decoded             = true;
+			// 	is_compression_enabled = true;
 
-				if (!match_decompress(match))
-					throw Exception("Invalid compression");
-			}
+			// 	if (!match_decompress(match))
+			// 		throw Exception("Invalid compression");
+			// }
 		}
 		catch (const std::regex_error& error)
 		{
@@ -1333,14 +1333,14 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 				symbol_table_key     = *match[12].str().c_str();
 				comment              = match[13].str();
 			}
-			else if (std::regex_match(packet.Content, match, regex_compressed))
-			{
-				is_decoded             = true;
-				is_compression_enabled = true;
+			// else if (std::regex_match(packet.Content, match, regex_compressed))
+			// {
+			// 	is_decoded             = true;
+			// 	is_compression_enabled = true;
 	
-				if (!match_decompress(match))
-					throw Exception("Invalid compression");
-			}
+			// 	if (!match_decompress(match))
+			// 		throw Exception("Invalid compression");
+			// }
 		}
 		catch (const std::regex_error& error)
 		{

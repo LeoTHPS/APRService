@@ -229,18 +229,25 @@ namespace APRService
 	template<typename F>
 	using EventHandler = std::function<F>;
 
+	struct EventHandlerContext {};
+
+	typedef EventHandlerContext* EventHandle;
+
 	template<typename F>
 	class Event;
-	template<typename T, typename ... TArgs>
-	class Event<T(TArgs ...)>
+	template<typename ... TArgs>
+	class Event<void(TArgs ...)>
 	{
-		struct Handler
+		typedef EventHandler<void(TArgs ...)> Handler;
+
+		struct HandlerContext
 		{
-			EventHandler<T(TArgs ...)>        Function;
-			const EventHandler<T(TArgs ...)>* FunctionPtr;
+			EventHandlerContext Handle;
+			Handler             Function;
+			const Handler*      FunctionPtr;
 		};
 
-		std::list<Handler> handlers;
+		std::list<HandlerContext> handlers;
 
 	public:
 		Event()
@@ -256,49 +263,49 @@ namespace APRService
 			handlers.clear();
 		}
 
-		auto Execute(TArgs ... args) const
+		void Execute(TArgs ... args) const
 		{
-			if constexpr (std::is_same<T, void>::value)
-				for (auto& handler : handlers)
-					handler.Function(std::forward<TArgs>(args) ...);
-			else
+			for (auto& handler : handlers)
+				handler.Function(args ...);
+		}
+
+		template<typename F>
+		EventHandle Register(F&& handler)
+		{
+			HandlerContext context =
 			{
-				T value;
+				.Function    = std::move(handler),
+				.FunctionPtr = nullptr
+			};
 
-				for (auto& handler : handlers)
-					if (!(value = handler.Function(std::forward<TArgs>(args) ...)))
-						break;
-
-				return value;
-			}
+			return &handlers.emplace_back(std::move(context)).Handle;
 		}
-		template<typename T_RETURN = typename std::enable_if<true, T>::type>
-		auto Execute(TArgs ... args, T_RETURN&& false_value = T_RETURN()) const
+		EventHandle Register(const Handler& handler)
 		{
-			if constexpr (std::is_same<T, void>::value)
-				for (auto& handler : handlers)
-					handler.Function(std::forward<TArgs>(args) ...);
-			else
+			HandlerContext context =
 			{
-				T value;
+				.Function    = handler,
+				.FunctionPtr = &handler
+			};
 
-				for (auto& handler : handlers)
-					if ((value = handler.Function(std::forward<TArgs>(args) ...)) == false_value)
-						break;
+			return &handlers.emplace_back(std::move(context)).Handle;
+		}
 
-				return value;
+		bool Unregister(EventHandle handle)
+		{
+			for (auto it = handlers.begin(); it != handlers.end(); ++it)
+			{
+				if (&it->Handle == handle)
+				{
+					handlers.erase(it);
+
+					return true;
+				}
 			}
-		}
 
-		void Register(EventHandler<T(TArgs ...)>&& handler)
-		{
-			handlers.push_front({ .Function = std::move(handler), .FunctionPtr = nullptr });
+			return false;
 		}
-		void Register(const EventHandler<T(TArgs ...)>& handler)
-		{
-			handlers.push_front({ .Function = handler, .FunctionPtr = &handler });
-		}
-		void Unregister(const EventHandler<T(TArgs ...)>& handler)
+		bool Unregister(const Handler& handler)
 		{
 			for (auto it = handlers.begin(); it != handlers.end(); ++it)
 			{
@@ -306,9 +313,11 @@ namespace APRService
 				{
 					handlers.erase(it);
 
-					break;
+					return true;
 				}
 			}
+
+			return false;
 		}
 	};
 	template<typename T, typename ... TArgs>

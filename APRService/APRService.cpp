@@ -1257,13 +1257,18 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 
 		return strtoul(source.c_str(), nullptr, 10);
 	};
-	auto match_decompress = [&symbol_table, &symbol_table_key, &latitude, &longitude, &comment, &altitude](const std::smatch& match)
+	auto match_decompress = [&symbol_table, &symbol_table_key, &latitude, &longitude, &comment, &altitude, &speed, &course](const std::smatch& match)
 	{
-		auto match_is_valid = [](const std::string& value)
+		auto match_is_valid = [](const std::string& value, bool allow_space = false)
 		{
 			for (auto c : value)
-				if (char tmp = c - 33; (c < '!') || (c > '{'))
+			{
+				if (allow_space && (c == ' '))
+					continue;
+
+				if (!allow_space && ((c < '!') || (c > '{')))
 					return false;
+			}
 
 			return true;
 		};
@@ -1271,9 +1276,9 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 		auto match_3 = match[3].str();
 		auto match_4 = match[4].str();
 		auto match_6 = match[6].str();
-		// auto match_7 = match[7].str();
+		auto match_7 = match[7].str();
 
-		if (!match_is_valid(match_3) || !match_is_valid(match_4) || !match_is_valid(match_6))
+		if (!match_is_valid(match_3) || !match_is_valid(match_4) || !match_is_valid(match_6, true) || !match_is_valid(match_7, true))
 			return false;
 
 		comment          = match[8].str();
@@ -1281,21 +1286,23 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 		longitude        = -180 + (((match_4[0] - 33) * 753571) + ((match_4[1] - 33) * 8281) + ((match_4[2] - 33) * 91) + (match_4[3] - 33)) / 190463.0f;
 		symbol_table     = *match[2].str().c_str();
 		symbol_table_key = *match[5].str().c_str();
-		char cs[2]       = { static_cast<char>(match_6[0] - 33), static_cast<char>(match_6[1] - 33) };
-		// char t           = static_cast<char>(match_7[0] - 33);
 
-		if (cs[0] == '{')
+		if (match_6[0] != ' ')
 		{
-			// TODO: radio range
-		}
-		else if ((cs[0] >= '!') && (cs[0] <= 'z'))
-		{
-			// TODO: course/speed
-		}
+			uint8_t t     = static_cast<uint8_t>(match_7[0] - 33);
+			uint8_t cs[2] = { static_cast<uint8_t>(match_6[0] - 33), static_cast<uint8_t>(match_6[1] - 33) };
 
-		if (cs[0] != ' ')
-		{
-			// TODO: altitude
+			if ((t & 0x10) == 0x10)
+				altitude = (cs[0] * 91) + cs[1];
+			else if (match_6[0] == '{')
+			{
+				// TODO: radio range
+			}
+			else if ((match_6[0] >= '!') && (match_6[0] <= 'z'))
+			{
+				speed  = match_6[1] - 33;
+				course = match_6[0] - 33;
+			}
 		}
 
 		return true;
@@ -1306,7 +1313,7 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 	if (packet.Content.starts_with('!') || (is_messaging_enabled = packet.Content.starts_with('=')))
 	{
 		static const std::regex regex("^[!=]((\\d{2})(\\d{2})\\.(\\d{2})([NS])(.)(\\d{3})(\\d{2})\\.(\\d{2})([EW])(.))(.*)$");
-		static const std::regex regex_compressed("^[!=]((.)([!-{]{4})([!-{]{4})(.)([ !-{]{2})(.))(.*)$");
+		static const std::regex regex_compressed("^[!=]((.)([!-{]{4})([!-{]{4})(.)(.{2})(.))(.*)$");
 
 		std::smatch match;
 
@@ -1347,7 +1354,7 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 	else if (packet.Content.starts_with('/') || (is_messaging_enabled = packet.Content.starts_with('@')))
 	{
 		static const std::regex regex("^[/@]((\\d+)[hz/](\\d{2})(\\d{2})\\.(\\d{2})([NS])(.)(\\d{3})(\\d{2})\\.(\\d{2})([EW])(.))(.*)$");
-		static const std::regex regex_compressed("^[/@]((.)([!-{]{4})([!-{]{4})(.)([ !-{]{2})(.))(.*)$");
+		static const std::regex regex_compressed("^[/@]((.)([!-{]{4})([!-{]{4})(.)(.{2})(.))(.*)$");
 
 		std::smatch match;
 

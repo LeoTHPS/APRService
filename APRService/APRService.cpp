@@ -1306,7 +1306,7 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 	if (packet.Content.starts_with('!') || (is_messaging_enabled = packet.Content.starts_with('=')))
 	{
 		static const std::regex regex("^[!=]((\\d{2})(\\d{2})\\.(\\d{2})([NS])(.)(\\d{3})(\\d{2})\\.(\\d{2})([EW])(.))(.*)$");
-		static const std::regex regex_compressed("^[!=]((.)([!-{]{4})([!-{]{4})(.)([!-{]{2})(.))(.*)$");
+		static const std::regex regex_compressed("^[!=]((.)([!-{]{4})([!-{]{4})(.)([ !-{]{2})(.))(.*)$");
 
 		std::smatch match;
 
@@ -1347,7 +1347,7 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 	else if (packet.Content.starts_with('/') || (is_messaging_enabled = packet.Content.starts_with('@')))
 	{
 		static const std::regex regex("^[/@]((\\d+)[hz/](\\d{2})(\\d{2})\\.(\\d{2})([NS])(.)(\\d{3})(\\d{2})\\.(\\d{2})([EW])(.))(.*)$");
-		static const std::regex regex_compressed("^[/@]((.)([!-{]{4})([!-{]{4})(.)([!-{]{2})(.))(.*)$");
+		static const std::regex regex_compressed("^[/@]((.)([!-{]{4})([!-{]{4})(.)([ !-{]{2})(.))(.*)$");
 
 		std::smatch match;
 

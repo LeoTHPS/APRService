@@ -5,23 +5,32 @@
 
 #include <APRService.hpp>
 
-#define APRS_PATH             { "WIDE1-1" }
-#define APRS_STATION          "N0CALL"
-#define APRS_SYMBOL_TABLE     '/'
-#define APRS_SYMBOL_TABLE_KEY 'l'
+#define APRS_PATH                    { "WIDE1-1" }
+#define APRS_STATION                 "N0CALL"
+#define APRS_SYMBOL_TABLE            '/'
+#define APRS_SYMBOL_TABLE_KEY        'l'
 
-#define APRS_BEACON_ENABLED   false
-#define APRS_BEACON_COMMENT   "Test"
-#define APRS_BEACON_INTERVAL  (5 * 60)
-#define APRS_BEACON_ALTITUDE  0
-#define APRS_BEACON_LATITUDE  0
-#define APRS_BEACON_LONGITUDE 0
+#define APRS_BEACON                  false
+#define APRS_BEACON_COMMENT          "Test"
+#define APRS_BEACON_INTERVAL         (5 * 60)
+#define APRS_BEACON_ALTITUDE         0
+#define APRS_BEACON_LATITUDE         0
+#define APRS_BEACON_LONGITUDE        0
 
-#define APRS_IS_HOST          "noam.aprs2.net"
-#define APRS_IS_PORT          14580
-#define APRS_IS_PASSCODE      -1
+#define APRS_OBJECT                  false
+#define APRS_OBJECT_NAME             "N0CALL-O"
+#define APRS_OBJECT_COMMENT          "Test"
+#define APRS_OBJECT_INTERVAL         (15 * 60)
+#define APRS_OBJECT_LATITUDE         0
+#define APRS_OBJECT_LONGITUDE        0
+#define APRS_OBJECT_SYMBOL_TABLE     '/'
+#define APRS_OBJECT_SYMBOL_TABLE_KEY 'l'
 
-#define DECODE_ERROR_LOG      "decode_errors.log"
+#define APRS_IS_HOST                 "noam.aprs2.net"
+#define APRS_IS_PORT                 14580
+#define APRS_IS_PASSCODE             -1
+
+#define DECODE_ERROR_LOG             "decode_errors.log"
 
 struct demo_filesystem
 {
@@ -172,7 +181,7 @@ void demo_service_on_authenticate(APRService::Service* service, const std::strin
 	std::cout << "APRService::OnAuthenticate" << std::endl;
 	std::cout << "\tMessage: " << message << std::endl;
 
-#if APRS_BEACON_ENABLED
+#if APRS_BEACON
 	if (!service->IsReadOnly())
 		if (std::uint32_t seconds = APRS_BEACON_INTERVAL; demo_task_beacon(service, seconds))
 			service->ScheduleTask(seconds, std::bind(&demo_task_beacon, service, std::placeholders::_1));
@@ -241,6 +250,13 @@ int main(int argc, char* argv[])
 		service.OnReceiveTelemetry.Register(std::bind(&demo_service_on_receive_telemetry, &service, std::placeholders::_1));
 
 		service.Connect(APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE);
+
+#if APRS_OBJECT
+		if (auto object = service.AddObject(APRS_OBJECT_NAME, APRS_OBJECT_COMMENT, 0, 0, APRS_OBJECT_LATITUDE, APRS_OBJECT_LONGITUDE, APRS_OBJECT_SYMBOL_TABLE, APRS_OBJECT_SYMBOL_TABLE_KEY))
+			service.ScheduleTask(APRS_OBJECT_INTERVAL, [object](std::uint32_t& seconds) {
+				return object->Announce();
+			});
+#endif
 
 		while (service.Update())
 #if defined(APRSERVICE_UNIX)

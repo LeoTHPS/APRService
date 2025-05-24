@@ -1691,6 +1691,32 @@ bool APRService::Service::Task::Cancel()
 }
 
 // @throw Exception
+bool APRService::Service::Object::Kill()
+{
+	if (!service->IsConnected())
+		return false;
+
+	service->SendObject(GetName(), GetComment(), GetSpeed(), GetCourse(), GetLatitude(), GetLongitude(), GetSymbolTable(), GetSymbolTableKey(), false);
+
+	service->objects.remove(this);
+
+	delete this;
+
+	return true;
+}
+
+// @throw Exception
+bool APRService::Service::Object::Announce()
+{
+	if (!service->IsConnected())
+		return false;
+
+	service->SendObject(GetName(), GetComment(), GetSpeed(), GetCourse(), GetLatitude(), GetLongitude(), GetSymbolTable(), GetSymbolTableKey());
+
+	return true;
+}
+
+// @throw Exception
 APRService::Service::Service(std::string&& station, Path&& path, char symbol_table, char symbol_table_key)
 	: Client(std::move(station), std::move(path), symbol_table, symbol_table_key),
 	time(::time(nullptr))
@@ -1717,6 +1743,15 @@ APRService::Service::~Service()
 
 		objects.erase(it++);
 	}
+}
+
+APRService::IObject* APRService::Service::AddObject(std::string&& name, std::string&& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key)
+{
+	auto object = new Object(this, std::move(name), std::move(comment), speed, course, latitude, longitude, symbol_table, symbol_table_key);
+
+	objects.push_back(object);
+
+	return object;
 }
 
 APRService::ITask* APRService::Service::ScheduleTask(std::uint32_t seconds, TaskHandler&& handler)

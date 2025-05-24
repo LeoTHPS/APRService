@@ -181,15 +181,15 @@ namespace APRService
 		virtual char GetSymbolTableKey() const = 0;
 
 		// @throw Exception
-		virtual void Kill() = 0;
+		virtual bool Kill() = 0;
 
 		// @throw Exception
+		virtual bool Announce() = 0;
+
 		virtual void SetSymbol(char table, char key) = 0;
 
-		// @throw Exception
 		virtual void SetComment(std::string&& value) = 0;
 
-		// @throw Exception
 		virtual void SetPosition(float latitude, float longitude) = 0;
 	};
 
@@ -900,86 +900,94 @@ namespace APRService
 		class Object
 			: public IObject
 		{
-			APRService::Object object;
+			Service*      service;
+
+			std::string   name;
+			std::string   comment;
+
+			std::uint16_t speed;
+			std::uint16_t course;
+			float         latitude;
+			float         longitude;
+
+			char          symbol_table;
+			char          symbol_table_key;
 
 		public:
-			Object(std::string&& name, Path&& path, std::string&& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key)
-				: object{
-					{ PacketTypes::Object, std::move(path), "", APRSERVICE_TOCALL, std::move(name) },
-					OBJECT_FLAG_LIVE,
-					std::move(comment),
-					speed,
-					course,
-					latitude,
-					longitude,
-					symbol_table,
-					symbol_table_key
-				}
+			Object(Service* service, std::string&& name, std::string&& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key)
+				: service(service),
+				name(std::move(name)),
+				comment(std::move(comment)),
+				speed(speed),
+				course(course),
+				latitude(latitude),
+				longitude(longitude),
+				symbol_table(symbol_table),
+				symbol_table_key(symbol_table_key)
 			{
 			}
 
 			virtual const std::string& GetName() const override
 			{
-				return object.Sender;
+				return name;
 			}
 
 			virtual const std::string& GetComment() const override
 			{
-				return object.Comment;
+				return comment;
 			}
 
 			virtual std::uint16_t GetSpeed() const override
 			{
-				return object.Speed;
+				return speed;
 			}
 
 			virtual std::uint16_t GetCourse() const override
 			{
-				return object.Course;
+				return course;
 			}
 
 			virtual float GetLatitude() const override
 			{
-				return object.Latitude;
+				return latitude;
 			}
 
 			virtual float GetLongitude() const override
 			{
-				return object.Longitude;
+				return longitude;
 			}
 
 			virtual char GetSymbolTable() const override
 			{
-				return object.SymbolTable;
+				return symbol_table;
 			}
 
 			virtual char GetSymbolTableKey() const override
 			{
-				return object.SymbolTableKey;
+				return symbol_table_key;
 			}
 
 			// @throw Exception
-			virtual void Kill() override
-			{
-				// TODO: implement
-			}
+			virtual bool Kill() override;
 
 			// @throw Exception
+			virtual bool Announce() override;
+
 			virtual void SetSymbol(char table, char key) override
 			{
-				// TODO: implement
+				symbol_table     = table;
+				symbol_table_key = key;
 			}
 
-			// @throw Exception
 			virtual void SetComment(std::string&& value) override
 			{
-				// TODO: implement
+				comment = std::move(value);
 			}
 
-			// @throw Exception
 			virtual void SetPosition(float latitude, float longitude) override
 			{
-				// TODO: implement
+				this->latitude  = latitude;
+				this->longitude = longitude;
 			}
 		};
 
@@ -1001,7 +1009,7 @@ namespace APRService
 
 		virtual ~Service();
 
-		IObject* AddObject(); // TODO: implement
+		IObject* AddObject(std::string&& name, std::string&& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key);
 
 		ITask* ScheduleTask(std::uint32_t seconds, TaskHandler&& handler);
 

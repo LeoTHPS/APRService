@@ -1,4 +1,7 @@
+#include <fstream>
+#include <sstream>
 #include <iostream>
+#include <filesystem>
 
 #include <APRService.hpp>
 
@@ -7,7 +10,7 @@
 #define APRS_SYMBOL_TABLE     '/'
 #define APRS_SYMBOL_TABLE_KEY 'l'
 
-#define APRS_BEACON_ENABLED   true
+#define APRS_BEACON_ENABLED   false
 #define APRS_BEACON_COMMENT   "Test"
 #define APRS_BEACON_INTERVAL  (5 * 60)
 #define APRS_BEACON_ALTITUDE  0
@@ -17,6 +20,51 @@
 #define APRS_IS_HOST          "noam.aprs2.net"
 #define APRS_IS_PORT          14580
 #define APRS_IS_PASSCODE      -1
+
+#define DECODE_ERROR_LOG      "decode_errors.log"
+
+struct demo_filesystem
+{
+	std::ofstream decode_error;
+};
+
+bool demo_filesystem_init(demo_filesystem* fs)
+{
+	try
+	{
+		fs->decode_error.open(DECODE_ERROR_LOG, std::ios::out | std::ios::ate | std::ios::app);
+	}
+	catch (const std::exception& exception)
+	{
+		std::cerr << "Error opening " DECODE_ERROR_LOG << std::endl;
+		std::cerr << exception.what() << std::endl;
+
+		return false;
+	}
+
+	return true;
+}
+bool demo_filesystem_write_decode_error(demo_filesystem* fs, const std::string& raw, const APRService::Exception* exception)
+{
+	if (!fs->decode_error.is_open())
+		return false;
+
+	try
+	{
+		fs->decode_error << raw << std::endl;
+
+		if (exception)
+			fs->decode_error << '\t' << exception->what() << std::endl;
+	}
+	catch (const std::exception& exception)
+	{
+		std::cerr << "Error writing " DECODE_ERROR_LOG << std::endl;
+
+		return false;
+	}
+
+	return true;
+}
 
 // @return true to reschedule
 bool demo_task_beacon(APRService::Service* service, std::uint32_t& seconds)
@@ -117,11 +165,13 @@ void demo_service_on_authenticate(APRService::Service* service, const std::strin
 			service->ScheduleTask(seconds, std::bind(&demo_task_beacon, service, std::placeholders::_1));
 #endif
 }
-void demo_service_on_decode_error(APRService::Service* service, const std::string& raw, const APRService::Exception* exception)
+void demo_service_on_decode_error(demo_filesystem* fs, APRService::Service* service, const std::string& raw, const APRService::Exception* exception)
 {
 	std::cout << "APRService::OnDecodeError" << std::endl;
 	std::cout << "\tRaw: " << raw << std::endl;
 	std::cout << "\tException: " << (exception ? exception->what() : "") << std::endl;
+
+	demo_filesystem_write_decode_error(fs, raw, exception);
 }
 void demo_service_on_receive_packet(APRService::Service* service, const APRService::Packet& packet)
 {
@@ -151,6 +201,9 @@ void demo_service_on_receive_telemetry(APRService::Service* service, const APRSe
 
 int main(int argc, char* argv[])
 {
+	demo_filesystem fs;
+	demo_filesystem_init(&fs);
+
 	try
 	{
 		APRService::Service service(APRS_STATION, APRS_PATH, APRS_SYMBOL_TABLE, APRS_SYMBOL_TABLE_KEY);
@@ -161,7 +214,7 @@ int main(int argc, char* argv[])
 		service.OnConnect.Register(std::bind(&demo_service_on_connect, &service));
 		service.OnDisconnect.Register(std::bind(&demo_service_on_disconnect, &service));
 		service.OnAuthenticate.Register(std::bind(&demo_service_on_authenticate, &service, std::placeholders::_1));
-		service.OnDecodeError.Register(std::bind(&demo_service_on_decode_error, &service, std::placeholders::_1, std::placeholders::_2));
+		service.OnDecodeError.Register(std::bind(&demo_service_on_decode_error, &fs, &service, std::placeholders::_1, std::placeholders::_2));
 		// service.OnReceivePacket.Register(std::bind(&demo_service_on_receive_packet, &service, std::placeholders::_1));
 		service.OnReceiveMessage.Register(std::bind(&demo_service_on_receive_message, &service, std::placeholders::_1));
 		service.OnReceiveWeather.Register(std::bind(&demo_service_on_receive_weather, &service, std::placeholders::_1));

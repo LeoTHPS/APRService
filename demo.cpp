@@ -241,7 +241,6 @@ int main(int argc, char* argv[])
 		service.OnReceiveTelemetry.Register(std::bind(&demo_service_on_receive_telemetry, &service, std::placeholders::_1));
 
 		service.Connect(APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE);
-		service.SendObject("KK7EDG", "Test", 0, 0, 43.942917, -122.769840, '/', 'l', true);
 
 		while (service.Update())
 #if defined(APRSERVICE_UNIX)

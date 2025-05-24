@@ -747,6 +747,8 @@ namespace APRService
 	struct  TaskHandlerContext {};
 	typedef TaskHandlerContext* TaskHandle;
 
+	typedef std::function<void(const std::string& name, const CommandHandler& handler)> ServiceEnumCommandsCallback;
+
 	class Service
 		: public Client
 	{
@@ -778,6 +780,7 @@ namespace APRService
 		bool ExecuteCommand(const std::string& name, const APRService::Command& command);
 		void RegisterCommand(std::string&& name, CommandHandler&& handler);
 		void UnregisterCommand(const std::string& name);
+		void EnumerateCommands(ServiceEnumCommandsCallback&& callback);
 
 		// @throw Exception
 		// @return false on connection closed

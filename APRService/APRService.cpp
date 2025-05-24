@@ -1594,6 +1594,11 @@ void APRService::Service::UnregisterCommand(const std::string& name)
 		}
 	}
 }
+void APRService::Service::EnumerateCommands(ServiceEnumCommandsCallback&& callback)
+{
+	for (auto& command : commands)
+		callback(command.Name, command.Handler);
+}
 
 // @throw Exception
 // @return false on connection closed

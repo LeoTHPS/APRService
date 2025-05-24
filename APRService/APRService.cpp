@@ -1199,8 +1199,6 @@ std::string APRService::Client::Position_ToString(const APRService::Path& path, 
 // @throw Exception
 bool        APRService::Client::Position_FromPacket(Position& position, Packet&& packet)
 {
-	// TODO: fix decompression
-
 	bool         is_decoded             = false;
 	bool         is_messaging_enabled   = false;
 	bool         is_compression_enabled = false;
@@ -1308,7 +1306,7 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 	if (packet.Content.starts_with('!') || (is_messaging_enabled = packet.Content.starts_with('=')))
 	{
 		static const std::regex regex("^[!=]((\\d{2})(\\d{2})\\.(\\d{2})([NS])(.)(\\d{3})(\\d{2})\\.(\\d{2})([EW])(.))(.*)$");
-		static const std::regex regex_compressed("^[!=]((.)([!-{]){4}([!-{]){4}(.)([!-{]){2}(.))(.*)$");
+		static const std::regex regex_compressed("^[!=]((.)([!-{]{4})([!-{]{4})(.)([!-{]{2})(.))(.*)$");
 
 		std::smatch match;
 
@@ -1329,14 +1327,14 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 				symbol_table_key     = *match[11].str().c_str();
 				comment              = match[12].str();
 			}
-			// else if (std::regex_match(packet.Content, match, regex_compressed))
-			// {
-			// 	is_decoded             = true;
-			// 	is_compression_enabled = true;
+			else if (std::regex_match(packet.Content, match, regex_compressed))
+			{
+				is_decoded             = true;
+				is_compression_enabled = true;
 
-			// 	if (!match_decompress(match))
-			// 		throw Exception("Invalid compression");
-			// }
+				if (!match_decompress(match))
+					throw Exception("Invalid compression");
+			}
 		}
 		catch (const std::regex_error& error)
 		{
@@ -1349,7 +1347,7 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 	else if (packet.Content.starts_with('/') || (is_messaging_enabled = packet.Content.starts_with('@')))
 	{
 		static const std::regex regex("^[/@]((\\d+)[hz/](\\d{2})(\\d{2})\\.(\\d{2})([NS])(.)(\\d{3})(\\d{2})\\.(\\d{2})([EW])(.))(.*)$");
-		static const std::regex regex_compressed("^[/@]((.)([!-{]){4}([!-{]){4}(.)([!-{]){2}(.))(.*)$");
+		static const std::regex regex_compressed("^[/@]((.)([!-{]{4})([!-{]{4})(.)([!-{]{2})(.))(.*)$");
 
 		std::smatch match;
 
@@ -1370,14 +1368,14 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 				symbol_table_key     = *match[12].str().c_str();
 				comment              = match[13].str();
 			}
-			// else if (std::regex_match(packet.Content, match, regex_compressed))
-			// {
-			// 	is_decoded             = true;
-			// 	is_compression_enabled = true;
-	
-			// 	if (!match_decompress(match))
-			// 		throw Exception("Invalid compression");
-			// }
+			else if (std::regex_match(packet.Content, match, regex_compressed))
+			{
+				is_decoded             = true;
+				is_compression_enabled = true;
+
+				if (!match_decompress(match))
+					throw Exception("Invalid compression");
+			}
 		}
 		catch (const std::regex_error& error)
 		{

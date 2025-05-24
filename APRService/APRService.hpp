@@ -632,6 +632,9 @@ namespace APRService
 		void SendMessage(const std::string& destination, const std::string& message, const std::string& id);
 
 		// @throw Exception
+		void SendMessageNoAck(const std::string& destination, const std::string& message);
+
+		// @throw Exception
 		void SendWeather(std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type);
 
 		// @throw Exception

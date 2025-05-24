@@ -565,6 +565,15 @@ void APRService::Client::SendMessage(const std::string& destination, const std::
 }
 
 // @throw Exception
+void APRService::Client::SendMessageNoAck(const std::string& destination, const std::string& message)
+{
+	if (!Station_IsValid(destination))
+		throw InvalidPacketException(PacketTypes::Message, "destination", destination);
+
+	Send(Message_ToString(GetPath(), GetStation(), APRSERVICE_TOCALL, destination, message));
+}
+
+// @throw Exception
 void APRService::Client::SendWeather(std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type)
 {
 	auto time     = ::time(nullptr);
@@ -1513,6 +1522,7 @@ APRService::Service::Service(std::string&& station, Path&& path, char symbol_tab
 bool                   APRService::Service::CancelTask(TaskHandle handle)
 {
 	// TODO: optimize
+	// TODO: handle case where tasks are being executed
 
 	for (auto it = tasks.begin(); it != tasks.end(); ++it)
 	{

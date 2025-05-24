@@ -107,8 +107,6 @@ void demo_dump_object_fields(APRService::Service* service, const APRService::Obj
 
 	std::cout << "\tFlags: " << object.Flags << std::endl;
 	std::cout << "\tComment: " << object.Comment << std::endl;
-	std::cout << "\tSpeed: " << object.Speed << std::endl;
-	std::cout << "\tCourse: " << object.Course << std::endl;
 	std::cout << "\tLatitude: " << object.Latitude << std::endl;
 	std::cout << "\tLongitude: " << object.Longitude << std::endl;
 	std::cout << "\tSymbolTable: " << object.SymbolTable << std::endl;
@@ -252,7 +250,7 @@ int main(int argc, char* argv[])
 		service.Connect(APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE);
 
 #if APRS_OBJECT
-		if (auto object = service.AddObject(APRS_OBJECT_NAME, APRS_OBJECT_COMMENT, 0, 0, APRS_OBJECT_LATITUDE, APRS_OBJECT_LONGITUDE, APRS_OBJECT_SYMBOL_TABLE, APRS_OBJECT_SYMBOL_TABLE_KEY))
+		if (auto object = service.AddObject(APRS_OBJECT_NAME, APRS_OBJECT_COMMENT, APRS_OBJECT_LATITUDE, APRS_OBJECT_LONGITUDE, APRS_OBJECT_SYMBOL_TABLE, APRS_OBJECT_SYMBOL_TABLE_KEY))
 			service.ScheduleTask(APRS_OBJECT_INTERVAL, [object](std::uint32_t& seconds) {
 				return object->Announce();
 			});

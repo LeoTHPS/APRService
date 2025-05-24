@@ -582,7 +582,7 @@ void APRService::Client::SendPacket(const std::string& content)
 }
 
 // @throw Exception
-void APRService::Client::SendObject(const std::string& name, const std::string& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key, bool live)
+void APRService::Client::SendObject(const std::string& name, const std::string& comment, float latitude, float longitude, char symbol_table, char symbol_table_key, bool live)
 {
 	auto time     = ::time(nullptr);
 	auto datetime = *localtime(&time);
@@ -591,7 +591,7 @@ void APRService::Client::SendObject(const std::string& name, const std::string& 
 	if (IsCompressionEnabled())
 		flags |= OBJECT_FLAG_COMPRESSED;
 
-	Send(Object_ToString(GetPath(), GetStation(), APRSERVICE_TOCALL, datetime, name, comment, speed, course, latitude, longitude, symbol_table, symbol_table_key, flags));
+	Send(Object_ToString(GetPath(), GetStation(), APRSERVICE_TOCALL, datetime, name, comment, latitude, longitude, symbol_table, symbol_table_key, flags));
 }
 
 // @throw Exception
@@ -1164,7 +1164,7 @@ bool        APRService::Client::Packet_FromString(Packet& packet, const std::str
 }
 
 // @throw Exception
-std::string APRService::Client::Object_ToString(const Path& path, const std::string& sender, const std::string& tocall, tm time, const std::string& name, const std::string& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key, int flags)
+std::string APRService::Client::Object_ToString(const Path& path, const std::string& sender, const std::string& tocall, const tm& time, const std::string& name, const std::string& comment, float latitude, float longitude, char symbol_table, char symbol_table_key, int flags)
 {
 	std::stringstream ss;
 	ss << ';';
@@ -1187,7 +1187,6 @@ std::string APRService::Client::Object_ToString(const Path& path, const std::str
 		ss << symbol_table;
 		ss << sprintf("%03i%02u.%02u%c", (longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1), longitude_minutes, longitude_seconds, longitude_west_east);
 		ss << symbol_table_key;
-		ss << sprintf("%03u/%03u", course, speed);
 	}
 	// else
 		; // TODO: implement compression
@@ -1199,16 +1198,44 @@ std::string APRService::Client::Object_ToString(const Path& path, const std::str
 // @throw Exception
 bool        APRService::Client::Object_FromPacket(Object& object, Packet&& packet)
 {
-	return false;
+	static const std::regex regex("^;(.{9})([*_])((\\d{2})(\\d{2})(\\d{2})([zh]))((\\d{2})(\\d{2})\\.(\\d{2})([NS]))(.)((\\d{3})(\\d{2})\\.(\\d{2})([EW]))(.)(.*)$");
+	static const std::regex regex_compressed("^$");
 
-	static const std::regex regex("^;$");
-
+	tm          time = {};
 	std::smatch match;
+	int         flags     = 0;
+	float       latitude  = 0;
+	float       longitude = 0;
+
+	auto object_init = [&object, &packet](std::string&& name, std::string&& comment, const tm& time, float latitude, float longitude, char symbol_table, char symbol_table_key, int flags)
+	{
+		object =
+		{
+			{ PacketTypes::Object, std::move(packet.Path), std::move(packet.IGate), std::move(packet.ToCall), std::move(packet.Sender), std::move(packet.Content), std::move(packet.QConstruct) },
+			flags,
+			std::move(name),
+			std::move(comment),
+			latitude,
+			longitude,
+			symbol_table,
+			symbol_table_key
+		};
+	};
 
 	try
 	{
-		if (!std::regex_match(packet.Content, match, regex))
-			return false;
+		if (std::regex_match(packet.Content, match, regex))
+		{
+			object_init(match[1].str(), match[20].str(), time, latitude, longitude, match[13].str()[0], match[19].str()[0], flags);
+
+			return true;
+		}
+		// else if (std::regex_match(packet.Content, match, regex_compressed))
+		// {
+		// 	// TODO: implement
+
+		// 	return true;
+		// }
 	}
 	catch (const std::regex_error& error)
 	{
@@ -1216,26 +1243,7 @@ bool        APRService::Client::Object_FromPacket(Object& object, Packet&& packe
 		throw RegexException(error.what());
 	}
 
-	// TODO: implement
-
-	object =
-	{
-		{ PacketTypes::Object, std::move(packet.Path), std::move(packet.IGate), std::move(packet.ToCall), std::move(packet.Sender), std::move(packet.Content), std::move(packet.QConstruct) },
-		/*
-		int           Flags;
-
-		std::string   Comment;
-
-		std::int32_t  Altitude;
-		float         Latitude;
-		float         Longitude;
-
-		char          SymbolTable;
-		char          SymbolTableKey;
-		*/
-	};
-
-	return true;
+	return false;
 }
 
 // @throw Exception
@@ -1286,7 +1294,7 @@ bool        APRService::Client::Message_FromPacket(Message& message, Packet&& pa
 }
 
 // @throw Exception
-std::string APRService::Client::Weather_ToString(const Path& path, const std::string& sender, const std::string& tocall, tm time, std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type)
+std::string APRService::Client::Weather_ToString(const Path& path, const std::string& sender, const std::string& tocall, const tm& time, std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type)
 {
 	if (type.length() > 4)
 		throw InvalidPacketException(PacketTypes::Weather, "type", type);
@@ -1696,7 +1704,7 @@ bool APRService::Service::Object::Kill()
 	if (!service->IsConnected())
 		return false;
 
-	service->SendObject(GetName(), GetComment(), GetSpeed(), GetCourse(), GetLatitude(), GetLongitude(), GetSymbolTable(), GetSymbolTableKey(), false);
+	service->SendObject(GetName(), GetComment(), GetLatitude(), GetLongitude(), GetSymbolTable(), GetSymbolTableKey(), false);
 
 	service->objects.remove(this);
 
@@ -1711,7 +1719,7 @@ bool APRService::Service::Object::Announce()
 	if (!service->IsConnected())
 		return false;
 
-	service->SendObject(GetName(), GetComment(), GetSpeed(), GetCourse(), GetLatitude(), GetLongitude(), GetSymbolTable(), GetSymbolTableKey());
+	service->SendObject(GetName(), GetComment(), GetLatitude(), GetLongitude(), GetSymbolTable(), GetSymbolTableKey());
 
 	return true;
 }
@@ -1745,9 +1753,9 @@ APRService::Service::~Service()
 	}
 }
 
-APRService::IObject* APRService::Service::AddObject(std::string&& name, std::string&& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key)
+APRService::IObject* APRService::Service::AddObject(std::string&& name, std::string&& comment, float latitude, float longitude, char symbol_table, char symbol_table_key)
 {
-	auto object = new Object(this, std::move(name), std::move(comment), speed, course, latitude, longitude, symbol_table, symbol_table_key);
+	auto object = new Object(this, std::move(name), std::move(comment), latitude, longitude, symbol_table, symbol_table_key);
 
 	objects.push_back(object);
 

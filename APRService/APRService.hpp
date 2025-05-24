@@ -70,10 +70,9 @@ namespace APRService
 	{
 		int           Flags;
 
+		std::string   Name;
 		std::string   Comment;
 
-		std::uint16_t Speed;
-		std::uint16_t Course;
 		float         Latitude;
 		float         Longitude;
 
@@ -167,10 +166,6 @@ namespace APRService
 		virtual const std::string& GetName() const = 0;
 
 		virtual const std::string& GetComment() const = 0;
-
-		virtual std::uint16_t GetSpeed() const = 0;
-
-		virtual std::uint16_t GetCourse() const = 0;
 
 		virtual float GetLatitude() const = 0;
 
@@ -722,7 +717,7 @@ namespace APRService
 		void SendPacket(const std::string& content);
 
 		// @throw Exception
-		void SendObject(const std::string& name, const std::string& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key, bool live = true);
+		void SendObject(const std::string& name, const std::string& comment, float latitude, float longitude, char symbol_table, char symbol_table_key, bool live = true);
 
 		// @throw Exception
 		void SendMessage(const std::string& destination, const std::string& message);
@@ -792,7 +787,7 @@ namespace APRService
 		static bool        Packet_FromString(Packet& packet, const std::string& string);
 
 		// @throw Exception
-		static std::string Object_ToString(const Path& path, const std::string& sender, const std::string& tocall, tm time, const std::string& name, const std::string& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key, int flags);
+		static std::string Object_ToString(const Path& path, const std::string& sender, const std::string& tocall, const tm& time, const std::string& name, const std::string& comment, float latitude, float longitude, char symbol_table, char symbol_table_key, int flags);
 		// @throw Exception
 		static bool        Object_FromPacket(Object& object, Packet&& packet);
 
@@ -806,7 +801,7 @@ namespace APRService
 		static bool        Message_FromPacket(Message& message, Packet&& packet);
 
 		// @throw Exception
-		static std::string Weather_ToString(const Path& path, const std::string& sender, const std::string& tocall, tm time, std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type);
+		static std::string Weather_ToString(const Path& path, const std::string& sender, const std::string& tocall, const tm& time, std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type);
 		// @throw Exception
 		static bool        Weather_FromPacket(Weather& weather, Packet&& packet);
 
@@ -905,8 +900,6 @@ namespace APRService
 			std::string   name;
 			std::string   comment;
 
-			std::uint16_t speed;
-			std::uint16_t course;
 			float         latitude;
 			float         longitude;
 
@@ -914,12 +907,10 @@ namespace APRService
 			char          symbol_table_key;
 
 		public:
-			Object(Service* service, std::string&& name, std::string&& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key)
+			Object(Service* service, std::string&& name, std::string&& comment, float latitude, float longitude, char symbol_table, char symbol_table_key)
 				: service(service),
 				name(std::move(name)),
 				comment(std::move(comment)),
-				speed(speed),
-				course(course),
 				latitude(latitude),
 				longitude(longitude),
 				symbol_table(symbol_table),
@@ -935,16 +926,6 @@ namespace APRService
 			virtual const std::string& GetComment() const override
 			{
 				return comment;
-			}
-
-			virtual std::uint16_t GetSpeed() const override
-			{
-				return speed;
-			}
-
-			virtual std::uint16_t GetCourse() const override
-			{
-				return course;
 			}
 
 			virtual float GetLatitude() const override
@@ -1009,7 +990,7 @@ namespace APRService
 
 		virtual ~Service();
 
-		IObject* AddObject(std::string&& name, std::string&& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key);
+		IObject* AddObject(std::string&& name, std::string&& comment, float latitude, float longitude, char symbol_table, char symbol_table_key);
 
 		ITask* ScheduleTask(std::uint32_t seconds, TaskHandler&& handler);
 

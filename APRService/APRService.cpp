@@ -655,12 +655,15 @@ receive_once:
 				}
 				catch (Exception& exception)
 				{
+					HandleDecodeError(receive_buffer_string, &exception);
 
-					HandleDecodeError(receive_buffer_string, exception);
+					break;
 				}
 
 				if (receive_buffer_packet_decoded)
 					HandlePacket(receive_buffer_string, receive_buffer_packet);
+				else
+					HandleDecodeError(receive_buffer_string, nullptr);
 			}
 		}
 		goto receive_once;
@@ -691,11 +694,14 @@ void APRService::Client::HandlePacket(const std::string& raw, Packet& packet)
 			}
 			catch (Exception& exception)
 			{
+				HandleDecodeError(raw, &exception);
 
-				HandleDecodeError(raw, exception);
+				break;
 			}
 
-			if (message_is_decoded)
+			if (!message_is_decoded)
+				HandleDecodeError(raw, nullptr);
+			else
 			{
 				bool message_is_for_station = !stricmp(message.Destination.c_str(), GetStation().c_str());
 
@@ -721,11 +727,14 @@ void APRService::Client::HandlePacket(const std::string& raw, Packet& packet)
 			}
 			catch (Exception& exception)
 			{
+				HandleDecodeError(raw, &exception);
 
-				HandleDecodeError(raw, exception);
+				break;
 			}
 
-			if (weather_is_decoded)
+			if (!weather_is_decoded)
+				HandleDecodeError(raw, nullptr);
+			else
 				HandleWeather(raw, weather);
 		}
 		break;
@@ -741,11 +750,14 @@ void APRService::Client::HandlePacket(const std::string& raw, Packet& packet)
 			}
 			catch (Exception& exception)
 			{
+				HandleDecodeError(raw, &exception);
 
-				HandleDecodeError(raw, exception);
+				break;
 			}
 
-			if (position_is_decoded)
+			if (!position_is_decoded)
+				HandleDecodeError(raw, nullptr);
+			else
 				HandlePosition(raw, position);
 		}
 		break;
@@ -761,11 +773,14 @@ void APRService::Client::HandlePacket(const std::string& raw, Packet& packet)
 			}
 			catch (Exception& exception)
 			{
+				HandleDecodeError(raw, &exception);
 
-				HandleDecodeError(raw, exception);
+				break;
 			}
 
-			if (telemetry_is_decoded)
+			if (!telemetry_is_decoded)
+				HandleDecodeError(raw, nullptr);
+			else
 				HandleTelemetry(raw, telemetry);
 		}
 		break;
@@ -793,7 +808,7 @@ void APRService::Client::HandleTelemetry(const std::string& raw, Telemetry& tele
 }
 
 // @throw Exception
-void APRService::Client::HandleDecodeError(const std::string& raw, Exception& exception)
+void APRService::Client::HandleDecodeError(const std::string& raw, Exception* exception)
 {
 	OnDecodeError.Execute(raw, exception);
 }
@@ -1611,7 +1626,7 @@ void APRService::Service::HandleMessage(const std::string& raw, Message& message
 	catch (Exception& exception)
 	{
 
-		HandleDecodeError(raw, exception);
+		HandleDecodeError(raw, &exception);
 	}
 
 	if (command_is_decoded)

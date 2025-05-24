@@ -349,7 +349,7 @@ namespace APRService
 	typedef EventHandler<void(const std::string& raw)>                             OnSendHandler;
 	typedef EventHandler<void(const std::string& raw)>                             OnReceiveHandler;
 
-	typedef EventHandler<void(const std::string& raw, const Exception& exception)> OnDecodeErrorHandler;
+	typedef EventHandler<void(const std::string& raw, const Exception* exception)> OnDecodeErrorHandler;
 
 	typedef EventHandler<void(const Packet& packet)>                               OnReceivePacketHandler;
 	typedef EventHandler<void(const Message& message)>                             OnReceiveMessageHandler;
@@ -659,7 +659,7 @@ namespace APRService
 		virtual void HandleTelemetry(const std::string& raw, Telemetry& telemetry);
 
 		// @throw Exception
-		virtual void HandleDecodeError(const std::string& raw, Exception& exception);
+		virtual void HandleDecodeError(const std::string& raw, Exception* exception);
 
 	private:
 		// @throw Exception

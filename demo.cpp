@@ -32,7 +32,7 @@ bool demo_filesystem_init(demo_filesystem* fs)
 {
 	try
 	{
-		fs->decode_error.open(DECODE_ERROR_LOG, std::ios::out | std::ios::ate | std::ios::app);
+		fs->decode_error.open(DECODE_ERROR_LOG, std::ios::out | std::ios::trunc);
 	}
 	catch (const std::exception& exception)
 	{
@@ -91,6 +91,19 @@ void demo_dump_packet_fields(APRService::Service* service, const APRService::Pac
 	std::cout << "\tSender: " << packet.Sender << std::endl;
 	std::cout << "\tContent: " << packet.Content << std::endl;
 	std::cout << "\tQConstruct: " << packet.QConstruct << std::endl;
+}
+void demo_dump_object_fields(APRService::Service* service, const APRService::Object& object)
+{
+	demo_dump_packet_fields(service, object);
+
+	std::cout << "\tFlags: " << object.Flags << std::endl;
+	std::cout << "\tComment: " << object.Comment << std::endl;
+	std::cout << "\tSpeed: " << object.Speed << std::endl;
+	std::cout << "\tCourse: " << object.Course << std::endl;
+	std::cout << "\tLatitude: " << object.Latitude << std::endl;
+	std::cout << "\tLongitude: " << object.Longitude << std::endl;
+	std::cout << "\tSymbolTable: " << object.SymbolTable << std::endl;
+	std::cout << "\tSymbolTableKey: " << object.SymbolTableKey << std::endl;
 }
 void demo_dump_message_fields(APRService::Service* service, const APRService::Message& message)
 {
@@ -178,6 +191,11 @@ void demo_service_on_receive_packet(APRService::Service* service, const APRServi
 	std::cout << "APRService::OnReceivePacket" << std::endl;
 	demo_dump_packet_fields(service, packet);
 }
+void demo_service_on_receive_object(APRService::Service* service, const APRService::Object& object)
+{
+	std::cout << "APRService::OnReceiveObject" << std::endl;
+	demo_dump_object_fields(service, object);
+}
 void demo_service_on_receive_message(APRService::Service* service, const APRService::Message& message)
 {
 	std::cout << "APRService::OnReceiveMessage" << std::endl;
@@ -216,12 +234,14 @@ int main(int argc, char* argv[])
 		service.OnAuthenticate.Register(std::bind(&demo_service_on_authenticate, &service, std::placeholders::_1));
 		service.OnDecodeError.Register(std::bind(&demo_service_on_decode_error, &fs, &service, std::placeholders::_1, std::placeholders::_2));
 		// service.OnReceivePacket.Register(std::bind(&demo_service_on_receive_packet, &service, std::placeholders::_1));
+		service.OnReceiveObject.Register(std::bind(&demo_service_on_receive_object, &service, std::placeholders::_1));
 		service.OnReceiveMessage.Register(std::bind(&demo_service_on_receive_message, &service, std::placeholders::_1));
 		service.OnReceiveWeather.Register(std::bind(&demo_service_on_receive_weather, &service, std::placeholders::_1));
 		service.OnReceivePosition.Register(std::bind(&demo_service_on_receive_position, &service, std::placeholders::_1));
 		service.OnReceiveTelemetry.Register(std::bind(&demo_service_on_receive_telemetry, &service, std::placeholders::_1));
 
 		service.Connect(APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE);
+		service.SendObject("KK7EDG", "Test", 0, 0, 43.942917, -122.769840, '/', 'l', true);
 
 		while (service.Update())
 #if defined(APRSERVICE_UNIX)

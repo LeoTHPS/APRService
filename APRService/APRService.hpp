@@ -25,6 +25,13 @@ namespace APRService
 		DISTANCE_METERS, DISTANCE_KILOMETERS
 	};
 
+	enum OBJECT_FLAGS
+	{
+		OBJECT_FLAG_LIVE       = 0x1,
+		OBJECT_FLAG_KILLED     = 0x2,
+		OBJECT_FLAG_COMPRESSED = 0x4
+	};
+
 	enum POSITION_FLAGS
 	{
 		POSITION_FLAG_COMPRESSED        = 0x1,
@@ -34,6 +41,8 @@ namespace APRService
 	enum class PacketTypes
 	{
 		Unknown,
+
+		Object,
 		Message,
 		Weather,
 		Position,
@@ -54,6 +63,28 @@ namespace APRService
 		std::string      Sender;
 		std::string      Content;
 		std::string      QConstruct;
+	};
+
+	struct Object
+		: public Packet
+	{
+		int           Flags;
+
+		std::string   Comment;
+
+		std::uint16_t Speed;
+		std::uint16_t Course;
+		float         Latitude;
+		float         Longitude;
+
+		char          SymbolTable;
+		char          SymbolTableKey;
+
+		float CalculateDistance(const Object& object, DISTANCES type) const
+		{
+			return CalculateDistance(object.Latitude, object.Longitude, type);
+		}
+		float CalculateDistance(float latitude, float longitude, DISTANCES type) const;
 	};
 
 	struct Message
@@ -117,6 +148,49 @@ namespace APRService
 		TelemetryAnalog  Analog;
 		TelemetryDigital Digital;
 		std::uint16_t    Sequence;
+	};
+
+	class IObject
+	{
+		IObject(IObject&&) = delete;
+		IObject(const IObject&) = delete;
+
+	public:
+		IObject()
+		{
+		}
+
+		virtual ~IObject()
+		{
+		}
+
+		virtual const std::string& GetName() const = 0;
+
+		virtual const std::string& GetComment() const = 0;
+
+		virtual std::uint16_t GetSpeed() const = 0;
+
+		virtual std::uint16_t GetCourse() const = 0;
+
+		virtual float GetLatitude() const = 0;
+
+		virtual float GetLongitude() const = 0;
+
+		virtual char GetSymbolTable() const = 0;
+
+		virtual char GetSymbolTableKey() const = 0;
+
+		// @throw Exception
+		virtual void Kill() = 0;
+
+		// @throw Exception
+		virtual void SetSymbol(char table, char key) = 0;
+
+		// @throw Exception
+		virtual void SetComment(std::string&& value) = 0;
+
+		// @throw Exception
+		virtual void SetPosition(float latitude, float longitude) = 0;
 	};
 
 	class Exception
@@ -244,8 +318,22 @@ namespace APRService
 	template<typename F>
 	using EventHandler = std::function<F>;
 
-	struct  EventHandlerContext {};
-	typedef EventHandlerContext* EventHandle;
+	class IEvent
+	{
+		IEvent(IEvent&&) = delete;
+		IEvent(const IEvent&) = delete;
+
+	public:
+		IEvent()
+		{
+		}
+
+		virtual ~IEvent()
+		{
+		}
+
+		virtual bool Unregister() = 0;
+	};
 
 	template<typename F>
 	class Event;
@@ -254,14 +342,54 @@ namespace APRService
 	{
 		typedef EventHandler<void(TArgs ...)> Handler;
 
-		struct HandlerContext
+		class HandlerContext
+			: public IEvent
 		{
-			EventHandlerContext Handle;
-			Handler             Function;
-			const Handler*      FunctionPtr;
+			Event*         event;
+			Handler        function;
+			const Handler* function_ptr;
+
+		public:
+			HandlerContext(Event* event, Handler&& function)
+				: event(event),
+				function(std::move(function)),
+				function_ptr(nullptr)
+			{
+			}
+			HandlerContext(Event* event, const Handler& function)
+				: event(event),
+				function(function),
+				function_ptr(&function)
+			{
+			}
+
+			void Execute(TArgs ... args) const
+			{
+				return function(args ...);
+			}
+
+			virtual bool Unregister() override
+			{
+				for (auto it = event->handlers.begin(); it != event->handlers.end(); ++it)
+				{
+					if (*it == this)
+					{
+						event->handlers.erase(it);
+
+						delete this;
+
+						return true;
+					}
+				}
+
+				return false;
+			}
 		};
 
-		std::list<HandlerContext> handlers;
+		std::list<HandlerContext*> handlers;
+
+		Event(Event&&) = delete;
+		Event(const Event&) = delete;
 
 	public:
 		Event()
@@ -270,68 +398,33 @@ namespace APRService
 
 		virtual ~Event()
 		{
+			Clear();
 		}
 
 		void Clear()
 		{
-			handlers.clear();
+			for (auto it = handlers.begin(); it != handlers.end(); )
+			{
+				delete *it;
+
+				handlers.erase(it++);
+			}
 		}
 
 		void Execute(TArgs ... args) const
 		{
-			for (auto& handler : handlers)
-				handler.Function(args ...);
+			for (auto handler : handlers)
+				handler->Execute(args ...);
 		}
 
 		template<typename F>
-		EventHandle Register(F&& handler)
+		IEvent* Register(F&& handler)
 		{
-			HandlerContext context =
-			{
-				.Function    = std::move(handler),
-				.FunctionPtr = nullptr
-			};
-
-			return &handlers.emplace_back(std::move(context)).Handle;
+			return handlers.emplace_back(new HandlerContext(this, std::move(handler)));
 		}
-		EventHandle Register(const Handler& handler)
+		IEvent* Register(const Handler& handler)
 		{
-			HandlerContext context =
-			{
-				.Function    = handler,
-				.FunctionPtr = &handler
-			};
-
-			return &handlers.emplace_back(std::move(context)).Handle;
-		}
-
-		bool Unregister(EventHandle handle)
-		{
-			for (auto it = handlers.begin(); it != handlers.end(); ++it)
-			{
-				if (&it->Handle == handle)
-				{
-					handlers.erase(it);
-
-					return true;
-				}
-			}
-
-			return false;
-		}
-		bool Unregister(const Handler& handler)
-		{
-			for (auto it = handlers.begin(); it != handlers.end(); ++it)
-			{
-				if (it->FunctionPtr == &handler)
-				{
-					handlers.erase(it);
-
-					return true;
-				}
-			}
-
-			return false;
+			return handlers.emplace_back(new HandlerContext(this, handler));
 		}
 	};
 	template<typename T, typename ... TArgs>
@@ -352,6 +445,7 @@ namespace APRService
 	typedef EventHandler<void(const std::string& raw, const Exception* exception)> OnDecodeErrorHandler;
 
 	typedef EventHandler<void(const Packet& packet)>                               OnReceivePacketHandler;
+	typedef EventHandler<void(const Object& object)>                               OnReceiveObjectHandler;
 	typedef EventHandler<void(const Message& message)>                             OnReceiveMessageHandler;
 	typedef EventHandler<void(const Weather& weather)>                             OnReceiveWeatherHandler;
 	typedef EventHandler<void(const Position& position)>                           OnReceivePositionHandler;
@@ -499,6 +593,7 @@ namespace APRService
 		Event<OnReceiveHandler>           OnReceive;
 
 		Event<OnReceivePacketHandler>     OnReceivePacket;
+		Event<OnReceiveObjectHandler>     OnReceiveObject;
 		Event<OnReceiveMessageHandler>    OnReceiveMessage;
 		Event<OnReceiveWeatherHandler>    OnReceiveWeather;
 		Event<OnReceivePositionHandler>   OnReceivePosition;
@@ -627,6 +722,9 @@ namespace APRService
 		void SendPacket(const std::string& content);
 
 		// @throw Exception
+		void SendObject(const std::string& name, const std::string& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key, bool live = true);
+
+		// @throw Exception
 		void SendMessage(const std::string& destination, const std::string& message);
 		// @throw Exception
 		void SendMessage(const std::string& destination, const std::string& message, const std::string& id);
@@ -652,6 +750,8 @@ namespace APRService
 	protected:
 		// @throw Exception
 		virtual void HandlePacket(const std::string& raw, Packet& packet);
+		// @throw Exception
+		virtual void HandleObject(const std::string& raw, Object& object);
 		// @throw Exception
 		virtual void HandleMessage(const std::string& raw, Message& message);
 		// @throw Exception
@@ -687,31 +787,36 @@ namespace APRService
 		static bool SymbolTableKey_IsValid(char table, char key);
 
 		// @throw Exception
-		static std::string Packet_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, const std::string& content);
+		static std::string Packet_ToString(const Path& path, const std::string& sender, const std::string& tocall, const std::string& content);
 		// @throw Exception
 		static bool        Packet_FromString(Packet& packet, const std::string& string);
 
 		// @throw Exception
-		static std::string Message_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& body, const std::string& id = "");
+		static std::string Object_ToString(const Path& path, const std::string& sender, const std::string& tocall, tm time, const std::string& name, const std::string& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key, int flags);
 		// @throw Exception
-		static std::string Message_ToString_Ack(const APRService::Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& id);
+		static bool        Object_FromPacket(Object& object, Packet&& packet);
+
 		// @throw Exception
-		static std::string Message_ToString_Reject(const APRService::Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& id);
+		static std::string Message_ToString(const Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& body, const std::string& id);
+		// @throw Exception
+		static std::string Message_ToString_Ack(const Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& id);
+		// @throw Exception
+		static std::string Message_ToString_Reject(const Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& id);
 		// @throw Exception
 		static bool        Message_FromPacket(Message& message, Packet&& packet);
 
 		// @throw Exception
-		static std::string Weather_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, tm time, std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type);
+		static std::string Weather_ToString(const Path& path, const std::string& sender, const std::string& tocall, tm time, std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type);
 		// @throw Exception
 		static bool        Weather_FromPacket(Weather& weather, Packet&& packet);
 
 		// @throw Exception
-		static std::string Position_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, std::uint16_t speed, std::uint16_t course, std::int32_t altitude, float latitude, float longitude, const std::string& comment, char symbol_table, char symbol_table_key, int flags);
+		static std::string Position_ToString(const Path& path, const std::string& sender, const std::string& tocall, std::uint16_t speed, std::uint16_t course, std::int32_t altitude, float latitude, float longitude, const std::string& comment, char symbol_table, char symbol_table_key, int flags);
 		// @throw Exception
 		static bool        Position_FromPacket(Position& position, Packet&& packet);
 
 		// @throw Exception
-		static std::string Telemetry_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, const TelemetryAnalog& analog, TelemetryDigital digital, std::uint16_t sequence);
+		static std::string Telemetry_ToString(const Path& path, const std::string& sender, const std::string& tocall, const TelemetryAnalog& analog, TelemetryDigital digital, std::uint16_t sequence);
 		// @throw Exception
 		static bool        Telemetry_FromPacket(Telemetry& telemetry, Packet&& packet);
 
@@ -731,8 +836,6 @@ namespace APRService
 		}
 	};
 
-	class Service;
-
 	struct Command
 		: public Message
 	{
@@ -744,19 +847,140 @@ namespace APRService
 	typedef std::function<bool(std::uint32_t& seconds)> TaskHandler;
 	typedef std::function<void(const Command& command)> CommandHandler;
 
-	struct  TaskHandlerContext {};
-	typedef TaskHandlerContext* TaskHandle;
+	class ITask
+	{
+		ITask(ITask&&) = delete;
+		ITask(const ITask&) = delete;
+
+	public:
+		ITask()
+		{
+		}
+
+		virtual ~ITask()
+		{
+		}
+
+		virtual bool Cancel() = 0;
+	};
 
 	typedef std::function<void(const std::string& name, const CommandHandler& handler)> ServiceEnumCommandsCallback;
 
 	class Service
 		: public Client
 	{
-		struct Task
+		class Task
+			: public ITask
 		{
-			TaskHandlerContext Handle;
-			TaskHandler        Handler;
-			std::uint32_t      Seconds;
+			Service*      service;
+			TaskHandler   handler;
+			std::uint32_t seconds;
+
+		public:
+			Task(Service* service, TaskHandler&& handler, std::uint32_t seconds)
+				: service(service),
+				handler(std::move(handler)),
+				seconds(seconds)
+			{
+			}
+
+			auto GetTime() const
+			{
+				return seconds;
+			}
+
+			bool Execute()
+			{
+				return handler(seconds);
+			}
+
+			virtual bool Cancel() override;
+		};
+
+		class Object
+			: public IObject
+		{
+			APRService::Object object;
+
+		public:
+			Object(std::string&& name, Path&& path, std::string&& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key)
+				: object{
+					{ PacketTypes::Object, std::move(path), "", APRSERVICE_TOCALL, std::move(name) },
+					OBJECT_FLAG_LIVE,
+					std::move(comment),
+					speed,
+					course,
+					latitude,
+					longitude,
+					symbol_table,
+					symbol_table_key
+				}
+			{
+			}
+
+			virtual const std::string& GetName() const override
+			{
+				return object.Sender;
+			}
+
+			virtual const std::string& GetComment() const override
+			{
+				return object.Comment;
+			}
+
+			virtual std::uint16_t GetSpeed() const override
+			{
+				return object.Speed;
+			}
+
+			virtual std::uint16_t GetCourse() const override
+			{
+				return object.Course;
+			}
+
+			virtual float GetLatitude() const override
+			{
+				return object.Latitude;
+			}
+
+			virtual float GetLongitude() const override
+			{
+				return object.Longitude;
+			}
+
+			virtual char GetSymbolTable() const override
+			{
+				return object.SymbolTable;
+			}
+
+			virtual char GetSymbolTableKey() const override
+			{
+				return object.SymbolTableKey;
+			}
+
+			// @throw Exception
+			virtual void Kill() override
+			{
+				// TODO: implement
+			}
+
+			// @throw Exception
+			virtual void SetSymbol(char table, char key) override
+			{
+				// TODO: implement
+			}
+
+			// @throw Exception
+			virtual void SetComment(std::string&& value) override
+			{
+				// TODO: implement
+			}
+
+			// @throw Exception
+			virtual void SetPosition(float latitude, float longitude) override
+			{
+				// TODO: implement
+			}
 		};
 
 		struct Command
@@ -765,17 +989,21 @@ namespace APRService
 			CommandHandler Handler;
 		};
 
-		time_t                            time;
-		std::map<time_t, std::list<Task>> tasks;
-		APRService::Command               command;
-		std::list<Command>                commands;
+		time_t                             time;
+		std::map<time_t, std::list<Task*>> tasks;
+		std::list<IObject*>                objects;
+		APRService::Command                command;
+		std::list<Command>                 commands;
 
 	public:
 		// @throw Exception
 		Service(std::string&& station, Path&& path, char symbol_table, char symbol_table_key);
 
-		bool       CancelTask(TaskHandle handle);
-		TaskHandle ScheduleTask(std::uint32_t seconds, TaskHandler&& handler);
+		virtual ~Service();
+
+		IObject* AddObject(); // TODO: implement
+
+		ITask* ScheduleTask(std::uint32_t seconds, TaskHandler&& handler);
 
 		bool ExecuteCommand(const std::string& name, const APRService::Command& command);
 		void RegisterCommand(std::string&& name, CommandHandler&& handler);

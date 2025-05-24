@@ -22,6 +22,7 @@
 #endif
 
 // https://www.aprs.org/doc/APRS101.PDF#page=27
+// https://www.aprs.org/doc/APRS101.PDF#page=67
 
 template<std::size_t ... I>
 constexpr bool assert_tocall(const char* value, std::index_sequence<I ...>)
@@ -61,6 +62,38 @@ static std::size_t aprservice_winsock_load_count = 0;
 #endif
 
 static constexpr float RADIANS_TO_DEGREES = 360 / (3.14159265358979323846 * 2);
+
+template<typename T>
+constexpr T FromFloat(float value, float& fraction)
+{
+	fraction = std::modff(value, &value);
+
+	return value;
+}
+
+float APRService::Object::CalculateDistance(float latitude, float longitude, DISTANCES type) const
+{
+	// TODO: debug
+
+	auto latitude_delta  = RADIANS_TO_DEGREES * (latitude - Latitude);
+	auto longitude_delta = RADIANS_TO_DEGREES * (longitude - Longitude);
+	auto latitude_1      = RADIANS_TO_DEGREES * Latitude;
+	auto latitude_2      = RADIANS_TO_DEGREES * latitude;
+	auto a               = std::sinf(latitude_delta / 2) * std::sinf(latitude_delta / 2) + std::sinf(longitude_delta / 2) * std::sinf(longitude_delta / 2) * std::cosf(latitude_1) * std::cosf(latitude_2);
+	auto distance        = 2 * std::atan2f(std::sqrtf(a), std::sqrtf(1 - a));
+
+	auto distance_in_feet = (distance * 6371) * 3280.84f;
+
+	switch (type)
+	{
+		case DISTANCE_FEET:       return distance_in_feet;
+		case DISTANCE_MILES:      return distance_in_feet / 5280;
+		case DISTANCE_METERS:     return distance_in_feet / 3.281f;
+		case DISTANCE_KILOMETERS: return distance_in_feet / 3281;
+	}
+
+	return 0;
+}
 
 float APRService::Position::CalculateDistance(float latitude, float longitude, DISTANCES type) const
 {
@@ -144,6 +177,7 @@ std::string APRService::InvalidPacketException::PacketTypesToString(PacketTypes 
 	switch (type)
 	{
 		case PacketTypes::Unknown:   return "Unknown";
+		case PacketTypes::Object:    return "Object";
 		case PacketTypes::Message:   return "Message";
 		case PacketTypes::Weather:   return "Weather";
 		case PacketTypes::Position:  return "Position";
@@ -548,6 +582,19 @@ void APRService::Client::SendPacket(const std::string& content)
 }
 
 // @throw Exception
+void APRService::Client::SendObject(const std::string& name, const std::string& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key, bool live)
+{
+	auto time     = ::time(nullptr);
+	auto datetime = *localtime(&time);
+	int  flags    = live ? OBJECT_FLAG_LIVE : OBJECT_FLAG_KILLED;
+
+	if (IsCompressionEnabled())
+		flags |= OBJECT_FLAG_COMPRESSED;
+
+	Send(Object_ToString(GetPath(), GetStation(), APRSERVICE_TOCALL, datetime, name, comment, speed, course, latitude, longitude, symbol_table, symbol_table_key, flags));
+}
+
+// @throw Exception
 void APRService::Client::SendMessage(const std::string& destination, const std::string& message)
 {
 	if (message_ack_counter++ == 0xFFFFF)
@@ -567,10 +614,7 @@ void APRService::Client::SendMessage(const std::string& destination, const std::
 // @throw Exception
 void APRService::Client::SendMessageNoAck(const std::string& destination, const std::string& message)
 {
-	if (!Station_IsValid(destination))
-		throw InvalidPacketException(PacketTypes::Message, "destination", destination);
-
-	Send(Message_ToString(GetPath(), GetStation(), APRSERVICE_TOCALL, destination, message));
+	SendMessage(destination, message, "");
 }
 
 // @throw Exception
@@ -692,6 +736,34 @@ void APRService::Client::HandlePacket(const std::string& raw, Packet& packet)
 
 	switch (packet.Type)
 	{
+		case PacketTypes::Object:
+		{
+			Object object;
+			bool   object_is_decoded = false;
+
+			try
+			{
+				object_is_decoded = Object_FromPacket(object, std::move(packet));
+			}
+			catch (Exception& exception)
+			{
+				HandleDecodeError(raw, &exception);
+
+				break;
+			}
+
+			if (!object_is_decoded)
+				HandleDecodeError(raw, nullptr);
+			else
+			{
+				if (!object_is_decoded)
+					HandleDecodeError(raw, nullptr);
+				else
+					HandleObject(raw, object);
+			}
+		}
+		break;
+
 		case PacketTypes::Message:
 		{
 			Message message;
@@ -794,6 +866,11 @@ void APRService::Client::HandlePacket(const std::string& raw, Packet& packet)
 		}
 		break;
 	}
+}
+// @throw Exception
+void APRService::Client::HandleObject(const std::string& raw, Object& object)
+{
+	OnReceiveObject.Execute(object);
 }
 // @throw Exception
 void APRService::Client::HandleMessage(const std::string& raw, Message& message)
@@ -1023,7 +1100,7 @@ bool APRService::Client::SymbolTableKey_IsValid(char table, char key)
 }
 
 // @throw Exception
-std::string APRService::Client::Packet_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, const std::string& content)
+std::string APRService::Client::Packet_ToString(const Path& path, const std::string& sender, const std::string& tocall, const std::string& content)
 {
 	std::stringstream ss;
 	ss << sender << '>' << tocall;
@@ -1072,7 +1149,9 @@ bool        APRService::Client::Packet_FromString(Packet& packet, const std::str
 	packet.Content    = match[4].str();
 	packet.QConstruct = match_path[3].str();
 
-	if (packet.Content.starts_with(':'))
+	if (packet.Content.starts_with(';'))
+		packet.Type = PacketTypes::Object;
+	else if (packet.Content.starts_with(':'))
 		packet.Type = PacketTypes::Message;
 	else if ((packet.Content.starts_with('!') || packet.Content.starts_with('=')) || (packet.Content.starts_with('/') || packet.Content.starts_with('@')) || (packet.Content.starts_with('!') || packet.Content.starts_with('=')) || (packet.Content.starts_with('/') || packet.Content.starts_with('@')))
 		packet.Type = PacketTypes::Position;
@@ -1085,7 +1164,82 @@ bool        APRService::Client::Packet_FromString(Packet& packet, const std::str
 }
 
 // @throw Exception
-std::string APRService::Client::Message_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& body, const std::string& id)
+std::string APRService::Client::Object_ToString(const Path& path, const std::string& sender, const std::string& tocall, tm time, const std::string& name, const std::string& comment, std::uint16_t speed, std::uint16_t course, float latitude, float longitude, char symbol_table, char symbol_table_key, int flags)
+{
+	std::stringstream ss;
+	ss << ';';
+	ss << sprintf("%-9s", name.c_str());
+	ss << ((flags & OBJECT_FLAG_LIVE) ? '*' : '_');
+	ss << sprintf("%02u%02u%02uz", time.tm_mday, time.tm_hour, time.tm_min);
+
+	// if (!(flags & OBJECT_FLAG_COMPRESSED))
+	{
+		char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
+		char longitude_west_east  = (longitude >= 0) ? 'E' : 'W';
+		auto latitude_hours       = FromFloat<std::int16_t>(latitude, latitude);
+		auto latitude_minutes     = FromFloat<std::uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
+		auto latitude_seconds     = FromFloat<std::uint16_t>((latitude * 6000) / 60, latitude);
+		auto longitude_hours      = FromFloat<std::int16_t>(longitude, latitude);
+		auto longitude_minutes    = FromFloat<std::uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, latitude);
+		auto longitude_seconds    = FromFloat<std::uint16_t>((longitude * 6000) / 60, latitude);
+
+		ss << sprintf("%02i%02u.%02u%c", (latitude_hours >= 0) ? latitude_hours : (latitude_hours * -1), latitude_minutes, latitude_seconds, latitude_north_south);
+		ss << symbol_table;
+		ss << sprintf("%03i%02u.%02u%c", (longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1), longitude_minutes, longitude_seconds, longitude_west_east);
+		ss << symbol_table_key;
+		ss << sprintf("%03u/%03u", course, speed);
+	}
+	// else
+		; // TODO: implement compression
+
+	ss << comment;
+
+	return Packet_ToString(path, sender, tocall, ss.str());
+}
+// @throw Exception
+bool        APRService::Client::Object_FromPacket(Object& object, Packet&& packet)
+{
+	return false;
+
+	static const std::regex regex("^;$");
+
+	std::smatch match;
+
+	try
+	{
+		if (!std::regex_match(packet.Content, match, regex))
+			return false;
+	}
+	catch (const std::regex_error& error)
+	{
+
+		throw RegexException(error.what());
+	}
+
+	// TODO: implement
+
+	object =
+	{
+		{ PacketTypes::Object, std::move(packet.Path), std::move(packet.IGate), std::move(packet.ToCall), std::move(packet.Sender), std::move(packet.Content), std::move(packet.QConstruct) },
+		/*
+		int           Flags;
+
+		std::string   Comment;
+
+		std::int32_t  Altitude;
+		float         Latitude;
+		float         Longitude;
+
+		char          SymbolTable;
+		char          SymbolTableKey;
+		*/
+	};
+
+	return true;
+}
+
+// @throw Exception
+std::string APRService::Client::Message_ToString(const Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& body, const std::string& id)
 {
 	if (id.empty())
 		return Packet_ToString(path, sender, tocall, sprintf(":%-9s:%s", destination.c_str(), body.c_str()));
@@ -1093,12 +1247,12 @@ std::string APRService::Client::Message_ToString(const APRService::Path& path, c
 	return Packet_ToString(path, sender, tocall, sprintf(":%-9s:%s{%s", destination.c_str(), body.c_str(), id.c_str()));
 }
 // @throw Exception
-std::string APRService::Client::Message_ToString_Ack(const APRService::Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& id)
+std::string APRService::Client::Message_ToString_Ack(const Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& id)
 {
 	return Packet_ToString(path, sender, tocall, sprintf(":%-9s:ack%s", destination.c_str(), id.c_str()));
 }
 // @throw Exception
-std::string APRService::Client::Message_ToString_Reject(const APRService::Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& id)
+std::string APRService::Client::Message_ToString_Reject(const Path& path, const std::string& sender, const std::string& tocall, const std::string& destination, const std::string& id)
 {
 	return Packet_ToString(path, sender, tocall, sprintf(":%-9s:rej%s", destination.c_str(), id.c_str()));
 }
@@ -1132,7 +1286,7 @@ bool        APRService::Client::Message_FromPacket(Message& message, Packet&& pa
 }
 
 // @throw Exception
-std::string APRService::Client::Weather_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, tm time, std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type)
+std::string APRService::Client::Weather_ToString(const Path& path, const std::string& sender, const std::string& tocall, tm time, std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type)
 {
 	if (type.length() > 4)
 		throw InvalidPacketException(PacketTypes::Weather, "type", type);
@@ -1172,7 +1326,7 @@ bool        APRService::Client::Weather_FromPacket(Weather& weather, Packet&& pa
 }
 
 // @throw Exception
-std::string APRService::Client::Position_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, std::uint16_t speed, std::uint16_t course, std::int32_t altitude, float latitude, float longitude, const std::string& comment, char symbol_table, char symbol_table_key, int flags)
+std::string APRService::Client::Position_ToString(const Path& path, const std::string& sender, const std::string& tocall, std::uint16_t speed, std::uint16_t course, std::int32_t altitude, float latitude, float longitude, const std::string& comment, char symbol_table, char symbol_table_key, int flags)
 {
 	std::stringstream ss;
 
@@ -1180,14 +1334,14 @@ std::string APRService::Client::Position_ToString(const APRService::Path& path, 
 
 	// if (!(flags & POSITION_FLAG_COMPRESSED))
 	{
-		char          latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
-		char          longitude_west_east  = (longitude >= 0) ? 'E' : 'W';
-		std::int16_t  latitude_hours       = std::modff(latitude, &latitude);
-		std::uint16_t latitude_minutes     = std::modff(((latitude < 0) ? (latitude * -1) : latitude) * 60, &latitude);
-		std::uint16_t latitude_seconds     = std::modff((latitude * 6000) / 60, &latitude);
-		std::int16_t  longitude_hours      = std::modff(longitude, &longitude);
-		std::uint16_t longitude_minutes    = std::modff(((longitude < 0) ? (longitude * -1) : longitude) * 60, &longitude);
-		std::uint16_t longitude_seconds    = std::modff((longitude * 6000) / 60, &longitude);
+		char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
+		char longitude_west_east  = (longitude >= 0) ? 'E' : 'W';
+		auto latitude_hours       = FromFloat<std::int16_t>(latitude, latitude);
+		auto latitude_minutes     = FromFloat<std::uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
+		auto latitude_seconds     = FromFloat<std::uint16_t>((latitude * 6000) / 60, latitude);
+		auto longitude_hours      = FromFloat<std::int16_t>(longitude, latitude);
+		auto longitude_minutes    = FromFloat<std::uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, latitude);
+		auto longitude_seconds    = FromFloat<std::uint16_t>((longitude * 6000) / 60, latitude);
 
 		ss << sprintf("%02i%02u.%02u%c", (latitude_hours >= 0) ? latitude_hours : (latitude_hours * -1), latitude_minutes, latitude_seconds, latitude_north_south);
 		ss << symbol_table;
@@ -1197,9 +1351,7 @@ std::string APRService::Client::Position_ToString(const APRService::Path& path, 
 		ss << sprintf("%03u/%03u", course, speed);
 	}
 	// else
-	{
-		// TODO: implement compression
-	}
+		; // TODO: implement compression
 
 	ss << comment;
 
@@ -1466,7 +1618,7 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 }
 
 // @throw Exception
-std::string APRService::Client::Telemetry_ToString(const APRService::Path& path, const std::string& sender, const std::string& tocall, const TelemetryAnalog& analog, TelemetryDigital digital, std::uint16_t sequence)
+std::string APRService::Client::Telemetry_ToString(const Path& path, const std::string& sender, const std::string& tocall, const TelemetryAnalog& analog, TelemetryDigital digital, std::uint16_t sequence)
 {
 	std::stringstream ss;
 
@@ -1512,28 +1664,23 @@ bool        APRService::Client::Telemetry_FromPacket(Telemetry& telemetry, Packe
 	return true;
 }
 
-// @throw Exception
-APRService::Service::Service(std::string&& station, Path&& path, char symbol_table, char symbol_table_key)
-	: Client(std::move(station), std::move(path), symbol_table, symbol_table_key),
-	time(::time(nullptr))
-{
-}
-
-bool                   APRService::Service::CancelTask(TaskHandle handle)
+bool APRService::Service::Task::Cancel()
 {
 	// TODO: optimize
 	// TODO: handle case where tasks are being executed
 
-	for (auto it = tasks.begin(); it != tasks.end(); ++it)
+	for (auto it = service->tasks.begin(); it != service->tasks.end(); ++it)
 	{
 		for (auto jt = it->second.begin(); jt != it->second.end(); ++jt)
 		{
-			if (&jt->Handle == handle)
+			if (*jt == this)
 			{
 				it->second.erase(jt);
 
 				if (it->second.empty())
-					tasks.erase(it);
+					service->tasks.erase(it);
+
+				delete this;
 
 				return true;
 			}
@@ -1542,15 +1689,39 @@ bool                   APRService::Service::CancelTask(TaskHandle handle)
 
 	return false;
 }
-APRService::TaskHandle APRService::Service::ScheduleTask(std::uint32_t seconds, TaskHandler&& handler)
-{
-	Task task =
-	{
-		.Handler = std::move(handler),
-		.Seconds = seconds
-	};
 
-	return &tasks[time + seconds].emplace_back(std::move(task)).Handle;
+// @throw Exception
+APRService::Service::Service(std::string&& station, Path&& path, char symbol_table, char symbol_table_key)
+	: Client(std::move(station), std::move(path), symbol_table, symbol_table_key),
+	time(::time(nullptr))
+{
+}
+
+APRService::Service::~Service()
+{
+	for (auto it = tasks.begin(); it != tasks.end(); )
+	{
+		for (auto jt = it->second.begin(); jt != it->second.end(); )
+		{
+			delete *jt;
+
+			it->second.erase(jt++);
+		}
+
+		tasks.erase(it++);
+	}
+
+	for (auto it = objects.begin(); it != objects.end(); )
+	{
+		delete *it;
+
+		objects.erase(it++);
+	}
+}
+
+APRService::ITask* APRService::Service::ScheduleTask(std::uint32_t seconds, TaskHandler&& handler)
+{
+	return tasks[time + seconds].emplace_back(new Task(this, std::move(handler), seconds));
 }
 
 bool APRService::Service::ExecuteCommand(const std::string& name, const APRService::Command& command)
@@ -1613,17 +1784,28 @@ bool APRService::Service::Update()
 
 		for (auto jt = it->second.begin(); jt != it->second.end(); )
 		{
+			auto task = *jt;
+
 			try
 			{
-				if (jt->Handler(jt->Seconds))
-					ScheduleTask(jt->Seconds, std::move(jt->Handler));
+				if (task->Execute())
+				{
+					tasks[time + task->GetTime()].emplace_back(task);
+
+					task = nullptr;
+				}
 			}
 			catch (...)
 			{
+				delete task;
+
 				it->second.erase(jt);
 
 				throw;
 			}
+
+			if (task)
+				delete task;
 
 			it->second.erase(jt++);
 		}

@@ -163,10 +163,10 @@ int main(int argc, char* argv[])
 		service.OnAuthenticate.Register(std::bind(&demo_service_on_authenticate, &service, std::placeholders::_1));
 		service.OnDecodeError.Register(std::bind(&demo_service_on_decode_error, &service, std::placeholders::_1, std::placeholders::_2));
 		// service.OnReceivePacket.Register(std::bind(&demo_service_on_receive_packet, &service, std::placeholders::_1));
-		// service.OnReceiveMessage.Register(std::bind(&demo_service_on_receive_message, &service, std::placeholders::_1));
-		// service.OnReceiveWeather.Register(std::bind(&demo_service_on_receive_weather, &service, std::placeholders::_1));
-		// service.OnReceivePosition.Register(std::bind(&demo_service_on_receive_position, &service, std::placeholders::_1));
-		// service.OnReceiveTelemetry.Register(std::bind(&demo_service_on_receive_telemetry, &service, std::placeholders::_1));
+		service.OnReceiveMessage.Register(std::bind(&demo_service_on_receive_message, &service, std::placeholders::_1));
+		service.OnReceiveWeather.Register(std::bind(&demo_service_on_receive_weather, &service, std::placeholders::_1));
+		service.OnReceivePosition.Register(std::bind(&demo_service_on_receive_position, &service, std::placeholders::_1));
+		service.OnReceiveTelemetry.Register(std::bind(&demo_service_on_receive_telemetry, &service, std::placeholders::_1));
 
 		service.Connect(APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE);
 

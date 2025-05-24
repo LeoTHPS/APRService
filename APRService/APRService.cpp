@@ -1569,9 +1569,6 @@ void APRService::Service::UnregisterCommand(const std::string& name)
 // @return false on connection closed
 bool APRService::Service::Update()
 {
-	if (!Client::Update())
-		return false;
-
 	time = ::time(nullptr);
 
 	for (auto it = tasks.begin(); it != tasks.end(); )
@@ -1599,7 +1596,7 @@ bool APRService::Service::Update()
 		tasks.erase(it++);
 	}
 
-	return true;
+	return Client::Update();
 }
 
 // @throw Exception

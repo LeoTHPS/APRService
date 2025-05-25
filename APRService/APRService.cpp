@@ -1198,6 +1198,8 @@ std::string APRService::Client::Object_ToString(const Path& path, const std::str
 // @throw Exception
 bool        APRService::Client::Object_FromPacket(Object& object, Packet&& packet)
 {
+	// https://regex101.com/r/KZNVAd/1
+
 	static const std::regex regex("^;(.{9})([*_])((\\d{2})(\\d{2})(\\d{2})([zh]))((\\d{2})(\\d{2})\\.(\\d{2})([NS]))(.)((\\d{3})(\\d{2})\\.(\\d{2})([EW]))(.)(.*)$");
 	static const std::regex regex_compressed("^$");
 
@@ -1226,6 +1228,15 @@ bool        APRService::Client::Object_FromPacket(Object& object, Packet&& packe
 	{
 		if (std::regex_match(packet.Content, match, regex))
 		{
+			if (match[2].str()[0] == '*')
+				flags |= OBJECT_FLAG_LIVE;
+			else
+				flags |= OBJECT_FLAG_KILLED;
+
+			// TODO: unpack time
+			// TODO: unpack latitude
+			// TODO: unpack longitude
+
 			object_init(match[1].str(), match[20].str(), time, latitude, longitude, match[13].str()[0], match[19].str()[0], flags);
 
 			return true;
@@ -1233,6 +1244,7 @@ bool        APRService::Client::Object_FromPacket(Object& object, Packet&& packe
 		// else if (std::regex_match(packet.Content, match, regex_compressed))
 		// {
 		// 	// TODO: implement
+		// 	flags |= OBJECT_FLAG_COMPRESSED;
 
 		// 	return true;
 		// }

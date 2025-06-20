@@ -50,6 +50,9 @@ namespace APRService
 	};
 
 	typedef std::array<std::string, 8> Path;
+	bool                               Path_IsValid(const Path& path);
+	std::string                        Path_ToString(const Path& path);
+	Path                               Path_FromString(const std::string& string);
 
 	typedef std::array<float, 5>       TelemetryAnalog;
 	typedef std::uint8_t               TelemetryDigital;
@@ -138,7 +141,7 @@ namespace APRService
 		{
 			return CalculateDistance3D(position.Latitude, position.Longitude, position.Altitude, type);
 		}
-		float CalculateDistance3D(float latitude, float longitude, float altitude, DISTANCES type) const;
+		float CalculateDistance3D(float latitude, float longitude, int32_t altitude, DISTANCES type) const;
 	};
 
 	struct Telemetry
@@ -1011,8 +1014,4 @@ namespace APRService
 		// @throw Exception
 		static bool Command_FromMessage(APRService::Command& command, Message&& message);
 	};
-
-	bool        Path_IsValid(const Path& path);
-	std::string Path_ToString(const Path& path);
-	Path        Path_FromString(const std::string& string);
 }

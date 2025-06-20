@@ -217,7 +217,6 @@ std::string APRService::InvalidPacketException::PacketTypesToString(PacketTypes 
 {
 	switch (type)
 	{
-		case PacketTypes::Unknown:   return "Unknown";
 		case PacketTypes::Object:    return "Object";
 		case PacketTypes::Message:   return "Message";
 		case PacketTypes::Weather:   return "Weather";
@@ -1182,7 +1181,7 @@ bool        APRService::Client::Packet_FromString(Packet& packet, const std::str
 		throw RegexException(error.what());
 	}
 
-	packet.Type       = PacketTypes::Unknown;
+	packet.Type       = (PacketTypes)(-1);
 	packet.Path       = Path_FromString(path);
 	packet.IGate      = match_path[4].str();
 	packet.Sender     = match[1].str();
@@ -1915,26 +1914,13 @@ bool APRService::Service::Update()
 // @throw Exception
 void APRService::Service::HandleMessage(const std::string& raw, Message& message)
 {
-	bool command_is_decoded = false;
-
-	try
-	{
-		command_is_decoded = Command_FromMessage(command, std::move(message));
-	}
-	catch (Exception& exception)
-	{
-
-		HandleDecodeError(raw, &exception);
-	}
-
-	if (command_is_decoded)
+	if (ParseCommand(command, raw, std::move(message)))
 		ExecuteCommand(command.Name, command);
 	else
 		Client::HandleMessage(raw, message);
 }
 
-// @throw Exception
-bool APRService::Service::Command_FromMessage(APRService::Command& command, Message&& message)
+bool APRService::Service::ParseCommand(APRService::Command& command, const std::string& raw, Message&& message)
 {
 	static const std::regex regex("^\\.([^ ]+) ?(.+)?$");
 
@@ -1950,8 +1936,11 @@ bool APRService::Service::Command_FromMessage(APRService::Command& command, Mess
 	}
 	catch (const std::regex_error& error)
 	{
+		RegexException exception(error.what());
 
-		throw RegexException(error.what());
+		HandleDecodeError(raw, &exception);
+
+		return false;
 	}
 
 	command =

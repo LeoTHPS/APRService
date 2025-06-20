@@ -40,8 +40,6 @@ namespace APRService
 
 	enum class PacketTypes
 	{
-		Unknown,
-
 		Object,
 		Message,
 		Weather,
@@ -1011,7 +1009,6 @@ namespace APRService
 		virtual void HandleMessage(const std::string& raw, Message& message) override;
 
 	private:
-		// @throw Exception
-		static bool Command_FromMessage(APRService::Command& command, Message&& message);
+		bool ParseCommand(APRService::Command& command, const std::string& raw, Message&& message);
 	};
 }

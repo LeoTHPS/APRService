@@ -76,7 +76,7 @@ bool demo_filesystem_write_decode_error(demo_filesystem* fs, const std::string& 
 }
 
 // @return true to reschedule
-bool demo_task_beacon(APRService::Service* service, std::uint32_t& seconds)
+bool demo_task_beacon(APRService::Service* service, uint32_t& seconds)
 {
 	service->SendPosition(0, 0, APRS_BEACON_ALTITUDE, APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRS_BEACON_COMMENT);
 
@@ -87,7 +87,7 @@ void demo_dump_packet_fields(APRService::Service* service, const APRService::Pac
 {
 	std::cout << "\tType: " << (int)packet.Type << std::endl;
 	std::cout << "\tPath: " << packet.Path[0];
-	for (std::size_t i = 1; i < packet.Path.size(); ++i)
+	for (size_t i = 1; i < packet.Path.size(); ++i)
 	{
 		if (!packet.Path[i].length())
 			break;
@@ -156,11 +156,11 @@ void demo_dump_telemetry_fields(APRService::Service* service, const APRService::
 	demo_dump_packet_fields(service, telemetry);
 
 	std::cout << "\tAnalog: " << telemetry.Analog[0];
-	for (std::size_t i = 1; i < telemetry.Analog.size(); ++i)
+	for (size_t i = 1; i < telemetry.Analog.size(); ++i)
 		std::cout << ", " << telemetry.Analog[i];
 	std::cout << std::endl;
 	std::cout << "\tDigital: ";
-	for (std::size_t i = 0; i < 8; ++i)
+	for (size_t i = 0; i < 8; ++i)
 		std::cout << ((telemetry.Digital >> i) & 1);
 	std::cout << std::endl;
 	std::cout << "\tSequence: " << telemetry.Sequence << std::endl;
@@ -181,7 +181,7 @@ void demo_service_on_authenticate(APRService::Service* service, const std::strin
 
 #if APRS_BEACON
 	if (!service->IsReadOnly())
-		if (std::uint32_t seconds = APRS_BEACON_INTERVAL; demo_task_beacon(service, seconds))
+		if (uint32_t seconds = APRS_BEACON_INTERVAL; demo_task_beacon(service, seconds))
 			service->ScheduleTask(seconds, std::bind(&demo_task_beacon, service, std::placeholders::_1));
 #endif
 }
@@ -251,7 +251,7 @@ int main(int argc, char* argv[])
 
 #if APRS_OBJECT
 		if (auto object = service.AddObject(APRS_OBJECT_NAME, APRS_OBJECT_COMMENT, APRS_OBJECT_LATITUDE, APRS_OBJECT_LONGITUDE, APRS_OBJECT_SYMBOL_TABLE, APRS_OBJECT_SYMBOL_TABLE_KEY))
-			service.ScheduleTask(APRS_OBJECT_INTERVAL, [object](std::uint32_t& seconds) {
+			service.ScheduleTask(APRS_OBJECT_INTERVAL, [object](uint32_t& seconds) {
 				return object->Announce();
 			});
 #endif

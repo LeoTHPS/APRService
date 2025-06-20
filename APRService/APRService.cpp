@@ -24,23 +24,23 @@
 // https://www.aprs.org/doc/APRS101.PDF#page=27
 // https://www.aprs.org/doc/APRS101.PDF#page=67
 
-template<std::size_t ... I>
+template<size_t ... I>
 constexpr bool assert_tocall(const char* value, std::index_sequence<I ...>)
 {
 	return ((value[I] != ' ') && ...);
 }
-template<std::size_t S>
+template<size_t S>
 constexpr bool assert_tocall(const char(&value)[S])
 {
 	return assert_tocall(value, std::make_index_sequence<S - 1> {});
 }
 
-template<std::size_t ... I>
+template<size_t ... I>
 constexpr bool assert_software_name_version(const char* value, std::index_sequence<I ...>)
 {
 	return ((value[I] != ' ') && ...);
 }
-template<std::size_t S>
+template<size_t S>
 constexpr bool assert_software_name_version(const char(&value)[S])
 {
 	return assert_software_name_version(value, std::make_index_sequence<S - 1> {});
@@ -58,7 +58,7 @@ static_assert_software_name_version(APRSERVICE_SOFTWARE_VERSION);
 
 #if defined(APRSERVICE_WIN32)
 static WSADATA     aprservice_winsock_data;
-static std::size_t aprservice_winsock_load_count = 0;
+static size_t aprservice_winsock_load_count = 0;
 #endif
 
 static constexpr float RADIANS_TO_DEGREES = 360 / (3.14159265358979323846 * 2);
@@ -114,11 +114,11 @@ bool             APRService::Path_IsValid(const Path& path)
 	if (!path[0].length())
 		return false;
 
-	for (std::size_t i = 1; i < path.size(); ++i)
+	for (size_t i = 1; i < path.size(); ++i)
 	{
 		if (!path[i].length())
 		{
-			for (std::size_t j = i + 1; j < path.size(); ++j)
+			for (size_t j = i + 1; j < path.size(); ++j)
 				if (path[j].length())
 					return false;
 
@@ -147,7 +147,7 @@ std::string      APRService::Path_ToString(const Path& path)
 	{
 		ss << path[0];
 
-		for (std::size_t i = 1; (i < path.size()) && path[i].length(); ++i)
+		for (size_t i = 1; (i < path.size()) && path[i].length(); ++i)
 			ss << ',' << path[i];
 	}
 
@@ -156,9 +156,9 @@ std::string      APRService::Path_ToString(const Path& path)
 APRService::Path APRService::Path_FromString(const std::string& string)
 {
 	Path        path;
-	std::size_t path_i     = 0;
-	std::size_t path_end   = 0;
-	std::size_t path_start = 0;
+	size_t path_i     = 0;
+	size_t path_end   = 0;
+	size_t path_start = 0;
 
 	do
 	{
@@ -300,7 +300,7 @@ void APRService::Client::WinSock::Unload()
 #endif
 
 // @throw Exception
-void APRService::Client::TcpSocket::Connect(const std::string& host, std::uint16_t port)
+void APRService::Client::TcpSocket::Connect(const std::string& host, uint16_t port)
 {
 	assert(!IsConnected());
 
@@ -392,7 +392,7 @@ void APRService::Client::TcpSocket::Disconnect()
 
 // @throw Exception
 // @return false on connection closed
-bool APRService::Client::TcpSocket::Send(const void* buffer, std::size_t size, std::size_t& number_of_bytes_sent)
+bool APRService::Client::TcpSocket::Send(const void* buffer, size_t size, size_t& number_of_bytes_sent)
 {
 	if (!IsConnected())
 		return false;
@@ -453,7 +453,7 @@ bool APRService::Client::TcpSocket::Send(const void* buffer, std::size_t size, s
 }
 // @throw Exception
 // @return false on connection closed
-bool APRService::Client::TcpSocket::Receive(void* buffer, std::size_t size, std::size_t& number_of_bytes_received)
+bool APRService::Client::TcpSocket::Receive(void* buffer, size_t size, size_t& number_of_bytes_received)
 {
 	if (!IsConnected())
 		return false;
@@ -533,7 +533,7 @@ APRService::Client::Client(std::string&& station, Path&& path, char symbol_table
 }
 
 // @throw Exception
-void APRService::Client::Connect(const std::string& host, std::uint16_t port, std::int32_t passcode)
+void APRService::Client::Connect(const std::string& host, uint16_t port, int32_t passcode)
 {
 	if (IsConnected())
 		throw Exception("Already connected");
@@ -658,7 +658,7 @@ void APRService::Client::SendMessageNoAck(const std::string& destination, const 
 }
 
 // @throw Exception
-void APRService::Client::SendWeather(std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type)
+void APRService::Client::SendWeather(uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const std::string& type)
 {
 	auto time     = ::time(nullptr);
 	auto datetime = *localtime(&time);
@@ -667,7 +667,7 @@ void APRService::Client::SendWeather(std::uint16_t wind_speed, std::uint16_t win
 }
 
 // @throw Exception
-void APRService::Client::SendPosition(std::uint16_t speed, std::uint16_t course, std::int32_t altitude, float latitude, float longitude, const std::string& comment)
+void APRService::Client::SendPosition(uint16_t speed, uint16_t course, int32_t altitude, float latitude, float longitude, const std::string& comment)
 {
 	int flags = 0;
 
@@ -689,7 +689,7 @@ void APRService::Client::SendTelemetry(const TelemetryAnalog& analog, TelemetryD
 	SendTelemetry(analog, digital, telemetry_sequence_counter);
 }
 // @throw Exception
-void APRService::Client::SendTelemetry(const TelemetryAnalog& analog, TelemetryDigital digital, std::uint16_t sequence)
+void APRService::Client::SendTelemetry(const TelemetryAnalog& analog, TelemetryDigital digital, uint16_t sequence)
 {
 	Send(Telemetry_ToString(GetPath(), GetStation(), APRSERVICE_TOCALL, analog, digital, sequence));
 }
@@ -946,7 +946,7 @@ APRService::Client::IO_RESULTS APRService::Client::SendOnce()
 		return IO_RESULT_WOULD_BLOCK;
 
 	auto        entry = &send_queue.front();
-	std::size_t number_of_bytes_sent;
+	size_t number_of_bytes_sent;
 
 	if (entry->Buffer.length() - entry->Offset)
 	{
@@ -985,7 +985,7 @@ APRService::Client::IO_RESULTS APRService::Client::ReceiveOnce()
 		receive_buffer_string.clear();
 	}
 
-	std::size_t number_of_bytes_received;
+	size_t number_of_bytes_received;
 
 	if (!socket->Receive(&receive_buffer[receive_buffer_offset], receive_buffer.size() - receive_buffer_offset, number_of_bytes_received))
 		return IO_RESULT_DISCONNECT;
@@ -998,9 +998,9 @@ APRService::Client::IO_RESULTS APRService::Client::ReceiveOnce()
 	// @return 0 if not found
 	// @return 1 if CR is found
 	// @return 2 if CRLF is found
-	auto receive_buffer_find_eol = [](const char* buffer, std::size_t length, std::size_t& index)->int
+	auto receive_buffer_find_eol = [](const char* buffer, size_t length, size_t& index)->int
 	{
-		for (std::size_t i = 0; i < length; ++i, ++buffer)
+		for (size_t i = 0; i < length; ++i, ++buffer)
 		{
 			if (buffer[0] == EOL[0])
 			{
@@ -1020,7 +1020,7 @@ APRService::Client::IO_RESULTS APRService::Client::ReceiveOnce()
 		return 0;
 	};
 
-	std::size_t receive_buffer_eol;
+	size_t receive_buffer_eol;
 
 	switch (receive_buffer_find_eol(&receive_buffer[0], receive_buffer_offset, receive_buffer_eol))
 	{
@@ -1087,11 +1087,11 @@ bool APRService::Client::Path_IsValid(const Path& path)
 	if (!path[0].length())
 		return false;
 
-	for (std::size_t i = 1; i < path.size(); ++i)
+	for (size_t i = 1; i < path.size(); ++i)
 	{
 		if (!path[i].length())
 		{
-			for (std::size_t j = i + 1; j < path.size(); ++j)
+			for (size_t j = i + 1; j < path.size(); ++j)
 				if (path[j].length())
 					return false;
 
@@ -1145,7 +1145,7 @@ std::string APRService::Client::Packet_ToString(const Path& path, const std::str
 	std::stringstream ss;
 	ss << sender << '>' << tocall;
 
-	for (std::size_t i = 0; (i < path.size()) && path[i].length(); ++i)
+	for (size_t i = 0; (i < path.size()) && path[i].length(); ++i)
 		ss << ',' << path[i];
 
 	ss << ':' << content;
@@ -1216,12 +1216,12 @@ std::string APRService::Client::Object_ToString(const Path& path, const std::str
 	{
 		char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
 		char longitude_west_east  = (longitude >= 0) ? 'E' : 'W';
-		auto latitude_hours       = from_float<std::int16_t>(latitude, latitude);
-		auto latitude_minutes     = from_float<std::uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
-		auto latitude_seconds     = from_float<std::uint16_t>((latitude * 6000) / 60, latitude);
-		auto longitude_hours      = from_float<std::int16_t>(longitude, latitude);
-		auto longitude_minutes    = from_float<std::uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, latitude);
-		auto longitude_seconds    = from_float<std::uint16_t>((longitude * 6000) / 60, latitude);
+		auto latitude_hours       = from_float<int16_t>(latitude, latitude);
+		auto latitude_minutes     = from_float<uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
+		auto latitude_seconds     = from_float<uint16_t>((latitude * 6000) / 60, latitude);
+		auto longitude_hours      = from_float<int16_t>(longitude, latitude);
+		auto longitude_minutes    = from_float<uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, latitude);
+		auto longitude_seconds    = from_float<uint16_t>((longitude * 6000) / 60, latitude);
 
 		ss << sprintf("%02i%02u.%02u%c", (latitude_hours >= 0) ? latitude_hours : (latitude_hours * -1), latitude_minutes, latitude_seconds, latitude_north_south);
 		ss << symbol_table;
@@ -1238,16 +1238,19 @@ std::string APRService::Client::Object_ToString(const Path& path, const std::str
 // @throw Exception
 bool        APRService::Client::Object_FromPacket(Object& object, Packet&& packet)
 {
-	// https://regex101.com/r/KZNVAd/1
-
-	static const std::regex regex("^;(.{9})([*_])((\\d{2})(\\d{2})(\\d{2})([zh]))((\\d{2})(\\d{2})\\.(\\d{2})([NS]))(.)((\\d{3})(\\d{2})\\.(\\d{2})([EW]))(.)(.*)$");
-	static const std::regex regex_compressed("^$");
+	static const std::regex regex("^;([^ *_]{3,9}) *([*_])(\\d{6}[z/h])(\\d{4}\\.\\d{2}[NS].\\d{5}\\.\\d{2}[EW].)(.*)$");
+	static const std::regex regex_compressed("^;([^ *_]{3,9}) *([*_])(\\d{6}[z/h])(.[!-{]{8}.{4})(.*)$");
 
 	tm          time = {};
 	std::smatch match;
-	int         flags     = 0;
-	float       latitude  = 0;
-	float       longitude = 0;
+	int         flags;
+	uint16_t    speed;
+	uint16_t    course;
+	int32_t     altitude;
+	float       latitude;
+	float       longitude;
+	char        symbol_table;
+	char        symbol_table_key;
 
 	auto object_init = [&object, &packet](std::string&& name, std::string&& comment, const tm& time, float latitude, float longitude, char symbol_table, char symbol_table_key, int flags)
 	{
@@ -1264,30 +1267,72 @@ bool        APRService::Client::Object_FromPacket(Object& object, Packet&& packe
 		};
 	};
 
+	auto unpack_time = [&time](const std::string& value)
+	{
+		static const std::regex regex("^(\\d{2})(\\d{2})(\\d{2})([z/h])$");
+
+		std::smatch match;
+
+		if (std::regex_match(value, match, regex))
+		{
+			auto a = (uint8_t)strtoul(match[1].str().c_str(), nullptr, 10);
+			auto b = (uint8_t)strtoul(match[2].str().c_str(), nullptr, 10);
+			auto c = (uint8_t)strtoul(match[3].str().c_str(), nullptr, 10);
+
+			switch (match[4].str()[0])
+			{
+				// DHM
+				case 'z':
+				case '/':
+					time.tm_mday = a;
+					time.tm_hour = b;
+					time.tm_min  = c;
+					return true;
+
+				// HMS
+				case 'h':
+					time.tm_hour = a;
+					time.tm_min  = b;
+					time.tm_sec  = c;
+					return true;
+			}
+		}
+
+		return false;
+	};
+
 	try
 	{
 		if (std::regex_match(packet.Content, match, regex))
 		{
 			if (match[2].str()[0] == '*')
-				flags |= OBJECT_FLAG_LIVE;
+				flags = OBJECT_FLAG_LIVE;
 			else
-				flags |= OBJECT_FLAG_KILLED;
+				flags = OBJECT_FLAG_KILLED;
 
-			// TODO: unpack time
-			// TODO: unpack latitude
-			// TODO: unpack longitude
+			if (unpack_time(match[3].str()) && LocationAndSymbol_FromString(speed, course, altitude, latitude, longitude, symbol_table, symbol_table_key, match[4].str()))
+			{
+				object_init(match[1].str(), match[5].str(), time, latitude, longitude, symbol_table, symbol_table_key, flags);
 
-			object_init(match[1].str(), match[20].str(), time, latitude, longitude, match[13].str()[0], match[19].str()[0], flags);
-
-			return true;
+				return true;
+			}
 		}
-		// else if (std::regex_match(packet.Content, match, regex_compressed))
-		// {
-		// 	// TODO: implement
-		// 	flags |= OBJECT_FLAG_COMPRESSED;
+		else if (std::regex_match(packet.Content, match, regex_compressed))
+		{
+			if (match[2].str()[0] == '*')
+				flags = OBJECT_FLAG_LIVE;
+			else
+				flags = OBJECT_FLAG_KILLED;
 
-		// 	return true;
-		// }
+			if (unpack_time(match[3].str()) && LocationAndSymbol_FromString(speed, course, altitude, latitude, longitude, symbol_table, symbol_table_key, match[4].str()))
+			{
+				flags |= OBJECT_FLAG_COMPRESSED;
+
+				object_init(match[1].str(), match[5].str(), time, latitude, longitude, symbol_table, symbol_table_key, flags);
+
+				return true;
+			}
+		}
 	}
 	catch (const std::regex_error& error)
 	{
@@ -1346,7 +1391,7 @@ bool        APRService::Client::Message_FromPacket(Message& message, Packet&& pa
 }
 
 // @throw Exception
-std::string APRService::Client::Weather_ToString(const Path& path, const std::string& sender, const std::string& tocall, const tm& time, std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type)
+std::string APRService::Client::Weather_ToString(const Path& path, const std::string& sender, const std::string& tocall, const tm& time, uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const std::string& type)
 {
 	if (type.length() > 4)
 		throw InvalidPacketException(PacketTypes::Weather, "type", type);
@@ -1386,7 +1431,7 @@ bool        APRService::Client::Weather_FromPacket(Weather& weather, Packet&& pa
 }
 
 // @throw Exception
-std::string APRService::Client::Position_ToString(const Path& path, const std::string& sender, const std::string& tocall, std::uint16_t speed, std::uint16_t course, std::int32_t altitude, float latitude, float longitude, const std::string& comment, char symbol_table, char symbol_table_key, int flags)
+std::string APRService::Client::Position_ToString(const Path& path, const std::string& sender, const std::string& tocall, uint16_t speed, uint16_t course, int32_t altitude, float latitude, float longitude, const std::string& comment, char symbol_table, char symbol_table_key, int flags)
 {
 	std::stringstream ss;
 
@@ -1396,12 +1441,12 @@ std::string APRService::Client::Position_ToString(const Path& path, const std::s
 	{
 		char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
 		char longitude_west_east  = (longitude >= 0) ? 'E' : 'W';
-		auto latitude_hours       = from_float<std::int16_t>(latitude, latitude);
-		auto latitude_minutes     = from_float<std::uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
-		auto latitude_seconds     = from_float<std::uint16_t>((latitude * 6000) / 60, latitude);
-		auto longitude_hours      = from_float<std::int16_t>(longitude, latitude);
-		auto longitude_minutes    = from_float<std::uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, latitude);
-		auto longitude_seconds    = from_float<std::uint16_t>((longitude * 6000) / 60, latitude);
+		auto latitude_hours       = from_float<int16_t>(latitude, latitude);
+		auto latitude_minutes     = from_float<uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
+		auto latitude_seconds     = from_float<uint16_t>((latitude * 6000) / 60, latitude);
+		auto longitude_hours      = from_float<int16_t>(longitude, latitude);
+		auto longitude_minutes    = from_float<uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, latitude);
+		auto longitude_seconds    = from_float<uint16_t>((longitude * 6000) / 60, latitude);
 
 		ss << sprintf("%02i%02u.%02u%c", (latitude_hours >= 0) ? latitude_hours : (latitude_hours * -1), latitude_minutes, latitude_seconds, latitude_north_south);
 		ss << symbol_table;
@@ -1420,35 +1465,27 @@ std::string APRService::Client::Position_ToString(const Path& path, const std::s
 // @throw Exception
 bool        APRService::Client::Position_FromPacket(Position& position, Packet&& packet)
 {
-	bool         is_decoded             = false;
-	bool         is_messaging_enabled   = false;
-	bool         is_compression_enabled = false;
+	bool          is_decoded             = false;
+	bool          is_messaging_enabled   = false;
+	bool          is_compression_enabled = false;
 
-	std::string   comment;
-	std::uint16_t speed                = 0;
-	std::uint16_t course               = 0;
-	std::int32_t  altitude             = 0;
-	char          symbol_table         = '\0';
-	char          symbol_table_key     = '\0';
+	uint16_t    speed     = 0;
+	uint16_t    course    = 0;
+	int32_t     altitude  = 0;
+	float       latitude  = 0;
+	float       longitude = 0;
 
-	float         latitude             = 0;
-	std::uint16_t latitude_hours       = 0;
-	std::uint16_t latitude_minutes     = 0;
-	std::uint16_t latitude_seconds     = 0;
-	char          latitude_north_south = 'N';
+	std::string comment;
 
-	float         longitude            = 0;
-	std::uint16_t longitude_hours      = 0;
-	std::uint16_t longitude_minutes    = 0;
-	std::uint16_t longitude_seconds    = 0;
-	char          longitude_west_east  = 'E';
+	char        symbol_table     = '\0';
+	char        symbol_table_key = '\0';
 
-	auto match_get_int16  = [](const std::smatch& match, std::size_t offset)->std::int16_t
+	auto match_get_int16  = [](const std::smatch& match, size_t offset)->int16_t
 	{
 		auto source      = match[offset].str();
 		bool is_positive = *source.c_str() != '-';
 
-		for (std::size_t i = 1; i < source.length(); ++i)
+		for (size_t i = 1; i < source.length(); ++i)
 		{
 			if (source[i] == '0')
 				continue;
@@ -1461,11 +1498,11 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 
 		return strtol(source.c_str(), nullptr, 10);
 	};
-	auto match_get_uint16 = [](const std::smatch& match, std::size_t offset)->std::uint16_t
+	auto match_get_uint16 = [](const std::smatch& match, size_t offset)->uint16_t
 	{
 		auto source = match[offset].str();
 
-		for (std::size_t i = 0; i < source.length(); ++i)
+		for (size_t i = 0; i < source.length(); ++i)
 		{
 			if (source[i] == '0')
 				continue;
@@ -1477,56 +1514,6 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 		}
 
 		return strtoul(source.c_str(), nullptr, 10);
-	};
-	auto match_decompress = [&symbol_table, &symbol_table_key, &latitude, &longitude, &comment, &altitude, &speed, &course](const std::smatch& match)
-	{
-		auto match_is_valid = [](const std::string& value, bool allow_space = false)
-		{
-			for (auto c : value)
-			{
-				if (allow_space && (c == ' '))
-					continue;
-
-				if (!allow_space && ((c < '!') || (c > '{')))
-					return false;
-			}
-
-			return true;
-		};
-
-		auto match_3 = match[3].str();
-		auto match_4 = match[4].str();
-		auto match_6 = match[6].str();
-		auto match_7 = match[7].str();
-
-		if (!match_is_valid(match_3) || !match_is_valid(match_4) || !match_is_valid(match_6, true) || !match_is_valid(match_7, true))
-			return false;
-
-		comment          = match[8].str();
-		latitude         = 90 - (((match_3[0] - 33) * 753571) + ((match_3[1] - 33) * 8281) + ((match_3[2] - 33) * 91) + (match_3[3] - 33)) / 380926.0f;
-		longitude        = -180 + (((match_4[0] - 33) * 753571) + ((match_4[1] - 33) * 8281) + ((match_4[2] - 33) * 91) + (match_4[3] - 33)) / 190463.0f;
-		symbol_table     = *match[2].str().c_str();
-		symbol_table_key = *match[5].str().c_str();
-
-		if (match_6[0] != ' ')
-		{
-			uint8_t t     = static_cast<uint8_t>(match_7[0] - 33);
-			uint8_t cs[2] = { static_cast<uint8_t>(match_6[0] - 33), static_cast<uint8_t>(match_6[1] - 33) };
-
-			if ((t & 0x10) == 0x10)
-				altitude = (cs[0] * 91) + cs[1];
-			else if (match_6[0] == '{')
-			{
-				// TODO: radio range
-			}
-			else if ((match_6[0] >= '!') && (match_6[0] <= 'z'))
-			{
-				speed  = match_6[1] - 33;
-				course = match_6[0] - 33;
-			}
-		}
-
-		return true;
 	};
 
 	// Lat/Long Position Report Format - without Timestamp
@@ -1542,26 +1529,22 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 		{
 			if (std::regex_match(packet.Content, match, regex))
 			{
-				is_decoded           = true;
-				latitude_hours       = match_get_uint16(match, 2);
-				latitude_minutes     = match_get_uint16(match, 3);
-				latitude_seconds     = match_get_uint16(match, 4);
-				latitude_north_south = *match[5].str().c_str();
-				symbol_table         = *match[6].str().c_str();
-				longitude_hours      = match_get_uint16(match, 7);
-				longitude_minutes    = match_get_uint16(match, 8);
-				longitude_seconds    = match_get_uint16(match, 9);
-				longitude_west_east  = *match[10].str().c_str();
-				symbol_table_key     = *match[11].str().c_str();
-				comment              = match[12].str();
+				if (LocationAndSymbol_FromString(speed, course, altitude, latitude, longitude, symbol_table, symbol_table_key, match[1].str()))
+				{
+					is_decoded = true;
+
+					comment    = match[12].str();
+				}
 			}
 			else if (std::regex_match(packet.Content, match, regex_compressed))
 			{
-				is_decoded             = true;
-				is_compression_enabled = true;
+				if (LocationAndSymbol_FromString(speed, course, altitude, latitude, longitude, symbol_table, symbol_table_key, match[1].str()))
+				{
+					is_decoded             = true;
+					is_compression_enabled = true;
 
-				if (!match_decompress(match))
-					throw Exception("Invalid compression");
+					comment                = match[8].str();
+				}
 			}
 		}
 		catch (const std::regex_error& error)
@@ -1574,7 +1557,7 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 	// Lat/Long Position Report Format - with Data Extension and Timestamp
 	else if (packet.Content.starts_with('/') || (is_messaging_enabled = packet.Content.starts_with('@')))
 	{
-		static const std::regex regex("^[/@]((\\d+)[hz/](\\d{2})(\\d{2})\\.(\\d{2})([NS])(.)(\\d{3})(\\d{2})\\.(\\d{2})([EW])(.))(.*)$");
+		static const std::regex regex("^[/@](\\d+)[hz/]((\\d{2})(\\d{2})\\.(\\d{2})([NS])(.)(\\d{3})(\\d{2})\\.(\\d{2})([EW])(.))(.*)$");
 		static const std::regex regex_compressed("^[/@]((.)([!-{]{4})([!-{]{4})(.)(.{2})(.))(.*)$");
 
 		std::smatch match;
@@ -1583,26 +1566,22 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 		{
 			if (std::regex_match(packet.Content, match, regex))
 			{
-				is_decoded           = true;
-				latitude_hours       = match_get_uint16(match, 3);
-				latitude_minutes     = match_get_uint16(match, 4);
-				latitude_seconds     = match_get_uint16(match, 5);
-				latitude_north_south = *match[6].str().c_str();
-				symbol_table         = *match[7].str().c_str();
-				longitude_hours      = match_get_uint16(match, 8);
-				longitude_minutes    = match_get_uint16(match, 9);
-				longitude_seconds    = match_get_uint16(match, 10);
-				longitude_west_east  = *match[11].str().c_str();
-				symbol_table_key     = *match[12].str().c_str();
-				comment              = match[13].str();
+				if (LocationAndSymbol_FromString(speed, course, altitude, latitude, longitude, symbol_table, symbol_table_key, match[2].str()))
+				{
+					is_decoded = true;
+
+					comment    = match[13].str();
+				}
 			}
 			else if (std::regex_match(packet.Content, match, regex_compressed))
 			{
-				is_decoded             = true;
-				is_compression_enabled = true;
+				if (LocationAndSymbol_FromString(speed, course, altitude, latitude, longitude, symbol_table, symbol_table_key, match[1].str()))
+				{
+					is_decoded             = true;
+					is_compression_enabled = true;
 
-				if (!match_decompress(match))
-					throw Exception("Invalid compression");
+					comment                = match[8].str();
+				}
 			}
 		}
 		catch (const std::regex_error& error)
@@ -1610,49 +1589,44 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 
 			throw RegexException(error.what());
 		}
-	}
-
-	if (is_decoded && !is_compression_enabled)
-	{
-		static const std::regex regex_altitude("(/A=(-?\\d+))");
-		static const std::regex regex_speed_course("^((\\d{3})/(\\d{3}))");
-
-		std::smatch match_altitude;
-		std::smatch match_speed_course;
-
-		try
-		{
-			if (std::regex_search(comment, match_altitude, regex_altitude))
-			{
-				altitude = match_get_int16(match_altitude, 2);
-
-				auto match_altitude_length  = match_altitude[1].length();
-				auto comment_altitude_begin = comment.find(match_altitude[1].str(), 0);
-
-				comment.erase(comment_altitude_begin, match_altitude_length);
-			}
-
-			if (std::regex_search(comment, match_speed_course, regex_speed_course))
-			{
-				speed   = match_get_uint16(match_speed_course, 3);
-				course  = match_get_uint16(match_speed_course, 2);
-				comment = comment.substr(match_speed_course[1].length());
-			}
-		}
-		catch (const std::regex_error& error)
-		{
-
-			throw RegexException(error.what());
-		}
-
-		// http://www.aprs.org/aprs12/datum.txt
-
-		latitude  = (latitude_hours  + (latitude_minutes / 60.0f)  + (latitude_seconds / 6000.0f))  * ((latitude_north_south == 'N') ? 1 : -1);
-		longitude = (longitude_hours + (longitude_minutes / 60.0f) + (longitude_seconds / 6000.0f)) * ((longitude_west_east  == 'E') ? 1 : -1);
 	}
 
 	if (is_decoded)
 	{
+		if (!is_compression_enabled)
+		{
+			static const std::regex regex_altitude("(/A=(-?\\d+))");
+			static const std::regex regex_speed_course("^((\\d{3})/(\\d{3}))");
+
+			std::smatch match_altitude;
+			std::smatch match_speed_course;
+
+			try
+			{
+				if (std::regex_search(comment, match_altitude, regex_altitude))
+				{
+					altitude = match_get_int16(match_altitude, 2);
+
+					auto match_altitude_length  = match_altitude[1].length();
+					auto comment_altitude_begin = comment.find(match_altitude[1].str(), 0);
+
+					comment.erase(comment_altitude_begin, match_altitude_length);
+				}
+
+				if (std::regex_search(comment, match_speed_course, regex_speed_course))
+				{
+					speed   = match_get_uint16(match_speed_course, 3);
+					course  = match_get_uint16(match_speed_course, 2);
+					comment = comment.substr(match_speed_course[1].length());
+				}
+			}
+			catch (const std::regex_error& error)
+			{
+
+				throw RegexException(error.what());
+			}
+		}
+
 		position =
 		{
 			{ PacketTypes::Position, std::move(packet.Path), std::move(packet.IGate), std::move(packet.ToCall), std::move(packet.Sender), std::move(packet.Content), std::move(packet.QConstruct) },
@@ -1678,14 +1652,14 @@ bool        APRService::Client::Position_FromPacket(Position& position, Packet&&
 }
 
 // @throw Exception
-std::string APRService::Client::Telemetry_ToString(const Path& path, const std::string& sender, const std::string& tocall, const TelemetryAnalog& analog, TelemetryDigital digital, std::uint16_t sequence)
+std::string APRService::Client::Telemetry_ToString(const Path& path, const std::string& sender, const std::string& tocall, const TelemetryAnalog& analog, TelemetryDigital digital, uint16_t sequence)
 {
 	std::stringstream ss;
 
 	ss << "T#" << sprintf("%03u", sequence) << ',';
 	for (auto a : analog)
 		ss << a << ',';
-	for (std::uint8_t i = 0; i < 8; ++i)
+	for (uint8_t i = 0; i < 8; ++i)
 		ss << (((digital & (1 << i)) == (1 << i)) ? 1 : 0);
 
 	return Packet_ToString(path, sender, tocall, ss.str());
@@ -1722,6 +1696,152 @@ bool        APRService::Client::Telemetry_FromPacket(Telemetry& telemetry, Packe
 	telemetry.Sequence  = strtoul(match[1].str().c_str(), nullptr, 10);
 
 	return true;
+}
+
+// @throw Exception
+bool APRService::Client::LocationAndSymbol_FromString(uint16_t& speed, uint16_t& course, int32_t& altitude, float& latitude, float& longitude, char& symbol_table, char& symbol_table_key, const std::string& string)
+{
+	static const std::regex regex("^(\\d{2})(\\d{2})\\.(\\d{2})([NS])(.)(\\d{3})(\\d{2})\\.(\\d{2})([EW])(.)$");
+	static const std::regex regex_compressed("^(.)([!-{]{4})([!-{]{4})(.)(.{2})(.)$");
+
+	std::smatch match;
+
+	uint16_t    latitude_hours       = 0;
+	uint16_t    latitude_minutes     = 0;
+	uint16_t    latitude_seconds     = 0;
+	char        latitude_north_south = 'N';
+
+	uint16_t    longitude_hours      = 0;
+	uint16_t    longitude_minutes    = 0;
+	uint16_t    longitude_seconds    = 0;
+	char        longitude_west_east  = 'E';
+
+	auto match_get_int16  = [](const std::smatch& match, size_t offset)->int16_t
+	{
+		auto source      = match[offset].str();
+		bool is_positive = *source.c_str() != '-';
+
+		for (size_t i = 1; i < source.length(); ++i)
+		{
+			if (source[i] == '0')
+				continue;
+
+			if (i == 0)
+				break;
+
+			return strtol(source.substr(i).c_str(), nullptr, 10) * (is_positive ? 1 : -1);
+		}
+
+		return strtol(source.c_str(), nullptr, 10);
+	};
+	auto match_get_uint16 = [](const std::smatch& match, size_t offset)->uint16_t
+	{
+		auto source = match[offset].str();
+
+		for (size_t i = 0; i < source.length(); ++i)
+		{
+			if (source[i] == '0')
+				continue;
+
+			if (i == 0)
+				break;
+
+			return strtoul(source.substr(i).c_str(), nullptr, 10);
+		}
+
+		return strtoul(source.c_str(), nullptr, 10);
+	};
+
+	auto match_decompress = [&symbol_table, &symbol_table_key, &latitude, &longitude, &altitude, &speed, &course](const std::smatch& match)
+	{
+		auto match_is_valid = [](const std::string& value, bool allow_space = false)
+		{
+			for (auto c : value)
+			{
+				if (allow_space && (c == ' '))
+					continue;
+
+				if (!allow_space && ((c < '!') || (c > '{')))
+					return false;
+			}
+
+			return true;
+		};
+
+		auto match_2 = match[2].str();
+		auto match_3 = match[3].str();
+		auto match_5 = match[5].str();
+		auto match_6 = match[6].str();
+
+		if (!match_is_valid(match_2) || !match_is_valid(match_3) || !match_is_valid(match_5, true) || !match_is_valid(match_6, true))
+			return false;
+
+		latitude         = 90 - (((match_2[0] - 33) * 753571) + ((match_2[1] - 33) * 8281) + ((match_2[2] - 33) * 91) + (match_2[3] - 33)) / 380926.0f;
+		longitude        = -180 + (((match_3[0] - 33) * 753571) + ((match_3[1] - 33) * 8281) + ((match_3[2] - 33) * 91) + (match_3[3] - 33)) / 190463.0f;
+		symbol_table     = *match[2].str().c_str();
+		symbol_table_key = *match[5].str().c_str();
+
+		if (match_5[0] != ' ')
+		{
+			uint8_t t     = static_cast<uint8_t>(match_6[0] - 33);
+			uint8_t cs[2] = { static_cast<uint8_t>(match_5[0] - 33), static_cast<uint8_t>(match_5[1] - 33) };
+
+			if ((t & 0x10) == 0x10)
+				altitude = (cs[0] * 91) + cs[1];
+			else if (match_5[0] == '{')
+			{
+				// TODO: radio range
+			}
+			else if ((match_5[0] >= '!') && (match_5[0] <= 'z'))
+			{
+				speed  = match_5[1] - 33;
+				course = match_5[0] - 33;
+			}
+		}
+
+		return true;
+	};
+
+	try
+	{
+		if (std::regex_match(string, match, regex))
+		{
+			speed                = 0;
+			course               = 0;
+			altitude             = 0;
+
+			latitude_hours       = match_get_uint16(match, 1);
+			latitude_minutes     = match_get_uint16(match, 2);
+			latitude_seconds     = match_get_uint16(match, 3);
+			latitude_north_south = *match[4].str().c_str();
+			latitude             = (latitude_hours  + (latitude_minutes / 60.0f)  + (latitude_seconds / 6000.0f))  * ((latitude_north_south == 'N') ? 1 : -1);
+
+			longitude_hours      = match_get_uint16(match, 6);
+			longitude_minutes    = match_get_uint16(match, 7);
+			longitude_seconds    = match_get_uint16(match, 8);
+			longitude_west_east  = *match[9].str().c_str();
+			longitude            = (longitude_hours + (longitude_minutes / 60.0f) + (longitude_seconds / 6000.0f)) * ((longitude_west_east  == 'E') ? 1 : -1);
+
+			symbol_table         = *match[5].str().c_str();
+			symbol_table_key     = *match[10].str().c_str();
+
+			return true;
+		}
+		else if (std::regex_match(string, match, regex_compressed))
+		{
+			if (!match_decompress(match))
+				throw Exception("Invalid compression");
+
+			return true;
+		}
+	}
+	catch (const std::regex_error& error)
+	{
+
+		throw RegexException(error.what());
+	}
+
+	return false;
 }
 
 bool APRService::Service::Task::Cancel()
@@ -1814,7 +1934,7 @@ APRService::IObject* APRService::Service::AddObject(std::string&& name, std::str
 	return object;
 }
 
-APRService::ITask* APRService::Service::ScheduleTask(std::uint32_t seconds, TaskHandler&& handler)
+APRService::ITask* APRService::Service::ScheduleTask(uint32_t seconds, TaskHandler&& handler)
 {
 	return tasks[time + seconds].emplace_back(new Task(this, std::move(handler), seconds));
 }

@@ -52,8 +52,8 @@ namespace APRService
 	std::string                        Path_ToString(const Path& path);
 	Path                               Path_FromString(const std::string& string);
 
-	typedef std::array<float, 5>       TelemetryAnalog;
-	typedef std::uint8_t               TelemetryDigital;
+	typedef std::array<float, 5>  TelemetryAnalog;
+	typedef uint8_t               TelemetryDigital;
 
 	struct Packet
 	{
@@ -98,36 +98,36 @@ namespace APRService
 	struct Weather
 		: public Packet
 	{
-		tm            Time;
+		tm       Time;
 
-		std::uint16_t WindSpeed;
-		std::uint16_t WindSpeedGust;
-		std::uint16_t WindDirection;
+		uint16_t WindSpeed;
+		uint16_t WindSpeedGust;
+		uint16_t WindDirection;
 
-		std::uint16_t RainfallLastHour;
-		std::uint16_t RainfallLast24Hours;
-		std::uint16_t RainfallSinceMidnight;
+		uint16_t RainfallLastHour;
+		uint16_t RainfallLast24Hours;
+		uint16_t RainfallSinceMidnight;
 
-		std::uint8_t  Humidity;
-		std::int16_t  Temperature;
-		std::uint32_t BarometricPressure;
+		uint8_t  Humidity;
+		int16_t  Temperature;
+		uint32_t BarometricPressure;
 	};
 
 	struct Position
 		: public Packet
 	{
-		int            Flags;
+		int         Flags;
 
-		std::uint16_t  Speed;
-		std::uint16_t  Course;
-		std::int32_t   Altitude;
-		float          Latitude;
-		float          Longitude;
+		uint16_t    Speed;
+		uint16_t    Course;
+		int32_t     Altitude;
+		float       Latitude;
+		float       Longitude;
 
-		std::string    Comment;
+		std::string Comment;
 
-		char           SymbolTable;
-		char           SymbolTableKey;
+		char        SymbolTable;
+		char        SymbolTableKey;
 
 		float CalculateDistance(const Position& position, DISTANCES type) const
 		{
@@ -147,7 +147,7 @@ namespace APRService
 	{
 		TelemetryAnalog  Analog;
 		TelemetryDigital Digital;
-		std::uint16_t    Sequence;
+		uint16_t    Sequence;
 	};
 
 	class IObject
@@ -474,8 +474,8 @@ namespace APRService
 		struct SendQueueEntry
 		{
 			std::string Buffer;
-			std::size_t Offset;
-			std::size_t OffsetEOL;
+			size_t      Offset;
+			size_t      OffsetEOL;
 		};
 
 		class DNS
@@ -532,20 +532,20 @@ namespace APRService
 			}
 
 			// @throw Exception
-			void Connect(const std::string& host, std::uint16_t port);
+			void Connect(const std::string& host, uint16_t port);
 			void Disconnect();
 
 			// @throw Exception
 			// @return false on connection closed
-			bool Send(const void* buffer, std::size_t size, std::size_t& number_of_bytes_sent);
+			bool Send(const void* buffer, size_t size, size_t& number_of_bytes_sent);
 
 			// @throw Exception
 			// @return false on connection closed
-			bool Receive(void* buffer, std::size_t size, std::size_t& number_of_bytes_received);
+			bool Receive(void* buffer, size_t size, size_t& number_of_bytes_received);
 		};
 
 		static constexpr const char  EOL[]    = { '\r', '\n' };
-		static constexpr std::size_t EOL_SIZE = sizeof(EOL);
+		static constexpr size_t EOL_SIZE = sizeof(EOL);
 
 		bool                       is_read_only            = false;
 		bool                       is_connected            = false;
@@ -567,13 +567,13 @@ namespace APRService
 
 		bool                       recieve_buffer_is_complete = false;
 		std::array<char, 128>      receive_buffer;
-		std::size_t                receive_buffer_offset = 0;
+		size_t                     receive_buffer_offset = 0;
 		std::string                receive_buffer_string;
 		Packet                     receive_buffer_packet;
 
-		std::uint16_t              message_ack_counter = 0;
+		uint16_t                   message_ack_counter = 0;
 
-		std::uint16_t              telemetry_sequence_counter = 0;
+		uint16_t                   telemetry_sequence_counter = 0;
 
 		Client(Client&&) = delete;
 		Client(const Client&) = delete;
@@ -705,7 +705,7 @@ namespace APRService
 		}
 
 		// @throw Exception
-		void Connect(const std::string& host, std::uint16_t port, std::int32_t passcode);
+		void Connect(const std::string& host, uint16_t port, int32_t passcode);
 		void Disconnect();
 
 		void Send(std::string&& raw);
@@ -729,15 +729,15 @@ namespace APRService
 		void SendMessageNoAck(const std::string& destination, const std::string& message);
 
 		// @throw Exception
-		void SendWeather(std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type);
+		void SendWeather(uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const std::string& type);
 
 		// @throw Exception
-		void SendPosition(std::uint16_t speed, std::uint16_t course, std::int32_t altitude, float latitude, float longitude, const std::string& comment = "");
+		void SendPosition(uint16_t speed, uint16_t course, int32_t altitude, float latitude, float longitude, const std::string& comment = "");
 
 		// @throw Exception
 		void SendTelemetry(const TelemetryAnalog& analog, TelemetryDigital digital);
 		// @throw Exception
-		void SendTelemetry(const TelemetryAnalog& analog, TelemetryDigital digital, std::uint16_t sequence);
+		void SendTelemetry(const TelemetryAnalog& analog, TelemetryDigital digital, uint16_t sequence);
 
 		// @throw Exception
 		// @return false on connection closed
@@ -802,22 +802,25 @@ namespace APRService
 		static bool        Message_FromPacket(Message& message, Packet&& packet);
 
 		// @throw Exception
-		static std::string Weather_ToString(const Path& path, const std::string& sender, const std::string& tocall, const tm& time, std::uint16_t wind_speed, std::uint16_t wind_speed_gust, std::uint16_t wind_direction, std::uint16_t rainfall_last_hour, std::uint16_t rainfall_last_24_hours, std::uint16_t rainfall_since_midnight, std::uint8_t humidity, std::int16_t temperature, std::uint32_t barometric_pressure, const std::string& type);
+		static std::string Weather_ToString(const Path& path, const std::string& sender, const std::string& tocall, const tm& time, uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const std::string& type);
 		// @throw Exception
 		static bool        Weather_FromPacket(Weather& weather, Packet&& packet);
 
 		// @throw Exception
-		static std::string Position_ToString(const Path& path, const std::string& sender, const std::string& tocall, std::uint16_t speed, std::uint16_t course, std::int32_t altitude, float latitude, float longitude, const std::string& comment, char symbol_table, char symbol_table_key, int flags);
+		static std::string Position_ToString(const Path& path, const std::string& sender, const std::string& tocall, uint16_t speed, uint16_t course, int32_t altitude, float latitude, float longitude, const std::string& comment, char symbol_table, char symbol_table_key, int flags);
 		// @throw Exception
 		static bool        Position_FromPacket(Position& position, Packet&& packet);
 
 		// @throw Exception
-		static std::string Telemetry_ToString(const Path& path, const std::string& sender, const std::string& tocall, const TelemetryAnalog& analog, TelemetryDigital digital, std::uint16_t sequence);
+		static std::string Telemetry_ToString(const Path& path, const std::string& sender, const std::string& tocall, const TelemetryAnalog& analog, TelemetryDigital digital, uint16_t sequence);
 		// @throw Exception
 		static bool        Telemetry_FromPacket(Telemetry& telemetry, Packet&& packet);
 
 		// @throw Exception
-		template<std::size_t S, typename ... TArgs>
+		static bool LocationAndSymbol_FromString(uint16_t& speed, uint16_t& course, int32_t& altitude, float& latitude, float& longitude, char& symbol_table, char& symbol_table_key, const std::string& string);
+
+		// @throw Exception
+		template<size_t S, typename ... TArgs>
 		static inline std::string sprintf(const char(&format)[S], TArgs ... args)
 		{
 			auto string_length = snprintf(nullptr, 0, format, args ...);
@@ -840,7 +843,7 @@ namespace APRService
 	};
 
 	// @return true to reschedule
-	typedef std::function<bool(std::uint32_t& seconds)> TaskHandler;
+	typedef std::function<bool(uint32_t& seconds)> TaskHandler;
 	typedef std::function<void(const Command& command)> CommandHandler;
 
 	class ITask
@@ -870,10 +873,10 @@ namespace APRService
 		{
 			Service*      service;
 			TaskHandler   handler;
-			std::uint32_t seconds;
+			uint32_t seconds;
 
 		public:
-			Task(Service* service, TaskHandler&& handler, std::uint32_t seconds)
+			Task(Service* service, TaskHandler&& handler, uint32_t seconds)
 				: service(service),
 				handler(std::move(handler)),
 				seconds(seconds)
@@ -993,7 +996,7 @@ namespace APRService
 
 		IObject* AddObject(std::string&& name, std::string&& comment, float latitude, float longitude, char symbol_table, char symbol_table_key);
 
-		ITask* ScheduleTask(std::uint32_t seconds, TaskHandler&& handler);
+		ITask* ScheduleTask(uint32_t seconds, TaskHandler&& handler);
 
 		bool ExecuteCommand(const std::string& name, const APRService::Command& command);
 		void RegisterCommand(std::string&& name, CommandHandler&& handler);

@@ -114,6 +114,8 @@ void demo_dump_object_fields(APRService::Service* service, const APRService::Obj
 	std::cout << "\tLongitude: " << object.Longitude << std::endl;
 	std::cout << "\tSymbolTable: " << object.SymbolTable << std::endl;
 	std::cout << "\tSymbolTableKey: " << object.SymbolTableKey << std::endl;
+	std::cout << "\tDistance: " << object.CalculateDistance(APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRService::DISTANCE_MILES) << " miles" << std::endl;
+	std::cout << "\tDistance3D: " << object.CalculateDistance3D(APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRS_BEACON_ALTITUDE, APRService::DISTANCE_MILES) << " miles" << std::endl;
 }
 void demo_dump_message_fields(APRService::Service* service, const APRService::Message& message)
 {

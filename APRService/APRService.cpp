@@ -57,54 +57,54 @@ static_assert_software_name_version(APRSERVICE_SOFTWARE_NAME);
 static_assert_software_name_version(APRSERVICE_SOFTWARE_VERSION);
 
 #if defined(APRSERVICE_WIN32)
-static WSADATA     aprservice_winsock_data;
-static size_t aprservice_winsock_load_count = 0;
+static WSADATA aprservice_winsock_data;
+static size_t  aprservice_winsock_load_count = 0;
 #endif
 
-static constexpr float RADIANS_TO_DEGREES = 360 / (3.14159265358979323846 * 2);
+static constexpr double APRSERVICE_DEG2RAD = 3.14159265358979323846 / 180;
 
 template<typename T>
-constexpr T from_float(float value, float& fraction)
+constexpr T aprservice_from_float(float value, float& fraction)
 {
 	fraction = std::modff(value, &value);
 
 	return value;
 }
 
-template<typename T>
-T convert_distance_from_feet(T value, APRService::DISTANCES type)
+float aprservice_convert_distance(double value, APRService::DISTANCES type)
 {
 	switch (type)
 	{
-		case APRService::DISTANCE_FEET:       return value;
-		case APRService::DISTANCE_MILES:      return value / 5280;
-		case APRService::DISTANCE_METERS:     return value / 3.281f;
-		case APRService::DISTANCE_KILOMETERS: return value / 3281;
+		case APRService::DISTANCE_FEET:       return value * 20903251;
+		case APRService::DISTANCE_MILES:      return value * 3959.6f;
+		case APRService::DISTANCE_METERS:     return value * 6371e3;
+		case APRService::DISTANCE_KILOMETERS: return value * 6371;
 	}
 
 	return 0;
 }
 
-float calculate_distance(const float(&latitude)[2], const float(&longitude)[2], APRService::DISTANCES type)
+float aprservice_calculate_distance(const float(&latitude)[2], const float(&longitude)[2], APRService::DISTANCES type)
 {
-	// TODO: debug
+	double radians[] =
+	{
+		APRSERVICE_DEG2RAD * (latitude[1] - latitude[0]),
+		APRSERVICE_DEG2RAD * (longitude[1] - longitude[0]),
+		APRSERVICE_DEG2RAD * latitude[0],
+		APRSERVICE_DEG2RAD * latitude[1]
+	};
 
-	auto latitude_delta   = RADIANS_TO_DEGREES * (latitude[1] - latitude[0]);
-	auto longitude_delta  = RADIANS_TO_DEGREES * (longitude[1] - longitude[0]);
-	auto latitude_1       = RADIANS_TO_DEGREES * latitude[0];
-	auto latitude_2       = RADIANS_TO_DEGREES * latitude[1];
-	auto a                = std::sinf(latitude_delta / 2) * std::sinf(latitude_delta / 2) + std::sinf(longitude_delta / 2) * std::sinf(longitude_delta / 2) * std::cosf(latitude_1) * std::cosf(latitude_2);
-	auto distance         = 2 * std::atan2f(std::sqrtf(a), std::sqrtf(1 - a));
-	auto distance_in_feet = (distance * 6371) * 3280.84f;
+	double a = sin(radians[0] / 2) * sin(radians[0] / 2) + cos(radians[2]) * cos(radians[3]) * sin(radians[1] / 2) * sin(radians[1] / 2);
+	double b = 2 * atan2(sqrt(a), sqrt(1 - a));
 
-	return convert_distance_from_feet(distance_in_feet, type);
+	return aprservice_convert_distance(b, type);
 }
-float calculate_distance_3d(const float(&latitude)[2], const float(&longitude)[2], const int32_t(&altitude)[2], APRService::DISTANCES type)
+float aprservice_calculate_distance_3d(const float(&latitude)[2], const float(&longitude)[2], const int32_t(&altitude)[2], APRService::DISTANCES type)
 {
-	auto distance   = calculate_distance(latitude, longitude, type);
-	auto distance_z = (altitude[0] > altitude[1]) ? (altitude[0] - altitude[1]) : (altitude[1] - altitude[0]);
+	double distance   = aprservice_calculate_distance(latitude, longitude, type);
+	double distance_z = (altitude[0] > altitude[1]) ? (altitude[0] - altitude[1]) : (altitude[1] - altitude[0]);
 
-	return distance + convert_distance_from_feet(distance_z, type);
+	return distance + aprservice_convert_distance(distance_z / 20903251, type);
 }
 
 bool             APRService::Path_IsValid(const Path& path)
@@ -177,16 +177,20 @@ APRService::Path APRService::Path_FromString(const std::string& string)
 
 float APRService::Object::CalculateDistance(float latitude, float longitude, DISTANCES type) const
 {
-	return calculate_distance({ Latitude, latitude }, { Longitude, longitude }, type);
+	return aprservice_calculate_distance({ Latitude, latitude }, { Longitude, longitude }, type);
+}
+float APRService::Object::CalculateDistance3D(float latitude, float longitude, int32_t altitude, DISTANCES type) const
+{
+	return aprservice_calculate_distance_3d({ Latitude, latitude }, { Longitude, longitude }, { Altitude, altitude }, type);
 }
 
 float APRService::Position::CalculateDistance(float latitude, float longitude, DISTANCES type) const
 {
-	return calculate_distance({ Latitude, latitude }, { Longitude, longitude }, type);
+	return aprservice_calculate_distance({ Latitude, latitude }, { Longitude, longitude }, type);
 }
 float APRService::Position::CalculateDistance3D(float latitude, float longitude, int32_t altitude, DISTANCES type) const
 {
-	return calculate_distance_3d({ Latitude, latitude }, { Longitude, longitude }, { Altitude, altitude }, type);
+	return aprservice_calculate_distance_3d({ Latitude, latitude }, { Longitude, longitude }, { Altitude, altitude }, type);
 }
 
 APRService::SystemException::SystemException(const std::string& function)
@@ -1228,12 +1232,12 @@ std::string APRService::Client::Object_ToString(const Path& path, const std::str
 	{
 		char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
 		char longitude_west_east  = (longitude >= 0) ? 'E' : 'W';
-		auto latitude_hours       = from_float<int16_t>(latitude, latitude);
-		auto latitude_minutes     = from_float<uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
-		auto latitude_seconds     = from_float<uint16_t>((latitude * 6000) / 60, latitude);
-		auto longitude_hours      = from_float<int16_t>(longitude, latitude);
-		auto longitude_minutes    = from_float<uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, latitude);
-		auto longitude_seconds    = from_float<uint16_t>((longitude * 6000) / 60, latitude);
+		auto latitude_hours       = aprservice_from_float<int16_t>(latitude, latitude);
+		auto latitude_minutes     = aprservice_from_float<uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
+		auto latitude_seconds     = aprservice_from_float<uint16_t>((latitude * 6000) / 60, latitude);
+		auto longitude_hours      = aprservice_from_float<int16_t>(longitude, latitude);
+		auto longitude_minutes    = aprservice_from_float<uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, latitude);
+		auto longitude_seconds    = aprservice_from_float<uint16_t>((longitude * 6000) / 60, latitude);
 
 		ss << sprintf("%02i%02u.%02u%c", (latitude_hours >= 0) ? latitude_hours : (latitude_hours * -1), latitude_minutes, latitude_seconds, latitude_north_south);
 		ss << symbol_table;
@@ -1456,12 +1460,12 @@ std::string APRService::Client::Position_ToString(const Path& path, const std::s
 	{
 		char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
 		char longitude_west_east  = (longitude >= 0) ? 'E' : 'W';
-		auto latitude_hours       = from_float<int16_t>(latitude, latitude);
-		auto latitude_minutes     = from_float<uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
-		auto latitude_seconds     = from_float<uint16_t>((latitude * 6000) / 60, latitude);
-		auto longitude_hours      = from_float<int16_t>(longitude, latitude);
-		auto longitude_minutes    = from_float<uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, latitude);
-		auto longitude_seconds    = from_float<uint16_t>((longitude * 6000) / 60, latitude);
+		auto latitude_hours       = aprservice_from_float<int16_t>(latitude, latitude);
+		auto latitude_minutes     = aprservice_from_float<uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
+		auto latitude_seconds     = aprservice_from_float<uint16_t>((latitude * 6000) / 60, latitude);
+		auto longitude_hours      = aprservice_from_float<int16_t>(longitude, latitude);
+		auto longitude_minutes    = aprservice_from_float<uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, latitude);
+		auto longitude_seconds    = aprservice_from_float<uint16_t>((longitude * 6000) / 60, latitude);
 
 		ss << sprintf("%02i%02u.%02u%c", (latitude_hours >= 0) ? latitude_hours : (latitude_hours * -1), latitude_minutes, latitude_seconds, latitude_north_south);
 		ss << symbol_table;

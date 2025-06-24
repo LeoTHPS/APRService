@@ -83,11 +83,8 @@ namespace APRService
 		char          SymbolTable;
 		char          SymbolTableKey;
 
-		float CalculateDistance(const Object& object, DISTANCES type) const
-		{
-			return CalculateDistance(object.Latitude, object.Longitude, type);
-		}
 		float CalculateDistance(float latitude, float longitude, DISTANCES type) const;
+		float CalculateDistance3D(float latitude, float longitude, int32_t altitude, DISTANCES type) const;
 	};
 
 	struct Message
@@ -132,16 +129,7 @@ namespace APRService
 		char        SymbolTable;
 		char        SymbolTableKey;
 
-		float CalculateDistance(const Position& position, DISTANCES type) const
-		{
-			return CalculateDistance(position.Latitude, position.Longitude, type);
-		}
 		float CalculateDistance(float latitude, float longitude, DISTANCES type) const;
-
-		float CalculateDistance3D(const Position& position, DISTANCES type) const
-		{
-			return CalculateDistance3D(position.Latitude, position.Longitude, position.Altitude, type);
-		}
 		float CalculateDistance3D(float latitude, float longitude, int32_t altitude, DISTANCES type) const;
 	};
 

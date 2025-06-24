@@ -722,23 +722,13 @@ receive_once:
 	{
 		case IO_RESULT_SUCCESS:
 		{
-			bool is_authenticated = IsAuthenticated();
-
-			if (!is_authenticated && IsAuthenticating() && Auth_FromString(auth, receive_buffer_string))
+			if (receive_buffer_string.starts_with("# "))
 			{
-				if (!auth.Success)
-				{
-					Disconnect();
+				receive_buffer_string = receive_buffer_string.substr(2);
 
-					throw AuthFailedException(auth.Message);
-				}
-
-				is_read_only = !auth.Verified;
-				auth_state   = AUTH_STATE_RECEIVED;
-
-				OnAuthenticate.Execute(auth.Message);
+				HandleServerMessage(receive_buffer_string);
 			}
-			else if (is_authenticated)
+			else
 			{
 				bool receive_buffer_packet_decoded = false;
 
@@ -932,6 +922,28 @@ void APRService::Client::HandleTelemetry(const std::string& raw, Telemetry& tele
 {
 	OnReceiveTelemetry.Execute(telemetry);
 }
+// @throw Exception
+void APRService::Client::HandleServerMessage(const std::string& message)
+{
+	if (IsAuthenticating() && Auth_FromString(auth, receive_buffer_string))
+	{
+		if (!auth.Success)
+		{
+			Disconnect();
+
+			throw AuthFailedException(auth.Message);
+		}
+
+		is_read_only = !auth.Verified;
+		auth_state   = AUTH_STATE_RECEIVED;
+
+		OnAuthenticate.Execute(auth.Message);
+
+		return;
+	}
+
+	OnReceiveServerMessage.Execute(message);
+}
 
 // @throw Exception
 void APRService::Client::HandleDecodeError(const std::string& raw, Exception* exception)
@@ -1054,7 +1066,7 @@ APRService::Client::IO_RESULTS APRService::Client::ReceiveOnce()
 // @throw Exception
 bool APRService::Client::Auth_FromString(Auth& auth, const std::string& string)
 {
-	static const std::regex regex("^# logresp ([^ ]+) ([^ ,]+)[^ ]* ?(.*)$");
+	static const std::regex regex("^logresp ([^ ]+) ([^ ,]+)[^ ]* ?(.*)$");
 
 	std::smatch match;
 
@@ -1252,7 +1264,7 @@ bool        APRService::Client::Object_FromPacket(Object& object, Packet&& packe
 	char        symbol_table;
 	char        symbol_table_key;
 
-	auto object_init = [&object, &packet](std::string&& name, std::string&& comment, const tm& time, float latitude, float longitude, char symbol_table, char symbol_table_key, int flags)
+	auto object_init = [&object, &packet](std::string&& name, std::string&& comment, const tm& time, uint16_t speed, uint16_t course, int32_t altitude, float latitude, float longitude, char symbol_table, char symbol_table_key, int flags)
 	{
 		object =
 		{
@@ -1260,6 +1272,9 @@ bool        APRService::Client::Object_FromPacket(Object& object, Packet&& packe
 			flags,
 			std::move(name),
 			std::move(comment),
+			speed,
+			course,
+			altitude,
 			latitude,
 			longitude,
 			symbol_table,
@@ -1312,7 +1327,7 @@ bool        APRService::Client::Object_FromPacket(Object& object, Packet&& packe
 
 			if (unpack_time(match[3].str()) && LocationAndSymbol_FromString(speed, course, altitude, latitude, longitude, symbol_table, symbol_table_key, match[4].str()))
 			{
-				object_init(match[1].str(), match[5].str(), time, latitude, longitude, symbol_table, symbol_table_key, flags);
+				object_init(match[1].str(), match[5].str(), time, speed, course, altitude, latitude, longitude, symbol_table, symbol_table_key, flags);
 
 				return true;
 			}
@@ -1328,7 +1343,7 @@ bool        APRService::Client::Object_FromPacket(Object& object, Packet&& packe
 			{
 				flags |= OBJECT_FLAG_COMPRESSED;
 
-				object_init(match[1].str(), match[5].str(), time, latitude, longitude, symbol_table, symbol_table_key, flags);
+				object_init(match[1].str(), match[5].str(), time, speed, course, altitude, latitude, longitude, symbol_table, symbol_table_key, flags);
 
 				return true;
 			}
@@ -1465,9 +1480,9 @@ std::string APRService::Client::Position_ToString(const Path& path, const std::s
 // @throw Exception
 bool        APRService::Client::Position_FromPacket(Position& position, Packet&& packet)
 {
-	bool          is_decoded             = false;
-	bool          is_messaging_enabled   = false;
-	bool          is_compression_enabled = false;
+	bool        is_decoded             = false;
+	bool        is_messaging_enabled   = false;
+	bool        is_compression_enabled = false;
 
 	uint16_t    speed     = 0;
 	uint16_t    course    = 0;
@@ -1775,6 +1790,8 @@ bool APRService::Client::LocationAndSymbol_FromString(uint16_t& speed, uint16_t&
 
 		if (!match_is_valid(match_2) || !match_is_valid(match_3) || !match_is_valid(match_5, true) || !match_is_valid(match_6, true))
 			return false;
+
+		// https://www.aprs.org/doc/APRS101.PDF#page=48
 
 		latitude         = 90 - (((match_2[0] - 33) * 753571) + ((match_2[1] - 33) * 8281) + ((match_2[2] - 33) * 91) + (match_2[3] - 33)) / 380926.0f;
 		longitude        = -180 + (((match_3[0] - 33) * 753571) + ((match_3[1] - 33) * 8281) + ((match_3[2] - 33) * 91) + (match_3[3] - 33)) / 190463.0f;

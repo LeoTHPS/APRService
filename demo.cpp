@@ -107,6 +107,9 @@ void demo_dump_object_fields(APRService::Service* service, const APRService::Obj
 
 	std::cout << "\tFlags: " << object.Flags << std::endl;
 	std::cout << "\tComment: " << object.Comment << std::endl;
+	std::cout << "\tSpeed: " << object.Speed << std::endl;
+	std::cout << "\tCourse: " << object.Course << std::endl;
+	std::cout << "\tAltitude: " << object.Altitude << std::endl;
 	std::cout << "\tLatitude: " << object.Latitude << std::endl;
 	std::cout << "\tLongitude: " << object.Longitude << std::endl;
 	std::cout << "\tSymbolTable: " << object.SymbolTable << std::endl;
@@ -223,6 +226,11 @@ void demo_service_on_receive_telemetry(APRService::Service* service, const APRSe
 	std::cout << "APRService::OnReceiveTelemetry" << std::endl;
 	demo_dump_telemetry_fields(service, telemetry);
 }
+void demo_service_on_receive_server_message(APRService::Service* service, const std::string& message)
+{
+	std::cout << "APRService::OnReceiveServerMessage" << std::endl;
+	std::cout << "\tMessage: " << message << std::endl;
+}
 
 int main(int argc, char* argv[])
 {
@@ -246,6 +254,7 @@ int main(int argc, char* argv[])
 		service.OnReceiveWeather.Register(std::bind(&demo_service_on_receive_weather, &service, std::placeholders::_1));
 		service.OnReceivePosition.Register(std::bind(&demo_service_on_receive_position, &service, std::placeholders::_1));
 		service.OnReceiveTelemetry.Register(std::bind(&demo_service_on_receive_telemetry, &service, std::placeholders::_1));
+		service.OnReceiveServerMessage.Register(std::bind(&demo_service_on_receive_server_message, &service, std::placeholders::_1));
 
 		service.Connect(APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE);
 

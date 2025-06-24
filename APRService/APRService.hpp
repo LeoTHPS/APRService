@@ -74,6 +74,9 @@ namespace APRService
 		std::string   Name;
 		std::string   Comment;
 
+		uint16_t      Speed;
+		uint16_t      Course;
+		int32_t       Altitude;
 		float         Latitude;
 		float         Longitude;
 
@@ -446,6 +449,7 @@ namespace APRService
 	typedef EventHandler<void(const Weather& weather)>                             OnReceiveWeatherHandler;
 	typedef EventHandler<void(const Position& position)>                           OnReceivePositionHandler;
 	typedef EventHandler<void(const Telemetry& telemetry)>                         OnReceiveTelemetryHandler;
+	typedef EventHandler<void(const std::string& message)>                         OnReceiveServerMessageHandler;
 
 	class Client
 	{
@@ -579,21 +583,22 @@ namespace APRService
 		Client(const Client&) = delete;
 
 	public:
-		Event<OnConnectHandler>           OnConnect;
-		Event<OnDisconnectHandler>        OnDisconnect;
-		Event<OnAuthenticateHandler>      OnAuthenticate;
+		Event<OnConnectHandler>              OnConnect;
+		Event<OnDisconnectHandler>           OnDisconnect;
+		Event<OnAuthenticateHandler>         OnAuthenticate;
 
-		Event<OnDecodeErrorHandler>       OnDecodeError;
+		Event<OnDecodeErrorHandler>          OnDecodeError;
 
-		Event<OnSendHandler>              OnSend;
-		Event<OnReceiveHandler>           OnReceive;
+		Event<OnSendHandler>                 OnSend;
+		Event<OnReceiveHandler>              OnReceive;
 
-		Event<OnReceivePacketHandler>     OnReceivePacket;
-		Event<OnReceiveObjectHandler>     OnReceiveObject;
-		Event<OnReceiveMessageHandler>    OnReceiveMessage;
-		Event<OnReceiveWeatherHandler>    OnReceiveWeather;
-		Event<OnReceivePositionHandler>   OnReceivePosition;
-		Event<OnReceiveTelemetryHandler>  OnReceiveTelemetry;
+		Event<OnReceivePacketHandler>        OnReceivePacket;
+		Event<OnReceiveObjectHandler>        OnReceiveObject;
+		Event<OnReceiveMessageHandler>       OnReceiveMessage;
+		Event<OnReceiveWeatherHandler>       OnReceiveWeather;
+		Event<OnReceivePositionHandler>      OnReceivePosition;
+		Event<OnReceiveTelemetryHandler>     OnReceiveTelemetry;
+		Event<OnReceiveServerMessageHandler> OnReceiveServerMessage;
 
 		// @throw Exception
 		Client(std::string&& station, Path&& path, char symbol_table, char symbol_table_key);
@@ -756,6 +761,8 @@ namespace APRService
 		virtual void HandlePosition(const std::string& raw, Position& position);
 		// @throw Exception
 		virtual void HandleTelemetry(const std::string& raw, Telemetry& telemetry);
+		// @throw Exception
+		virtual void HandleServerMessage(const std::string& message);
 
 		// @throw Exception
 		virtual void HandleDecodeError(const std::string& raw, Exception* exception);

@@ -1471,8 +1471,12 @@ std::string APRService::Client::Position_ToString(const Path& path, const std::s
 		ss << symbol_table;
 		ss << sprintf("%03i%02u.%02u%c", (longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1), longitude_minutes, longitude_seconds, longitude_west_east);
 		ss << symbol_table_key;
-		ss << sprintf("/A=%06i", altitude);
-		ss << sprintf("%03u/%03u", course, speed);
+
+		if (altitude)
+			ss << sprintf("/A=%06i", altitude);
+
+		if (course || speed)
+			ss << sprintf("%03u/%03u", course, speed);
 	}
 	// else
 		; // TODO: implement compression

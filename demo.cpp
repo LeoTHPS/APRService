@@ -12,7 +12,7 @@
 
 #define APRS_BEACON                  false
 #define APRS_BEACON_COMMENT          "Test"
-#define APRS_BEACON_INTERVAL         (5 * 60)
+#define APRS_BEACON_INTERVAL         (10 * 60)
 #define APRS_BEACON_ALTITUDE         0
 #define APRS_BEACON_LATITUDE         0
 #define APRS_BEACON_LONGITUDE        0
@@ -71,14 +71,6 @@ bool demo_filesystem_write_decode_error(demo_filesystem* fs, const std::string& 
 
 		return false;
 	}
-
-	return true;
-}
-
-// @return true to reschedule
-bool demo_task_beacon(APRService::Service* service, uint32_t& seconds)
-{
-	service->SendPosition(0, 0, APRS_BEACON_ALTITUDE, APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRS_BEACON_COMMENT);
 
 	return true;
 }
@@ -183,12 +175,6 @@ void demo_service_on_authenticate(APRService::Service* service, const std::strin
 {
 	std::cout << "APRService::OnAuthenticate" << std::endl;
 	std::cout << "\tMessage: " << message << std::endl;
-
-#if APRS_BEACON
-	if (!service->IsReadOnly())
-		if (uint32_t seconds = APRS_BEACON_INTERVAL; demo_task_beacon(service, seconds))
-			service->ScheduleTask(seconds, std::bind(&demo_task_beacon, service, std::placeholders::_1));
-#endif
 }
 void demo_service_on_decode_error(demo_filesystem* fs, APRService::Service* service, const std::string& raw, const APRService::Exception* exception)
 {
@@ -243,6 +229,8 @@ int main(int argc, char* argv[])
 	{
 		APRService::Service service(APRS_STATION, APRS_PATH, APRS_SYMBOL_TABLE, APRS_SYMBOL_TABLE_KEY);
 
+		service.EnableAutoAck();
+		service.EnableMessaging();
 		service.EnableMonitorMode();
 		service.EnableCompression();
 
@@ -250,7 +238,7 @@ int main(int argc, char* argv[])
 		service.OnDisconnect.Register(std::bind(&demo_service_on_disconnect, &service));
 		service.OnAuthenticate.Register(std::bind(&demo_service_on_authenticate, &service, std::placeholders::_1));
 		service.OnDecodeError.Register(std::bind(&demo_service_on_decode_error, &fs, &service, std::placeholders::_1, std::placeholders::_2));
-		// service.OnReceivePacket.Register(std::bind(&demo_service_on_receive_packet, &service, std::placeholders::_1));
+		service.OnReceivePacket.Register(std::bind(&demo_service_on_receive_packet, &service, std::placeholders::_1));
 		service.OnReceiveObject.Register(std::bind(&demo_service_on_receive_object, &service, std::placeholders::_1));
 		service.OnReceiveMessage.Register(std::bind(&demo_service_on_receive_message, &service, std::placeholders::_1));
 		service.OnReceiveWeather.Register(std::bind(&demo_service_on_receive_weather, &service, std::placeholders::_1));
@@ -258,14 +246,43 @@ int main(int argc, char* argv[])
 		service.OnReceiveTelemetry.Register(std::bind(&demo_service_on_receive_telemetry, &service, std::placeholders::_1));
 		service.OnReceiveServerMessage.Register(std::bind(&demo_service_on_receive_server_message, &service, std::placeholders::_1));
 
-		service.Connect(APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE);
+#if APRS_BEACON
+		if (!service.IsReadOnly())
+			service.ScheduleTask(1, [&service](uint32_t& seconds) {
+				if (!service.IsAuthenticated())
+				{
+					seconds = 1;
+
+					return true;
+				}
+
+				seconds = APRS_BEACON_INTERVAL;
+
+				service.SendPosition(0, 0, APRS_BEACON_ALTITUDE, APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRS_BEACON_COMMENT);
+
+				return true;
+			});
+#endif
 
 #if APRS_OBJECT
 		if (auto object = service.AddObject(APRS_OBJECT_NAME, APRS_OBJECT_COMMENT, APRS_OBJECT_LATITUDE, APRS_OBJECT_LONGITUDE, APRS_OBJECT_SYMBOL_TABLE, APRS_OBJECT_SYMBOL_TABLE_KEY))
-			service.ScheduleTask(APRS_OBJECT_INTERVAL, [object](uint32_t& seconds) {
-				return object->Announce();
+			service.ScheduleTask(1, [&service, object](uint32_t& seconds) {
+				if (!service.IsAuthenticated())
+				{
+					seconds = 1;
+
+					return true;
+				}
+
+				seconds = APRS_OBJECT_INTERVAL;
+
+				object->Announce();
+
+				return true;
 			});
 #endif
+
+		service.Connect(APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE);
 
 		while (service.Update())
 #if defined(APRSERVICE_UNIX)

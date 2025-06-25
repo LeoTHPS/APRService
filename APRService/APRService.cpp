@@ -1235,9 +1235,9 @@ std::string APRService::Client::Object_ToString(const Path& path, const std::str
 		auto latitude_hours       = aprservice_from_float<int16_t>(latitude, latitude);
 		auto latitude_minutes     = aprservice_from_float<uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
 		auto latitude_seconds     = aprservice_from_float<uint16_t>((latitude * 6000) / 60, latitude);
-		auto longitude_hours      = aprservice_from_float<int16_t>(longitude, latitude);
-		auto longitude_minutes    = aprservice_from_float<uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, latitude);
-		auto longitude_seconds    = aprservice_from_float<uint16_t>((longitude * 6000) / 60, latitude);
+		auto longitude_hours      = aprservice_from_float<int16_t>(longitude, longitude);
+		auto longitude_minutes    = aprservice_from_float<uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, longitude);
+		auto longitude_seconds    = aprservice_from_float<uint16_t>((longitude * 6000) / 60, longitude);
 
 		ss << sprintf("%02i%02u.%02u%c", (latitude_hours >= 0) ? latitude_hours : (latitude_hours * -1), latitude_minutes, latitude_seconds, latitude_north_south);
 		ss << symbol_table;
@@ -1463,9 +1463,9 @@ std::string APRService::Client::Position_ToString(const Path& path, const std::s
 		auto latitude_hours       = aprservice_from_float<int16_t>(latitude, latitude);
 		auto latitude_minutes     = aprservice_from_float<uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
 		auto latitude_seconds     = aprservice_from_float<uint16_t>((latitude * 6000) / 60, latitude);
-		auto longitude_hours      = aprservice_from_float<int16_t>(longitude, latitude);
-		auto longitude_minutes    = aprservice_from_float<uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, latitude);
-		auto longitude_seconds    = aprservice_from_float<uint16_t>((longitude * 6000) / 60, latitude);
+		auto longitude_hours      = aprservice_from_float<int16_t>(longitude, longitude);
+		auto longitude_minutes    = aprservice_from_float<uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, longitude);
+		auto longitude_seconds    = aprservice_from_float<uint16_t>((longitude * 6000) / 60, longitude);
 
 		ss << sprintf("%02i%02u.%02u%c", (latitude_hours >= 0) ? latitude_hours : (latitude_hours * -1), latitude_minutes, latitude_seconds, latitude_north_south);
 		ss << symbol_table;

@@ -87,6 +87,7 @@ struct aprservice_message_callback_context
 struct aprservice
 {
 	bool                                                                            is_connected;
+	bool                                                                            is_monitoring;
 	bool                                                                            is_auth_verified;
 
 	aprservice_io*                                                                  io;
@@ -145,14 +146,19 @@ struct aprservice_command
 template<APRSERVICE_EVENTS EVENT>
 struct aprservice_get_event_information;
 template<>
+struct aprservice_get_event_information<APRSERVICE_EVENT_CONNECT>
+{
+	typedef aprservice_event_information_connect type;
+};
+template<>
+struct aprservice_get_event_information<APRSERVICE_EVENT_DISCONNECT>
+{
+	typedef aprservice_event_information_disconnect type;
+};
+template<>
 struct aprservice_get_event_information<APRSERVICE_EVENT_AUTHENTICATE>
 {
 	typedef aprservice_event_information_authenticate type;
-};
-template<>
-struct aprservice_get_event_information<APRSERVICE_EVENT_SNIFF_MESSAGE>
-{
-	typedef aprservice_event_information_sniff_message type;
 };
 template<>
 struct aprservice_get_event_information<APRSERVICE_EVENT_RECEIVE_PACKET>
@@ -170,41 +176,20 @@ struct aprservice_get_event_information<APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE>
 	typedef aprservice_event_information_receive_server_message type;
 };
 
-constexpr const aprservice_error aprservice_errors[APRSERVICE_ERRORS_COUNT] =
-{
-	{ APRSERVICE_ERROR_SUCCESS,                    "Success" },
-	{ APRSERVICE_ERROR_TIMEOUT,                    "Timeout" },
-	{ APRSERVICE_ERROR_READ_ONLY,                  "Read only" },
-	{ APRSERVICE_ERROR_OBJECT_DEAD,                "Object is dead" },
-	{ APRSERVICE_ERROR_SOCKET_ERROR,               "A socket API failed" },
-	{ APRSERVICE_ERROR_SYSTEM_ERROR,               "A system API failed" },
-	{ APRSERVICE_ERROR_DISCONNECTED,               "Disconnected from APRS-IS" },
-	{ APRSERVICE_ERROR_INVALID_ARGUMENT,           "Invalid argument" },
-	{ APRSERVICE_ERROR_COMMAND_ALREADY_REGISTERED, "Command already registered" },
-	{ APRSERVICE_ERROR_,                           "" }
-};
-
-template<size_t ... I>
-consteval bool aprservice_errors_assert(std::index_sequence<I ...>)
-{
-	return ((aprservice_errors[I].code == I) && ...);
-}
-static_assert(aprservice_errors_assert(std::make_index_sequence<APRSERVICE_ERRORS_COUNT> {}));
-
-#define                 aprservice_log(...)                      std::cerr << __VA_ARGS__ << std::endl
+#define                                    aprservice_log(...)                      std::cerr << __VA_ARGS__ << std::endl
 #if defined(APRSERVICE_UNIX)
-#define                 aprservice_log_error(function)           aprservice_log_error_ex(function, errno)
+	#define                                aprservice_log_error(function)           aprservice_log_error_ex(function, errno)
 #elif defined(APRSERVICE_WIN32)
-#define                 aprservice_log_error(function)           aprservice_log_error_ex(function, GetLastError())
+	#define                                aprservice_log_error(function)           aprservice_log_error_ex(function, GetLastError())
 #endif
-#define                 aprservice_log_error_ex(function, error) std::cerr << #function " returned " << error << std::endl
+#define                                    aprservice_log_error_ex(function, error) std::cerr << #function " returned " << error << std::endl
 
-bool                    aprservice_io_is_connected(aprservice_io* io);
-void                    aprservice_io_disconnect(aprservice_io* io);
-APRSERVICE_ERRORS       aprservice_io_read(aprservice_io* io, char* buffer, size_t size, size_t* number_of_bytes_received);
-APRSERVICE_ERRORS       aprservice_io_write(aprservice_io* io, const char* buffer, size_t size, size_t* number_of_bytes_sent);
+bool                                       aprservice_io_is_connected(aprservice_io* io);
+void                                       aprservice_io_disconnect(aprservice_io* io);
+int                                        aprservice_io_read(aprservice_io* io, char* buffer, size_t size, size_t* number_of_bytes_received);
+int                                        aprservice_io_write(aprservice_io* io, const char* buffer, size_t size, size_t* number_of_bytes_sent);
 
-APRSERVICE_ERRORS       aprservice_io_init(aprservice* service, aprservice_io** io)
+bool                                       aprservice_io_init(aprservice* service, aprservice_io** io)
 {
 	*io = new aprservice_io
 	{
@@ -220,13 +205,13 @@ APRSERVICE_ERRORS       aprservice_io_init(aprservice* service, aprservice_io** 
 
 		delete *io;
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return false;
 	}
 #endif
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return true;
 }
-void                    aprservice_io_deinit(aprservice_io* io)
+void                                       aprservice_io_deinit(aprservice_io* io)
 {
 	if (aprservice_io_is_connected(io))
 		aprservice_io_disconnect(io);
@@ -237,14 +222,14 @@ void                    aprservice_io_deinit(aprservice_io* io)
 
 	delete io;
 }
-bool                    aprservice_io_is_connected(aprservice_io* io)
+bool                                       aprservice_io_is_connected(aprservice_io* io)
 {
 	return io->is_connected;
 }
-APRSERVICE_ERRORS       aprservice_io_connect(aprservice_io* io, const char* host, uint16_t port)
+bool                                       aprservice_io_connect(aprservice_io* io, const char* host, uint16_t port)
 {
 	if (aprservice_io_is_connected(io))
-		return APRSERVICE_ERROR_SUCCESS;
+		return true;
 
 resolve_host:
 	addrinfo  dns_hint = { .ai_family = AF_UNSPEC };
@@ -257,12 +242,12 @@ resolve_host:
 			case EAI_FAIL:
 			case EAI_AGAIN:
 			case EAI_NONAME:
-				return APRSERVICE_ERROR_SOCKET_ERROR;
+				return false;
 		}
 
 		aprservice_log_error_ex(getaddrinfo, error);
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return false;
 	}
 
 	union
@@ -294,7 +279,7 @@ resolve_host:
 	freeaddrinfo(dns_result);
 
 	if (!dns_result_address_length)
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return false;
 
 socket_open:
 #if defined(APRSERVICE_UNIX)
@@ -302,14 +287,14 @@ socket_open:
 	{
 		aprservice_log_error(socket);
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return false;
 	}
 #elif defined(APRSERVICE_WIN32)
 	if ((io->socket = WSASocketW(dns_result_address->sa_family, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, 0)) == INVALID_SOCKET)
 	{
 		aprservice_log_error(WSASocketW);
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return false;
 	}
 #endif
 
@@ -321,7 +306,7 @@ socket_connect:
 
 		close(io->socket);
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return false;
 	}
 
 	int flags;
@@ -332,7 +317,7 @@ socket_connect:
 
 		close(io->socket);
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return false;
 	}
 
 	if (fcntl(io->socket, F_SETFL, flags | O_NONBLOCK) == -1)
@@ -341,7 +326,7 @@ socket_connect:
 
 		close(io->socket);
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return false;
 	}
 #elif defined(APRSERVICE_WIN32)
 	if (connect(io->socket, dns_result_address, dns_result_address_length) == SOCKET_ERROR)
@@ -350,7 +335,7 @@ socket_connect:
 
 		closesocket(io->socket);
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return false;
 	}
 
 	u_long arg = 1;
@@ -361,15 +346,15 @@ socket_connect:
 
 		closesocket(io->socket);
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return false;
 	}
 #endif
 
 	io->is_connected = true;
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return true;
 }
-void                    aprservice_io_disconnect(aprservice_io* io)
+void                                       aprservice_io_disconnect(aprservice_io* io)
 {
 	if (aprservice_io_is_connected(io))
 	{
@@ -387,7 +372,7 @@ void                    aprservice_io_disconnect(aprservice_io* io)
 		io->is_connected = false;
 	}
 }
-APRSERVICE_ERRORS       aprservice_io_flush(aprservice_io* io)
+bool                                       aprservice_io_flush(aprservice_io* io)
 {
 	size_t number_of_bytes_sent;
 
@@ -395,30 +380,36 @@ APRSERVICE_ERRORS       aprservice_io_flush(aprservice_io* io)
 	{
 		if (buffer->offset < buffer->value.length())
 		{
-			if (auto error = aprservice_io_write(io, &buffer->value[buffer->offset], buffer->value.length() - buffer->offset, &number_of_bytes_sent))
-				return error;
+			switch (aprservice_io_write(io, &buffer->value[buffer->offset], buffer->value.length() - buffer->offset, &number_of_bytes_sent))
+			{
+				case 0:  return false;
+				case -1: return true;
+			}
 
 			buffer->offset += number_of_bytes_sent;
 		}
 
 		if (buffer->offset >= buffer->value.length())
 		{
-			if (auto error = aprservice_io_write(io, &"\r\n"[buffer->offset - buffer->value.length()], (buffer->value.length() + 2) - buffer->offset, &number_of_bytes_sent))
-				return error;
+			switch (aprservice_io_write(io, &"\r\n"[buffer->offset - buffer->value.length()], (buffer->value.length() + 2) - buffer->offset, &number_of_bytes_sent))
+			{
+				case 0:  return false;
+				case -1: return true;
+			}
 
 			if ((buffer->offset += number_of_bytes_sent) == (buffer->value.length() + 2))
 				io->tx_buffer_queue.pop();
 		}
 	}
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return true;
 }
-APRSERVICE_ERRORS       aprservice_io_read(aprservice_io* io, char* buffer, size_t size, size_t* number_of_bytes_received)
+// @return 0 on disconnect
+// @return -1 on would block
+int                                        aprservice_io_read(aprservice_io* io, char* buffer, size_t size, size_t* number_of_bytes_received)
 {
 	if (!aprservice_io_is_connected(io))
-		return APRSERVICE_ERROR_DISCONNECTED;
-
-	*number_of_bytes_received = 0;
+		return 0;
 
 #if defined(APRSERVICE_UNIX)
 	ssize_t bytes_received;
@@ -428,16 +419,16 @@ APRSERVICE_ERRORS       aprservice_io_read(aprservice_io* io, char* buffer, size
 		auto error = errno;
 
 		if ((error == EAGAIN) || (error == EWOULDBLOCK))
-			return APRSERVICE_ERROR_SUCCESS;
+			return -1;
 
 		aprservice_io_disconnect(io);
 
 		if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
-			return APRSERVICE_ERROR_DISCONNECTED;
+			return 0;
 
 		aprservice_log_error_ex(recv, error);
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return 0;
 	}
 
 	*number_of_bytes_received = bytes_received;
@@ -451,7 +442,7 @@ APRSERVICE_ERRORS       aprservice_io_read(aprservice_io* io, char* buffer, size
 		switch (error)
 		{
 			case WSAEWOULDBLOCK:
-				return APRSERVICE_ERROR_SUCCESS;
+				return -1;
 
 			case WSAENETDOWN:
 			case WSAENETRESET:
@@ -459,23 +450,23 @@ APRSERVICE_ERRORS       aprservice_io_read(aprservice_io* io, char* buffer, size
 			case WSAECONNRESET:
 			case WSAECONNABORTED:
 				aprservice_io_disconnect(io);
-				return APRSERVICE_ERROR_DISCONNECTED;
+				return 0;
 		}
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return 0;
 	}
 
 	*number_of_bytes_received = bytes_received;
 #endif
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return 1;
 }
-APRSERVICE_ERRORS       aprservice_io_write(aprservice_io* io, const char* buffer, size_t size, size_t* number_of_bytes_sent)
+// @return 0 on disconnect
+// @return -1 on would block
+int                                        aprservice_io_write(aprservice_io* io, const char* buffer, size_t size, size_t* number_of_bytes_sent)
 {
 	if (!aprservice_io_is_connected(io))
-		return APRSERVICE_ERROR_DISCONNECTED;
-
-	*number_of_bytes_sent = 0;
+		return false;
 
 #if defined(APRSERVICE_UNIX)
 	ssize_t bytes_sent;
@@ -485,16 +476,16 @@ APRSERVICE_ERRORS       aprservice_io_write(aprservice_io* io, const char* buffe
 		auto error = errno;
 
 		if ((error == EAGAIN) || (error == EWOULDBLOCK))
-			return APRSERVICE_ERROR_SUCCESS;
+			return -1;
 
 		aprservice_io_disconnect(sn);
 
 		if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
-			return APRSERVICE_ERROR_DISCONNECTED;
+			return 0;
 
 		aprservice_log_error_ex(send, error);
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return 0;
 	}
 
 	*number_of_bytes_sent = bytes_sent;
@@ -508,7 +499,7 @@ APRSERVICE_ERRORS       aprservice_io_write(aprservice_io* io, const char* buffe
 		switch (error)
 		{
 			case WSAEWOULDBLOCK:
-				return APRSERVICE_ERROR_SUCCESS;
+				return -1;
 
 			case WSAENETDOWN:
 			case WSAENETRESET:
@@ -517,25 +508,30 @@ APRSERVICE_ERRORS       aprservice_io_write(aprservice_io* io, const char* buffe
 			case WSAECONNABORTED:
 			case WSAEHOSTUNREACH:
 				aprservice_io_disconnect(io);
-				return APRSERVICE_ERROR_DISCONNECTED;
+				return 0;
 		}
 
 		aprservice_log_error_ex(send, error);
 
-		return APRSERVICE_ERROR_SOCKET_ERROR;
+		return 0;
 	}
 
 	*number_of_bytes_sent = bytes_sent;
 #endif
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return 1;
 }
-APRSERVICE_ERRORS       aprservice_io_read_line(aprservice_io* io, std::string& value)
+// @return 0 on disconnect
+// @return -1 on would block
+int                                        aprservice_io_read_line(aprservice_io* io, std::string& value)
 {
 	size_t number_of_bytes_received;
 
-	if (auto error = aprservice_io_read(io, &io->rx_buffer_tmp[0], io->rx_buffer_tmp.max_size(), &number_of_bytes_received))
-		return error;
+	switch (aprservice_io_read(io, &io->rx_buffer_tmp[0], io->rx_buffer_tmp.max_size(), &number_of_bytes_received))
+	{
+		case 0:  return 0;
+		case -1: return -1;
+	}
 
 	io->rx_buffer.append(&io->rx_buffer_tmp[0], number_of_bytes_received);
 
@@ -544,17 +540,24 @@ APRSERVICE_ERRORS       aprservice_io_read_line(aprservice_io* io, std::string& 
 		value         = io->rx_buffer.substr(0, i);
 		io->rx_buffer = io->rx_buffer.substr(i + 2);
 
-		return APRSERVICE_ERROR_SUCCESS;
+		return 1;
 	}
 
-	return APRSERVICE_ERROR_TIMEOUT;
+	return -1;
 }
-APRSERVICE_ERRORS       aprservice_io_write_line(aprservice_io* io, std::string&& value)
+bool                                       aprservice_io_write_line(aprservice_io* io, std::string&& value)
 {
 	size_t number_of_bytes_sent[2];
 
-	if (auto error = aprservice_io_write(io, value.c_str(), value.length(), &number_of_bytes_sent[0]))
-		return error;
+	switch (aprservice_io_write(io, value.c_str(), value.length(), &number_of_bytes_sent[0]))
+	{
+		case 0:
+			return false;
+
+		case -1:
+			number_of_bytes_sent[0] = 0;
+			break;
+	}
 
 	if (number_of_bytes_sent[0] != value.length())
 	{
@@ -563,27 +566,30 @@ APRSERVICE_ERRORS       aprservice_io_write_line(aprservice_io* io, std::string&
 			.offset = number_of_bytes_sent[0]
 		});
 
-		return APRSERVICE_ERROR_TIMEOUT;
+		return true;
 	}
 
-	if (auto error = aprservice_io_write(io, "\r\n", 2, &number_of_bytes_sent[1]))
-		return error;
+	switch (aprservice_io_write(io, "\r\n", 2, &number_of_bytes_sent[1]))
+	{
+		case 0:
+			return false;
+
+		case -1:
+			number_of_bytes_sent[1] = 0;
+			break;
+	}
 
 	if (number_of_bytes_sent[1] != 2)
-	{
 		io->tx_buffer_queue.push({
 			.value  = std::move(value),
 			.offset = number_of_bytes_sent[0] + number_of_bytes_sent[1]
 		});
 
-		return APRSERVICE_ERROR_TIMEOUT;
-	}
-
-	return APRSERVICE_ERROR_SUCCESS;
+	return true;
 }
 
 template<APRSERVICE_EVENTS EVENT>
-constexpr bool          aprservice_event_execute(aprservice* service, typename aprservice_get_event_information<EVENT>::type&& event)
+constexpr bool                             aprservice_event_execute(aprservice* service, typename aprservice_get_event_information<EVENT>::type&& event)
 {
 	if (EVENT >= APRSERVICE_EVENTS_COUNT)
 		return false;
@@ -597,9 +603,9 @@ constexpr bool          aprservice_event_execute(aprservice* service, typename a
 
 	return true;
 }
-#define                 aprservice_event_execute(service, event, ...) aprservice_event_execute<event>(service, __VA_ARGS__)
+#define                                    aprservice_event_execute(service, event, ...) aprservice_event_execute<event>(service, __VA_ARGS__)
 
-bool                    aprservice_regex_match(std::cmatch& match, const std::regex& regex, const char* string)
+bool                                       aprservice_regex_match(std::cmatch& match, const std::regex& regex, const char* string)
 {
 	try
 	{
@@ -616,7 +622,7 @@ bool                    aprservice_regex_match(std::cmatch& match, const std::re
 	return true;
 }
 
-bool                    aprservice_authentication_from_string(aprservice_auth* auth, const char* string, bool is_verified)
+bool                                       aprservice_authentication_from_string(aprservice_auth* auth, const char* string, bool is_verified)
 {
 	static const std::regex regex("^logresp ([^ ]+) ([^ ,]+)[^ ]* ?(.*)$");
 
@@ -635,17 +641,22 @@ bool                    aprservice_authentication_from_string(aprservice_auth* a
 	return true;
 }
 
-enum APRSERVICE_ERRORS  aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id);
-enum APRSERVICE_ERRORS  aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id);
+bool                                       aprservice_poll_io(struct aprservice* service);
+bool                                       aprservice_poll_tasks(struct aprservice* service);
+bool                                       aprservice_poll_messages(struct aprservice* service);
 
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_init(struct aprservice** service, const char* station, struct aprs_path* path, char symbol_table, char symbol_table_key)
+bool                                       aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id);
+bool                                       aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id);
+
+struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, struct aprs_path* path, char symbol_table, char symbol_table_key)
 {
-	if (!service || !station || !path)
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+	if (!station || !path)
+		return nullptr;
 
-	*service = new aprservice
+	auto service = new aprservice
 	{
 		.is_connected     = false,
+		.is_monitoring    = false,
 		.is_auth_verified = false,
 
 		.io               = nullptr,
@@ -663,33 +674,33 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_init(struct aprservice** serv
 		.telemetry_count  = 0
 	};
 
-	if (auto error = aprservice_io_init(*service, &(*service)->io))
+	if (!aprservice_io_init(service, &service->io))
 	{
-		aprservice_log_error_ex(aprservice_io_init, error);
+		aprservice_log_error_ex(aprservice_io_init, false);
 
-		delete *service;
+		delete service;
 
-		return error;
+		return nullptr;
 	}
 
-	if (!((*service)->position = aprs_packet_position_init(station, APRSERVICE_TOCALL, path, 0, 0, 0, 0, 0, "", symbol_table, symbol_table_key)))
+	if (!(service->position = aprs_packet_position_init(station, APRSERVICE_TOCALL, path, 0, 0, 0, 0, 0, "", symbol_table, symbol_table_key)))
 	{
 		aprservice_log_error_ex(aprs_packet_position_init, nullptr);
 
-		aprservice_io_deinit((*service)->io);
+		aprservice_io_deinit(service->io);
 
-		delete *service;
+		delete service;
 
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return nullptr;
 	}
 
-	aprs_packet_position_enable_messaging((*service)->position, true);
+	aprs_packet_position_enable_messaging(service->position, true);
 
 	aprs_path_add_reference(path);
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return service;
 }
-void                    APRSERVICE_CALL aprservice_deinit(struct aprservice* service)
+void                       APRSERVICE_CALL aprservice_deinit(struct aprservice* service)
 {
 	if (aprservice_is_connected(service))
 		aprservice_disconnect(service);
@@ -733,56 +744,60 @@ void                    APRSERVICE_CALL aprservice_deinit(struct aprservice* ser
 
 	delete service;
 }
-bool                    APRSERVICE_CALL aprservice_is_read_only(struct aprservice* service)
+bool                       APRSERVICE_CALL aprservice_is_read_only(struct aprservice* service)
 {
 	if (service->auth.state == APRSERVICE_AUTH_STATE_RECEIVED)
 		return !service->auth.success || !service->auth.verified;
 
 	return false;
 }
-bool                    APRSERVICE_CALL aprservice_is_connected(struct aprservice* service)
+bool                       APRSERVICE_CALL aprservice_is_connected(struct aprservice* service)
 {
 	return service->is_connected;
 }
-bool                    APRSERVICE_CALL aprservice_is_authenticated(struct aprservice* service)
+bool                       APRSERVICE_CALL aprservice_is_authenticated(struct aprservice* service)
 {
 	if (service->auth.state == APRSERVICE_AUTH_STATE_RECEIVED)
 		return service->auth.success && service->auth.verified;
 
 	return false;
 }
-bool                    APRSERVICE_CALL aprservice_is_authenticating(struct aprservice* service)
+bool                       APRSERVICE_CALL aprservice_is_authenticating(struct aprservice* service)
 {
 	return service->auth.state == APRSERVICE_AUTH_STATE_SENT;
 }
-bool                    APRSERVICE_CALL aprservice_is_compression_enabled(struct aprservice* service)
+bool                       APRSERVICE_CALL aprservice_is_monitoring_enabled(struct aprservice* service)
+{
+	return service->is_monitoring;
+}
+bool                       APRSERVICE_CALL aprservice_is_compression_enabled(struct aprservice* service)
 {
 	return aprs_packet_position_is_compressed(service->position);
 }
-struct aprs_path*       APRSERVICE_CALL aprservice_get_path(struct aprservice* service)
+struct aprs_path*          APRSERVICE_CALL aprservice_get_path(struct aprservice* service)
 {
 	return service->path;
 }
-uint32_t                APRSERVICE_CALL aprservice_get_time(struct aprservice* service)
+uint32_t                   APRSERVICE_CALL aprservice_get_time(struct aprservice* service)
 {
 	return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - service->time;
 }
-const char*             APRSERVICE_CALL aprservice_get_station(struct aprservice* service)
+const char*                APRSERVICE_CALL aprservice_get_station(struct aprservice* service)
 {
 	return service->station.c_str();
 }
-char                    APRSERVICE_CALL aprservice_get_symbol_table(struct aprservice* service)
+char                       APRSERVICE_CALL aprservice_get_symbol_table(struct aprservice* service)
 {
 	return aprs_packet_position_get_symbol_table(service->position);
 }
-char                    APRSERVICE_CALL aprservice_get_symbol_table_key(struct aprservice* service)
+char                       APRSERVICE_CALL aprservice_get_symbol_table_key(struct aprservice* service)
 {
 	return aprs_packet_position_get_symbol_table_key(service->position);
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_set_path(struct aprservice* service, struct aprs_path* value)
+bool                       APRSERVICE_CALL aprservice_set_path(struct aprservice* service, struct aprs_path* value)
 {
 	if (!value)
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return false;
 
 	aprs_path_deinit(service->path);
 
@@ -790,69 +805,205 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_set_path(struct aprservice* s
 
 	aprs_path_add_reference(value);
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return true;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_set_symbol(struct aprservice* service, char table, char key)
+bool                       APRSERVICE_CALL aprservice_set_symbol(struct aprservice* service, char table, char key)
 {
-	return aprs_packet_position_set_symbol(service->position, table, key) ? APRSERVICE_ERROR_SUCCESS : APRSERVICE_ERROR_INVALID_ARGUMENT;
+	if (!aprs_packet_position_set_symbol(service->position, table, key))
+	{
+		aprservice_log_error_ex(aprs_packet_position_set_symbol, false);
+
+		return false;
+	}
+
+	return true;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_set_comment(struct aprservice* service, const char* value)
+bool                       APRSERVICE_CALL aprservice_set_comment(struct aprservice* service, const char* value)
 {
-	return aprs_packet_position_set_comment(service->position, value) ? APRSERVICE_ERROR_SUCCESS : APRSERVICE_ERROR_INVALID_ARGUMENT;
+	if (!aprs_packet_position_set_comment(service->position, value))
+	{
+		aprservice_log_error_ex(aprs_packet_position_set_comment, false);
+
+		return false;
+	}
+
+	return true;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_set_position(struct aprservice* service, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
+bool                       APRSERVICE_CALL aprservice_set_position(struct aprservice* service, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
 {
 	if (!aprs_packet_position_set_speed(service->position, speed))
 	{
 		aprservice_log_error_ex(aprs_packet_position_set_speed, false);
 
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return false;
 	}
 
 	if (!aprs_packet_position_set_course(service->position, course))
 	{
 		aprservice_log_error_ex(aprs_packet_position_set_course, false);
 
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return false;
 	}
 
 	if (!aprs_packet_position_set_altitude(service->position, altitude))
 	{
 		aprservice_log_error_ex(aprs_packet_position_set_altitude, false);
 
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return false;
 	}
 
 	if (!aprs_packet_position_set_latitude(service->position, latitude))
 	{
 		aprservice_log_error_ex(aprs_packet_position_set_latitude, false);
 
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return false;
 	}
 
 	if (!aprs_packet_position_set_longitude(service->position, longitude))
 	{
 		aprservice_log_error_ex(aprs_packet_position_set_longitude, false);
 
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return false;
 	}
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return true;
 }
-void                    APRSERVICE_CALL aprservice_set_event_handler(struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler handler, void* param)
+void                       APRSERVICE_CALL aprservice_set_event_handler(struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler handler, void* param)
 {
 	if (event < APRSERVICE_EVENTS_COUNT)
 		service->events[event] = { .handler = handler, .handler_param = param };
 }
-void                    APRSERVICE_CALL aprservice_set_default_event_handler(struct aprservice* service, aprservice_event_handler handler, void* param)
+void                       APRSERVICE_CALL aprservice_set_default_event_handler(struct aprservice* service, aprservice_event_handler handler, void* param)
 {
 	service->events[APRSERVICE_EVENTS_COUNT] = { .handler = handler, .handler_param = param };
 }
-void                    APRSERVICE_CALL aprservice_enable_compression(struct aprservice* service, bool value)
+void                       APRSERVICE_CALL aprservice_enable_monitoring(struct aprservice* service, bool value)
+{
+	service->is_monitoring = value;
+}
+void                       APRSERVICE_CALL aprservice_enable_compression(struct aprservice* service, bool value)
 {
 	aprs_packet_position_enable_compression(service->position, value);
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_poll(struct aprservice* service)
+bool                       APRSERVICE_CALL aprservice_poll(struct aprservice* service)
+{
+	if (!aprservice_poll_tasks(service))
+	{
+		aprservice_log_error_ex(aprservice_poll_tasks, false);
+
+		return false;
+	}
+
+	if (!aprservice_poll_messages(service))
+	{
+		aprservice_log_error_ex(aprservice_poll_messages, false);
+
+		return false;
+	}
+
+	if (!aprservice_poll_io(service) && aprservice_is_connected(service))
+	{
+		aprservice_log_error_ex(aprservice_poll_io, false);
+
+		return false;
+	}
+
+	return true;
+}
+bool                                       aprservice_poll_io(struct aprservice* service)
+{
+	do
+	{
+		if (!aprservice_io_flush(service->io))
+		{
+			aprservice_disconnect(service);
+
+			return false;
+		}
+
+		switch (aprservice_io_read_line(service->io, service->line))
+		{
+			case 0:
+				aprservice_disconnect(service);
+				return false;
+
+			case -1:
+				return true;
+		}
+
+		if (service->line.starts_with("# "))
+		{
+			if (aprservice_is_authenticating(service) && aprservice_authentication_from_string(&service->auth, &service->line[2], service->is_auth_verified))
+				aprservice_event_execute(service, APRSERVICE_EVENT_AUTHENTICATE, { .message = service->auth.message.c_str(), .success = service->auth.success, .verified = service->auth.verified });
+			else
+				aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE, { .message = &service->line[2] });
+		}
+		else if (auto packet = aprs_packet_init_from_string(service->line.c_str()))
+		{
+			auto packet_type   = aprs_packet_get_type(packet);
+			auto packet_sender = aprs_packet_get_sender(packet);
+
+			aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_PACKET, { .packet = packet });
+
+			if (packet_type == APRS_PACKET_TYPE_MESSAGE)
+			{
+				auto packet_message_id          = aprs_packet_message_get_id(packet);
+				auto packet_message_type        = aprs_packet_message_get_type(packet);
+				auto packet_message_content     = aprs_packet_message_get_content(packet);
+				auto packet_message_destination = aprs_packet_message_get_destination(packet);
+
+				switch (packet_message_type)
+				{
+					case APRS_MESSAGE_TYPE_ACK:
+					case APRS_MESSAGE_TYPE_REJECT:
+						if (packet_message_id && !stricmp(aprservice_get_station(service), packet_message_destination))
+							if (auto it = service->message_callbacks_index.find(packet_sender); it != service->message_callbacks_index.end())
+								for (auto jt = it->second.begin(); jt != it->second.end(); ++jt)
+									if (!jt->id.compare(packet_message_id))
+									{
+										jt->callback(service, (packet_message_type == APRS_MESSAGE_TYPE_ACK) ? APRSERVICE_MESSAGE_ERROR_SUCCESS : APRSERVICE_MESSAGE_ERROR_REJECTED, jt->callback_param);
+
+										for (auto lt = service->message_callbacks.begin(); lt != service->message_callbacks.end(); ++lt)
+											if (*lt == &*jt)
+											{
+												service->message_callbacks.erase(lt);
+
+												break;
+											}
+
+										it->second.erase(jt);
+
+										if (it->second.empty())
+											service->message_callbacks_index.erase(it);
+
+										break;
+									}
+						break;
+
+					case APRS_MESSAGE_TYPE_MESSAGE:
+						if (stricmp(aprservice_get_station(service), packet_message_destination))
+						{
+							if (aprservice_is_monitoring_enabled(service))
+								aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
+						}
+						else
+						{
+							if (packet_message_id)
+								aprservice_send_message_ack(service, packet_sender, packet_message_id);
+
+							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
+						}
+						break;
+				}
+			}
+
+			aprs_packet_deinit(packet);
+		}
+	} while (aprservice_is_connected(service));
+
+	return false;
+}
+bool                                       aprservice_poll_tasks(struct aprservice* service)
 {
 	for (auto it = service->tasks.begin(); it != service->tasks.end(); )
 	{
@@ -883,6 +1034,10 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_poll(struct aprservice* servi
 		service->tasks.erase(it++);
 	}
 
+	return true;
+}
+bool                                       aprservice_poll_messages(struct aprservice* service)
+{
 	service->message_callbacks.remove_if([service](aprservice_message_callback_context* context) {
 		if (context->timeout < aprservice_get_time(service))
 			return false;
@@ -908,133 +1063,50 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_poll(struct aprservice* servi
 		return true;
 	});
 
-	if (aprservice_is_connected(service))
-	{
-		APRSERVICE_ERRORS error;
-
-		if (!(error = aprservice_io_flush(service->io)))
-			while (!(error = aprservice_io_read_line(service->io, service->line)))
-			{
-				if (service->line.starts_with("# "))
-				{
-					if (aprservice_is_authenticating(service) && aprservice_authentication_from_string(&service->auth, &service->line[2], service->is_auth_verified))
-						aprservice_event_execute(service, APRSERVICE_EVENT_AUTHENTICATE, { .message = service->auth.message.c_str(), .success = service->auth.success, .verified = service->auth.verified });
-					else
-						aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE, { .message = &service->line[2] });
-				}
-				else if (auto packet = aprs_packet_init_from_string(service->line.c_str()))
-				{
-					auto packet_type   = aprs_packet_get_type(packet);
-					auto packet_sender = aprs_packet_get_sender(packet);
-
-					aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_PACKET, { .packet = packet });
-
-					if (packet_type == APRS_PACKET_TYPE_MESSAGE)
-					{
-						auto packet_message_id          = aprs_packet_message_get_id(packet);
-						auto packet_message_type        = aprs_packet_message_get_type(packet);
-						auto packet_message_content     = aprs_packet_message_get_content(packet);
-						auto packet_message_destination = aprs_packet_message_get_destination(packet);
-
-						switch (packet_message_type)
-						{
-							case APRS_MESSAGE_TYPE_ACK:
-							case APRS_MESSAGE_TYPE_REJECT:
-								if (packet_message_id && !stricmp(aprservice_get_station(service), packet_message_destination))
-									if (auto it = service->message_callbacks_index.find(packet_sender); it != service->message_callbacks_index.end())
-										for (auto jt = it->second.begin(); jt != it->second.end(); ++jt)
-											if (!jt->id.compare(packet_message_id))
-											{
-												jt->callback(service, (packet_message_type == APRS_MESSAGE_TYPE_ACK) ? APRSERVICE_MESSAGE_ERROR_SUCCESS : APRSERVICE_MESSAGE_ERROR_REJECTED, jt->callback_param);
-
-												for (auto lt = service->message_callbacks.begin(); lt != service->message_callbacks.end(); ++lt)
-													if (*lt == &*jt)
-													{
-														service->message_callbacks.erase(lt);
-
-														break;
-													}
-
-												it->second.erase(jt);
-
-												if (it->second.empty())
-													service->message_callbacks_index.erase(it);
-
-												break;
-											}
-								break;
-
-							case APRS_MESSAGE_TYPE_MESSAGE:
-								if (stricmp(aprservice_get_station(service), packet_message_destination))
-									aprservice_event_execute(service, APRSERVICE_EVENT_SNIFF_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
-								else
-								{
-									if (packet_message_id)
-										aprservice_send_message_ack(service, packet_sender, packet_message_id);
-
-									aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content });
-								}
-								break;
-						}
-					}
-
-					aprs_packet_deinit(packet);
-				}
-			}
-
-		switch (error)
-		{
-			case APRSERVICE_ERROR_TIMEOUT:
-				return APRSERVICE_ERROR_SUCCESS;
-
-			case APRSERVICE_ERROR_DISCONNECTED:
-				aprservice_disconnect(service);
-				break;
-		}
-
-		return error;
-	}
-
-	return APRSERVICE_ERROR_DISCONNECTED;
+	return true;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send(struct aprservice* service, const char* raw)
+bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, const char* raw)
 {
 	if (!aprservice_is_connected(service))
-		return APRSERVICE_ERROR_DISCONNECTED;
+		return false;
 
 	if ((service->auth.state != APRSERVICE_AUTH_STATE_NONE) && aprservice_is_read_only(service))
-		return APRSERVICE_ERROR_READ_ONLY;
+		return false;
 
-	if (auto error = aprservice_io_write_line(service->io, raw))
+	if (!aprservice_io_write_line(service->io, raw))
 	{
+		aprservice_log_error_ex(aprservice_io_write_line, false);
+
 		aprservice_disconnect(service);
 
-		return error;
+		return false;
 	}
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return true;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send(struct aprservice* service, std::string&& raw)
+bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, std::string&& raw)
 {
 	if (!aprservice_is_connected(service))
-		return APRSERVICE_ERROR_DISCONNECTED;
+		return false;
 
 	if ((service->auth.state != APRSERVICE_AUTH_STATE_NONE) && aprservice_is_read_only(service))
-		return APRSERVICE_ERROR_READ_ONLY;
+		return false;
 
-	if (auto error = aprservice_io_write_line(service->io, std::move(raw)))
+	if (!aprservice_io_write_line(service->io, std::move(raw)))
 	{
+		aprservice_log_error_ex(aprservice_io_write_line, false);
+
 		aprservice_disconnect(service);
 
-		return error;
+		return false;
 	}
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return true;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_packet(struct aprservice* service, const char* content)
+bool                       APRSERVICE_CALL aprservice_send_packet(struct aprservice* service, const char* content)
 {
 	if (!aprservice_is_connected(service))
-		return APRSERVICE_ERROR_DISCONNECTED;
+		return false;
 
 	if (auto packet = aprs_packet_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service)))
 	{
@@ -1042,22 +1114,22 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_packet(struct aprservice
 
 		aprs_packet_deinit(packet);
 
-		if (auto error = aprservice_send(service, std::move(string)))
+		if (!aprservice_send(service, std::move(string)))
 		{
-			aprservice_log_error_ex(aprservice_send, error);
+			aprservice_log_error_ex(aprservice_send, false);
 
-			return error;
+			return false;
 		}
 
-		return APRSERVICE_ERROR_SUCCESS;
+		return true;
 	}
 
-	return APRSERVICE_ERROR_INVALID_ARGUMENT;
+	return false;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_object(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live)
+bool                       APRSERVICE_CALL aprservice_send_object(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live)
 {
 	if (!aprservice_is_connected(service))
-		return APRSERVICE_ERROR_DISCONNECTED;
+		return false;
 
 	if (auto packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key))
 	{
@@ -1067,7 +1139,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_object(struct aprservice
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_object_set_speed(packet, speed))
@@ -1076,7 +1148,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_object(struct aprservice
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_object_set_course(packet, course))
@@ -1085,7 +1157,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_object(struct aprservice
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_object_set_comment(packet, comment))
@@ -1094,7 +1166,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_object(struct aprservice
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_object_set_altitude(packet, altitude))
@@ -1103,7 +1175,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_object(struct aprservice
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_object_set_latitude(packet, latitude))
@@ -1112,7 +1184,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_object(struct aprservice
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_object_set_longitude(packet, longitude))
@@ -1121,7 +1193,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_object(struct aprservice
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_object_set_compressed(packet, aprservice_is_compression_enabled(service)))
@@ -1130,26 +1202,26 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_object(struct aprservice
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		std::string string = aprs_packet_to_string(packet);
 
 		aprs_packet_deinit(packet);
 
-		if (auto error = aprservice_send(service, std::move(string)))
+		if (!aprservice_send(service, std::move(string)))
 		{
-			aprservice_log_error_ex(aprservice_send, error);
+			aprservice_log_error_ex(aprservice_send, false);
 
-			return error;
+			return false;
 		}
 
-		return APRSERVICE_ERROR_SUCCESS;
+		return true;
 	}
 
-	return APRSERVICE_ERROR_INVALID_ARGUMENT;
+	return false;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_message(struct aprservice* service, const char* destination, const char* content, uint32_t timeout, aprservice_message_callback callback, void* param)
+bool                       APRSERVICE_CALL aprservice_send_message(struct aprservice* service, const char* destination, const char* content, uint32_t timeout, aprservice_message_callback callback, void* param)
 {
 	if (service->message_count++ == 0xFFFFF)
 		service->message_count = 0;
@@ -1159,10 +1231,10 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_message(struct aprservic
 
 	return aprservice_send_message_ex(service, destination, content, id, timeout, callback, param);
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_message_ex(struct aprservice* service, const char* destination, const char* content, const char* id, uint32_t timeout, aprservice_message_callback callback, void* param)
+bool                       APRSERVICE_CALL aprservice_send_message_ex(struct aprservice* service, const char* destination, const char* content, const char* id, uint32_t timeout, aprservice_message_callback callback, void* param)
 {
 	if (!aprservice_is_connected(service))
-		return APRSERVICE_ERROR_DISCONNECTED;
+		return false;
 
 	if (auto packet = aprs_packet_message_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, content))
 	{
@@ -1172,18 +1244,18 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_message_ex(struct aprser
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		std::string string = aprs_packet_to_string(packet);
 
 		aprs_packet_deinit(packet);
 
-		if (auto error = aprservice_send(service, std::move(string)))
+		if (!aprservice_send(service, std::move(string)))
 		{
-			aprservice_log_error_ex(aprservice_send, error);
+			aprservice_log_error_ex(aprservice_send, false);
 
-			return error;
+			return false;
 		}
 
 		if (id && callback && (aprs_packet_message_get_type(packet) == APRS_MESSAGE_TYPE_MESSAGE))
@@ -1195,15 +1267,15 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_message_ex(struct aprser
 				.callback_param = param
 			}));
 
-		return APRSERVICE_ERROR_SUCCESS;
+		return true;
 	}
 
-	return APRSERVICE_ERROR_INVALID_ARGUMENT;
+	return false;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id)
+bool                       APRSERVICE_CALL aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id)
 {
 	if (!aprservice_is_connected(service))
-		return APRSERVICE_ERROR_DISCONNECTED;
+		return false;
 
 	if (auto packet = aprs_packet_message_init_ack(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, id))
 	{
@@ -1211,22 +1283,22 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_message_ack(struct aprse
 
 		aprs_packet_deinit(packet);
 
-		if (auto error = aprservice_send(service, std::move(string)))
+		if (!aprservice_send(service, std::move(string)))
 		{
-			aprservice_log_error_ex(aprservice_send, error);
+			aprservice_log_error_ex(aprservice_send, false);
 
-			return error;
+			return false;
 		}
 
-		return APRSERVICE_ERROR_SUCCESS;
+		return true;
 	}
 
-	return APRSERVICE_ERROR_INVALID_ARGUMENT;
+	return false;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id)
+bool                       APRSERVICE_CALL aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id)
 {
 	if (!aprservice_is_connected(service))
-		return APRSERVICE_ERROR_DISCONNECTED;
+		return false;
 
 	if (auto packet = aprs_packet_message_init_reject(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, id))
 	{
@@ -1234,22 +1306,22 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_message_reject(struct ap
 
 		aprs_packet_deinit(packet);
 
-		if (auto error = aprservice_send(service, std::move(string)))
+		if (!aprservice_send(service, std::move(string)))
 		{
-			aprservice_log_error_ex(aprservice_send, error);
+			aprservice_log_error_ex(aprservice_send, false);
 
-			return error;
+			return false;
 		}
 
-		return APRSERVICE_ERROR_SUCCESS;
+		return true;
 	}
 
-	return APRSERVICE_ERROR_INVALID_ARGUMENT;
+	return false;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_weather(struct aprservice* service, uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const char* type)
+bool                       APRSERVICE_CALL aprservice_send_weather(struct aprservice* service, uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const char* type)
 {
 	if (!aprservice_is_connected(service))
-		return APRSERVICE_ERROR_DISCONNECTED;
+		return false;
 
 	if (auto packet = aprs_packet_weather_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), type))
 	{
@@ -1259,7 +1331,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_weather(struct aprservic
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_weather_set_wind_speed(packet, wind_speed))
@@ -1268,7 +1340,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_weather(struct aprservic
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_weather_set_wind_speed_gust(packet, wind_speed_gust))
@@ -1277,7 +1349,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_weather(struct aprservic
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_weather_set_wind_direction(packet, wind_direction))
@@ -1286,7 +1358,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_weather(struct aprservic
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_weather_set_rainfall_last_hour(packet, rainfall_last_hour))
@@ -1295,7 +1367,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_weather(struct aprservic
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_weather_set_rainfall_last_24_hours(packet, rainfall_last_24_hours))
@@ -1304,7 +1376,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_weather(struct aprservic
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_weather_set_rainfall_since_midnight(packet, rainfall_since_midnight))
@@ -1313,7 +1385,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_weather(struct aprservic
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_weather_set_humidity(packet, humidity))
@@ -1322,7 +1394,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_weather(struct aprservic
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_weather_set_temperature(packet, temperature))
@@ -1331,7 +1403,7 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_weather(struct aprservic
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		if (!aprs_packet_weather_set_barometric_pressure(packet, barometric_pressure))
@@ -1340,45 +1412,45 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_weather(struct aprservic
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		std::string string = aprs_packet_to_string(packet);
 
 		aprs_packet_deinit(packet);
 
-		if (auto error = aprservice_send(service, std::move(string)))
+		if (!aprservice_send(service, std::move(string)))
 		{
-			aprservice_log_error_ex(aprservice_send, error);
+			aprservice_log_error_ex(aprservice_send, false);
 
-			return error;
+			return false;
 		}
 
-		return APRSERVICE_ERROR_SUCCESS;
+		return true;
 	}
 
-	return APRSERVICE_ERROR_INVALID_ARGUMENT;
+	return false;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_position(struct aprservice* service)
+bool                       APRSERVICE_CALL aprservice_send_position(struct aprservice* service)
 {
 	if (!aprservice_is_connected(service))
-		return APRSERVICE_ERROR_DISCONNECTED;
+		return false;
 
 	std::string string = aprs_packet_to_string(service->position);
 
-	if (auto error = aprservice_send(service, std::move(string)))
+	if (!aprservice_send(service, std::move(string)))
 	{
-		aprservice_log_error_ex(aprservice_send, error);
+		aprservice_log_error_ex(aprservice_send, false);
 
-		return error;
+		return false;
 	}
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return true;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_position_ex(struct aprservice* service, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment)
+bool                       APRSERVICE_CALL aprservice_send_position_ex(struct aprservice* service, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment)
 {
 	if (!aprservice_is_connected(service))
-		return APRSERVICE_ERROR_DISCONNECTED;
+		return false;
 
 	if (auto packet = aprs_packet_position_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), latitude, longitude, altitude, speed, course, comment, aprservice_get_symbol_table(service), aprservice_get_symbol_table_key(service)))
 	{
@@ -1389,29 +1461,29 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_position_ex(struct aprse
 
 		aprs_packet_deinit(packet);
 
-		if (auto error = aprservice_send(service, std::move(string)))
+		if (!aprservice_send(service, std::move(string)))
 		{
-			aprservice_log_error_ex(aprservice_send, error);
+			aprservice_log_error_ex(aprservice_send, false);
 
-			return error;
+			return false;
 		}
 
-		return APRSERVICE_ERROR_SUCCESS;
+		return true;
 	}
 
-	return APRSERVICE_ERROR_INVALID_ARGUMENT;
+	return false;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_telemetry(struct aprservice* service, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital)
+bool                       APRSERVICE_CALL aprservice_send_telemetry(struct aprservice* service, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital)
 {
 	if (service->telemetry_count++ == 999)
 		service->telemetry_count = 0;
 
 	return aprservice_send_telemetry_ex(service, a1, a2, a3, a4, a5, digital, aprs_packet_position_get_comment(service->position), service->telemetry_count);
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_telemetry_ex(struct aprservice* service, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital, const char* comment, uint16_t sequence)
+bool                       APRSERVICE_CALL aprservice_send_telemetry_ex(struct aprservice* service, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital, const char* comment, uint16_t sequence)
 {
 	if (!aprservice_is_connected(service))
-		return APRSERVICE_ERROR_DISCONNECTED;
+		return false;
 
 	if (auto packet = aprs_packet_telemetry_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), a1, a2, a3, a4, a5, digital, sequence))
 	{
@@ -1421,36 +1493,36 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_telemetry_ex(struct aprs
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		std::string string = aprs_packet_to_string(packet);
 
 		aprs_packet_deinit(packet);
 
-		if (auto error = aprservice_send(service, std::move(string)))
+		if (!aprservice_send(service, std::move(string)))
 		{
-			aprservice_log_error_ex(aprservice_send, error);
+			aprservice_log_error_ex(aprservice_send, false);
 
-			return error;
+			return false;
 		}
 
-		return APRSERVICE_ERROR_SUCCESS;
+		return true;
 	}
 
-	return APRSERVICE_ERROR_INVALID_ARGUMENT;
+	return false;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_telemetry_float(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital)
+bool                       APRSERVICE_CALL aprservice_send_telemetry_float(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital)
 {
 	if (service->telemetry_count++ == 999)
 		service->telemetry_count = 0;
 
 	return aprservice_send_telemetry_float_ex(service, a1, a2, a3, a4, a5, digital, aprs_packet_position_get_comment(service->position), service->telemetry_count);
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_telemetry_float_ex(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital, const char* comment, uint16_t sequence)
+bool                       APRSERVICE_CALL aprservice_send_telemetry_float_ex(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital, const char* comment, uint16_t sequence)
 {
 	if (!aprservice_is_connected(service))
-		return APRSERVICE_ERROR_DISCONNECTED;
+		return false;
 
 	if (auto packet = aprs_packet_telemetry_init_float(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), a1, a2, a3, a4, a5, digital, sequence))
 	{
@@ -1460,32 +1532,36 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_send_telemetry_float_ex(struc
 
 			aprs_packet_deinit(packet);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
+			return false;
 		}
 
 		std::string string = aprs_packet_to_string(packet);
 
 		aprs_packet_deinit(packet);
 
-		if (auto error = aprservice_send(service, std::move(string)))
+		if (!aprservice_send(service, std::move(string)))
 		{
-			aprservice_log_error_ex(aprservice_send, error);
+			aprservice_log_error_ex(aprservice_send, false);
 
-			return error;
+			return false;
 		}
 
-		return APRSERVICE_ERROR_SUCCESS;
+		return true;
 	}
 
-	return APRSERVICE_ERROR_INVALID_ARGUMENT;
+	return false;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_connect(struct aprservice* service, const char* host, uint16_t port, uint16_t passwd)
+bool                       APRSERVICE_CALL aprservice_connect(struct aprservice* service, const char* host, uint16_t port, uint16_t passwd)
 {
 	if (aprservice_is_connected(service))
-		return APRSERVICE_ERROR_SUCCESS;
+		return true;
 
-	if (auto error = aprservice_io_connect(service->io, host, port))
-		return error;
+	if (!aprservice_io_connect(service->io, host, port))
+	{
+		aprservice_log_error_ex(aprservice_io_connect, false);
+
+		return false;
+	}
 
 	std::stringstream ss;
 	ss << "user " << service->station << " pass " << (passwd ? passwd : -1);
@@ -1497,20 +1573,24 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_connect(struct aprservice* se
 
 	service->auth.state = APRSERVICE_AUTH_STATE_NONE;
 
-	if (auto error = aprservice_send(service, ss.str()))
+	if (!aprservice_send(service, ss.str()))
 	{
+		aprservice_log_error_ex(aprservice_send, false);
+
 		aprservice_io_disconnect(service->io);
 
 		service->is_connected = false;
 
-		return error;
+		return false;
 	}
 
 	service->auth.state = APRSERVICE_AUTH_STATE_SENT;
 
-	return APRSERVICE_ERROR_SUCCESS;
+	aprservice_event_execute(service, APRSERVICE_EVENT_CONNECT, {});
+
+	return true;
 }
-void                    APRSERVICE_CALL aprservice_disconnect(struct aprservice* service)
+void                       APRSERVICE_CALL aprservice_disconnect(struct aprservice* service)
 {
 	if (aprservice_is_connected(service))
 	{
@@ -1528,10 +1608,12 @@ void                    APRSERVICE_CALL aprservice_disconnect(struct aprservice*
 
 		service->is_connected     = false;
 		service->is_auth_verified = false;
+
+		aprservice_event_execute(service, APRSERVICE_EVENT_DISCONNECT, {});
 	}
 }
 
-struct aprservice_task* APRSERVICE_CALL aprservice_task_schedule(struct aprservice* service, uint32_t seconds, aprservice_task_handler handler, void* param)
+struct aprservice_task*    APRSERVICE_CALL aprservice_task_schedule(struct aprservice* service, uint32_t seconds, aprservice_task_handler handler, void* param)
 {
 	auto task = new aprservice_task
 	{
@@ -1546,7 +1628,7 @@ struct aprservice_task* APRSERVICE_CALL aprservice_task_schedule(struct aprservi
 
 	return task;
 }
-void                    APRSERVICE_CALL aprservice_task_cancel(struct aprservice_task* task)
+void                       APRSERVICE_CALL aprservice_task_cancel(struct aprservice_task* task)
 {
 	if (auto service = aprservice_task_get_service(task))
 	{
@@ -1569,39 +1651,39 @@ void                    APRSERVICE_CALL aprservice_task_cancel(struct aprservice
 		}
 	}
 }
-struct aprservice*      APRSERVICE_CALL aprservice_task_get_service(struct aprservice_task* task)
+struct aprservice*         APRSERVICE_CALL aprservice_task_get_service(struct aprservice_task* task)
 {
 	return task->service;
 }
 
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_object_create(struct aprservice_object** object, struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
+struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
 {
-	*object = new aprservice_object
+	auto object = new aprservice_object
 	{
 		.service = service
 	};
 
-	if (!((*object)->packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
+	if (!(object->packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
 	{
-		delete *object;
+		delete object;
 
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return nullptr;
 	}
 
-	aprs_packet_object_set_alive((*object)->packet, true);
-	aprs_packet_object_set_speed((*object)->packet, speed);
-	aprs_packet_object_set_course((*object)->packet, course);
-	aprs_packet_object_set_comment((*object)->packet, comment);
-	aprs_packet_object_set_altitude((*object)->packet, altitude);
-	aprs_packet_object_set_latitude((*object)->packet, latitude);
-	aprs_packet_object_set_longitude((*object)->packet, longitude);
-	aprs_packet_object_set_compressed((*object)->packet, aprservice_is_compression_enabled(service));
+	aprs_packet_object_set_alive(object->packet, true);
+	aprs_packet_object_set_speed(object->packet, speed);
+	aprs_packet_object_set_course(object->packet, course);
+	aprs_packet_object_set_comment(object->packet, comment);
+	aprs_packet_object_set_altitude(object->packet, altitude);
+	aprs_packet_object_set_latitude(object->packet, latitude);
+	aprs_packet_object_set_longitude(object->packet, longitude);
+	aprs_packet_object_set_compressed(object->packet, aprservice_is_compression_enabled(service));
 
-	service->objects.push_back(*object);
+	service->objects.push_back(object);
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return object;
 }
-void                    APRSERVICE_CALL aprservice_object_destroy(struct aprservice_object* object)
+void                       APRSERVICE_CALL aprservice_object_destroy(struct aprservice_object* object)
 {
 	if (auto service = aprservice_object_get_service(object))
 	{
@@ -1612,127 +1694,152 @@ void                    APRSERVICE_CALL aprservice_object_destroy(struct aprserv
 		delete object;
 	}
 }
-bool                    APRSERVICE_CALL aprservice_object_is_alive(struct aprservice_object* object)
+bool                       APRSERVICE_CALL aprservice_object_is_alive(struct aprservice_object* object)
 {
 	return aprs_packet_object_is_alive(object->packet);
 }
-struct aprservice*      APRSERVICE_CALL aprservice_object_get_service(struct aprservice_object* object)
+struct aprservice*         APRSERVICE_CALL aprservice_object_get_service(struct aprservice_object* object)
 {
 	return object->service;
 }
-const char*             APRSERVICE_CALL aprservice_object_get_name(struct aprservice_object* object)
+const char*                APRSERVICE_CALL aprservice_object_get_name(struct aprservice_object* object)
 {
 	return aprs_packet_object_get_name(object->packet);
 }
-const char*             APRSERVICE_CALL aprservice_object_get_comment(struct aprservice_object* object)
+const char*                APRSERVICE_CALL aprservice_object_get_comment(struct aprservice_object* object)
 {
 	return aprs_packet_object_get_comment(object->packet);
 }
-uint16_t                APRSERVICE_CALL aprservice_object_get_speed(struct aprservice_object* object)
+uint16_t                   APRSERVICE_CALL aprservice_object_get_speed(struct aprservice_object* object)
 {
 	return aprs_packet_object_get_speed(object->packet);
 }
-uint16_t                APRSERVICE_CALL aprservice_object_get_course(struct aprservice_object* object)
+uint16_t                   APRSERVICE_CALL aprservice_object_get_course(struct aprservice_object* object)
 {
 	return aprs_packet_object_get_course(object->packet);
 }
-int32_t                 APRSERVICE_CALL aprservice_object_get_altitude(struct aprservice_object* object)
+int32_t                    APRSERVICE_CALL aprservice_object_get_altitude(struct aprservice_object* object)
 {
 	return aprs_packet_object_get_altitude(object->packet);
 }
-float                   APRSERVICE_CALL aprservice_object_get_latitude(struct aprservice_object* object)
+float                      APRSERVICE_CALL aprservice_object_get_latitude(struct aprservice_object* object)
 {
 	return aprs_packet_object_get_latitude(object->packet);
 }
-float                   APRSERVICE_CALL aprservice_object_get_longitude(struct aprservice_object* object)
+float                      APRSERVICE_CALL aprservice_object_get_longitude(struct aprservice_object* object)
 {
 	return aprs_packet_object_get_longitude(object->packet);
 }
-char                    APRSERVICE_CALL aprservice_object_get_symbol_table(struct aprservice_object* object)
+char                       APRSERVICE_CALL aprservice_object_get_symbol_table(struct aprservice_object* object)
 {
 	return aprs_packet_object_get_symbol_table(object->packet);
 }
-char                    APRSERVICE_CALL aprservice_object_get_symbol_table_key(struct aprservice_object* object)
+char                       APRSERVICE_CALL aprservice_object_get_symbol_table_key(struct aprservice_object* object)
 {
 	return aprs_packet_object_get_symbol_table_key(object->packet);
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_object_set_symbol(struct aprservice_object* object, char table, char key)
+bool                       APRSERVICE_CALL aprservice_object_set_symbol(struct aprservice_object* object, char table, char key)
 {
-	return aprs_packet_object_set_symbol(object->packet, table, key) ? APRSERVICE_ERROR_SUCCESS : APRSERVICE_ERROR_INVALID_ARGUMENT;
+	if (!aprs_packet_object_set_symbol(object->packet, table, key))
+	{
+		aprservice_log_error_ex(aprs_packet_object_set_symbol, false);
+
+		return false;
+	}
+
+	return true;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_object_set_comment(struct aprservice_object* object, const char* value)
+bool                       APRSERVICE_CALL aprservice_object_set_comment(struct aprservice_object* object, const char* value)
 {
-	return aprs_packet_object_set_comment(object->packet, value) ? APRSERVICE_ERROR_SUCCESS : APRSERVICE_ERROR_INVALID_ARGUMENT;
+	if (!aprs_packet_object_set_comment(object->packet, value))
+	{
+		aprservice_log_error_ex(aprs_packet_object_set_comment, false);
+
+		return false;
+	}
+
+	return true;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_object_set_position(struct aprservice_object* object, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
+bool                       APRSERVICE_CALL aprservice_object_set_position(struct aprservice_object* object, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
 {
 	if (!aprs_packet_object_set_speed(object->packet, speed))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_speed, false);
 
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return false;
 	}
 
 	if (!aprs_packet_object_set_course(object->packet, course))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_course, false);
 
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return false;
 	}
 
 	if (!aprs_packet_object_set_altitude(object->packet, altitude))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_altitude, false);
 
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return false;
 	}
 
 	if (!aprs_packet_object_set_latitude(object->packet, latitude))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_latitude, false);
 
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return false;
 	}
 
 	if (!aprs_packet_object_set_longitude(object->packet, longitude))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_longitude, false);
 
-		return APRSERVICE_ERROR_INVALID_ARGUMENT;
+		return false;
 	}
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return true;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_object_kill(struct aprservice_object* object)
+bool                       APRSERVICE_CALL aprservice_object_kill(struct aprservice_object* object)
 {
-	if (aprs_packet_object_is_alive(object->packet))
+	if (!aprs_packet_object_is_alive(object->packet))
+		return true;
+
+	if (!aprs_packet_object_set_alive(object->packet, false))
 	{
-		if (!aprs_packet_object_set_alive(object->packet, false))
-		{
-			aprservice_log_error_ex(aprs_packet_object_set_alive, false);
+		aprservice_log_error_ex(aprs_packet_object_set_alive, false);
 
-			return APRSERVICE_ERROR_INVALID_ARGUMENT;
-		}
-
-		return aprservice_send(object->service, aprs_packet_to_string(object->packet));
+		return false;
 	}
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return true;
 }
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_object_announce(struct aprservice_object* object)
+bool                       APRSERVICE_CALL aprservice_object_announce(struct aprservice_object* object)
 {
-	if (!aprservice_object_is_alive(object))
-		return APRSERVICE_ERROR_OBJECT_DEAD;
+	if (!aprservice_send(object->service, aprs_packet_to_string(object->packet)))
+	{
+		aprservice_log_error_ex(aprservice_send, false);
 
-	return aprservice_send(object->service, aprs_packet_to_string(object->packet));
+		return false;
+	}
+
+	return true;
 }
 
-enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_command_register(struct aprservice_command** command, struct aprservice* service, const char* name, const char* help, aprservice_command_handler handler, void* param)
+struct aprservice_command* APRSERVICE_CALL aprservice_command_register(struct aprservice* service, const char* name, const char* help, aprservice_command_handler handler, void* param)
 {
-	if (service->commands.contains(name))
-		return APRSERVICE_ERROR_COMMAND_ALREADY_REGISTERED;
+	if (auto it = service->commands.find(name); it != service->commands.end())
+	{
+		auto command = it->second;
 
-	*command = new aprservice_command
+		command->name          = name;
+		command->help          = help;
+		command->handler       = handler;
+		command->handler_param = param;
+
+		return command;
+	}
+
+	auto command = new aprservice_command
 	{
 		.service       = service,
 
@@ -1742,11 +1849,11 @@ enum APRSERVICE_ERRORS  APRSERVICE_CALL aprservice_command_register(struct aprse
 		.handler_param = param
 	};
 
-	service->commands.emplace(name, *command);
+	service->commands.emplace(name, command);
 
-	return APRSERVICE_ERROR_SUCCESS;
+	return command;
 }
-void                    APRSERVICE_CALL aprservice_command_unregister(struct aprservice_command* command)
+void                       APRSERVICE_CALL aprservice_command_unregister(struct aprservice_command* command)
 {
 	if (auto service = aprservice_command_get_service(command))
 	{
@@ -1755,15 +1862,7 @@ void                    APRSERVICE_CALL aprservice_command_unregister(struct apr
 		delete command;
 	}
 }
-struct aprservice*      APRSERVICE_CALL aprservice_command_get_service(struct aprservice_command* command)
+struct aprservice*         APRSERVICE_CALL aprservice_command_get_service(struct aprservice_command* command)
 {
 	return command->service;
-}
-
-const char*             APRSERVICE_CALL aprservice_error_to_string(enum APRSERVICE_ERRORS error)
-{
-	if (error >= APRSERVICE_ERRORS_COUNT)
-		return nullptr;
-
-	return aprservice_errors[error].string;
 }

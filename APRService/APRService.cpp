@@ -1221,6 +1221,38 @@ bool                       APRSERVICE_CALL aprservice_send_object(struct aprserv
 
 	return false;
 }
+bool                       APRSERVICE_CALL aprservice_send_status(struct aprservice* service, struct aprs_time* time, const char* message)
+{
+	if (!aprservice_is_connected(service))
+		return false;
+
+	if (auto packet = aprs_packet_status_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), message))
+	{
+		if (!aprs_packet_status_set_time(packet, time))
+		{
+			aprservice_log_error_ex(aprs_packet_status_set_time, false);
+
+			aprs_packet_deinit(packet);
+
+			return false;
+		}
+
+		std::string string = aprs_packet_to_string(packet);
+
+		aprs_packet_deinit(packet);
+
+		if (!aprservice_send(service, std::move(string)))
+		{
+			aprservice_log_error_ex(aprservice_send, false);
+
+			return false;
+		}
+
+		return true;
+	}
+
+	return false;
+}
 bool                       APRSERVICE_CALL aprservice_send_message(struct aprservice* service, const char* destination, const char* content, uint32_t timeout, aprservice_message_callback callback, void* param)
 {
 	if (service->message_count++ == 0xFFFFF)

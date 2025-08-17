@@ -248,20 +248,28 @@ struct aprs_packet_decoder_context
 	aprs_packet_decode_handler function;
 };
 
-auto               aprs_strlen(const char* value, bool stop_at_whitespace = false)
+auto               aprs_string_length(const char* string, bool stop_at_whitespace = false)
 {
 	aprs_strlen_result result = { .valid = false, .length = 0 };
 
-	if (value)
+	if (string)
 	{
 		result.valid = true;
 
-		for (auto c = value; *c; ++c, ++result.length)
+		for (auto c = string; *c; ++c, ++result.length)
 			if (stop_at_whitespace && isspace(*c))
 				break;
 	}
 
 	return result;
+}
+bool               aprs_string_contains(const char* string, size_t length, char value)
+{
+	for (size_t i = 0; *string && (i < length); ++i, ++string)
+		if (*string == value)
+			return true;
+
+	return false;
 }
 
 template<typename T>
@@ -335,13 +343,12 @@ bool               aprs_validate_symbol(char table, char key)
 
 	return false;
 }
-template<typename F>
-bool               aprs_validate_string(const char* value, size_t length, const F& function)
+bool               aprs_validate_string(const char* value, size_t length, bool(*is_char_valid)(size_t index, char value))
 {
 	size_t i = 0;
 
 	for (; *value && (i < length); ++i, ++value)
-		if (!function(i, *value))
+		if (!is_char_valid(i, *value))
 			return false;
 
 	return i == length;
@@ -350,7 +357,7 @@ auto               aprs_validate_station(const char* value, bool strict = true)
 {
 	aprs_strlen_result result = { .valid = false, .length = 0 };
 
-	if (auto length = aprs_strlen(value, true); length && (length <= 9))
+	if (auto length = aprs_string_length(value, true); length && (length <= 9))
 	{
 		if (strict)
 		{
@@ -368,7 +375,7 @@ auto               aprs_validate_comment(const char* value, size_t max_length)
 {
 	aprs_strlen_result result = { .valid = false, .length = 0 };
 
-	if (auto length = aprs_strlen(value); length && (length <= max_length))
+	if (auto length = aprs_string_length(value); length && (length <= max_length))
 	{
 		result.valid  = true;
 		result.length = length.length;
@@ -393,6 +400,25 @@ T                  aprs_decode_int(const char* string, size_t max_length)
 
 	for (; *string && (i < max_length); ++i, ++string)
 		value = 10 * value + (*string - '0');
+
+	return value;
+}
+template<typename T>
+T                  aprs_decode_int_ex(const char* string, size_t max_length, char(*get_char)(size_t index, char value))
+{
+	size_t i     = 0;
+	T      value = 0;
+
+	if (*string == '-')
+	{
+		++i;
+		++string;
+
+		value = 1 << ((sizeof(T) * 8) - 1);
+	}
+
+	for (; *string && (i < max_length); ++i, ++string)
+		value = 10 * value + (get_char(i, *string) - '0');
 
 	return value;
 }
@@ -440,7 +466,7 @@ bool               aprs_decode_latitude(float& value, const char* string, char h
 			case 3:
 			case 5:
 			case 6:
-				return isdigit(value);
+				return (value == ' ') || ((value >= '0') && (value <= '9'));
 
 			case 4:
 				return value == '.';
@@ -452,11 +478,14 @@ bool               aprs_decode_latitude(float& value, const char* string, char h
 	if (!aprs_validate_string(string, 7, string_is_valid))
 		return false;
 
-	// TODO: replace spaces with 0's
+	auto get_char = [](size_t index, char value)
+	{
+		return (value == ' ') ? '0' : value;
+	};
 
-	auto hours   = aprs_decode_int<uint8_t>(&string[0], 2);
-	auto minutes = aprs_decode_int<uint8_t>(&string[2], 2);
-	auto seconds = aprs_decode_int<uint8_t>(&string[5], 2);
+	auto hours   = aprs_decode_int_ex<uint8_t>(&string[0], 2, get_char);
+	auto minutes = aprs_decode_int_ex<uint8_t>(&string[2], 2, get_char);
+	auto seconds = aprs_decode_int_ex<uint8_t>(&string[5], 2, get_char);
 
 	value = hours + (minutes / 60.0f) + (seconds / 6000.0f);
 
@@ -490,11 +519,14 @@ bool               aprs_decode_longitude(float& value, const char* string, char 
 	if (!aprs_validate_string(string, 8, string_is_valid))
 		return false;
 
-	// TODO: replace spaces with 0's
+	auto get_char = [](size_t index, char value)
+	{
+		return (value == ' ') ? '0' : value;
+	};
 
-	auto hours   = aprs_decode_int<uint8_t>(&string[0], 3);
-	auto minutes = aprs_decode_int<uint8_t>(&string[3], 2);
-	auto seconds = aprs_decode_int<uint8_t>(&string[6], 2);
+	auto hours   = aprs_decode_int_ex<uint8_t>(&string[0], 3, get_char);
+	auto minutes = aprs_decode_int_ex<uint8_t>(&string[3], 2, get_char);
+	auto seconds = aprs_decode_int_ex<uint8_t>(&string[6], 2, get_char);
 
 	value = hours + (minutes / 60.0f) + (seconds / 6000.0f);
 
@@ -865,16 +897,39 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 	if (!aprs_regex_match(match, regex, packet->content.c_str()))
 		return false;
 
-	packet->type                      = APRS_PACKET_TYPE_TELEMETRY;
-	packet->telemetry.type            = APRS_TELEMETRY_TYPE_FLOAT; // TODO: detect real type
-	packet->telemetry.analog_float[0] = strtof(match[3].str().c_str(), nullptr);
-	packet->telemetry.analog_float[1] = strtof(match[5].str().c_str(), nullptr);
-	packet->telemetry.analog_float[2] = strtof(match[7].str().c_str(), nullptr);
-	packet->telemetry.analog_float[3] = strtof(match[9].str().c_str(), nullptr);
-	packet->telemetry.analog_float[4] = strtof(match[11].str().c_str(), nullptr);
-	packet->telemetry.digital         = strtoul(match[13].str().c_str(), nullptr, 10);
-	packet->telemetry.sequence        = strtoul(match[1].str().c_str(), nullptr, 10);
-	packet->telemetry.comment         = match[14].str();
+	auto& analog_1 = match[3];
+	auto& analog_2 = match[5];
+	auto& analog_3 = match[7];
+	auto& analog_4 = match[9];
+	auto& analog_5 = match[11];
+
+	packet->type               = APRS_PACKET_TYPE_TELEMETRY;
+	packet->telemetry.comment  = match[14].str();
+	packet->telemetry.digital  = strtoul(match[13].str().c_str(), nullptr, 10);
+	packet->telemetry.sequence = strtoul(match[1].str().c_str(), nullptr, 10);
+
+	if (!aprs_string_contains(analog_1.first, analog_1.length(), '.') &&
+		!aprs_string_contains(analog_2.first, analog_1.length(), '.') &&
+		!aprs_string_contains(analog_3.first, analog_1.length(), '.') &&
+		!aprs_string_contains(analog_4.first, analog_1.length(), '.') &&
+		!aprs_string_contains(analog_5.first, analog_1.length(), '.'))
+	{
+		packet->telemetry.type         = APRS_TELEMETRY_TYPE_U8;
+		packet->telemetry.analog_u8[0] = aprs_decode_int<uint8_t>(analog_1.first, analog_1.length());
+		packet->telemetry.analog_u8[1] = aprs_decode_int<uint8_t>(analog_2.first, analog_2.length());
+		packet->telemetry.analog_u8[2] = aprs_decode_int<uint8_t>(analog_3.first, analog_3.length());
+		packet->telemetry.analog_u8[3] = aprs_decode_int<uint8_t>(analog_4.first, analog_4.length());
+		packet->telemetry.analog_u8[4] = aprs_decode_int<uint8_t>(analog_5.first, analog_5.length());
+	}
+	else
+	{
+		packet->telemetry.type            = APRS_TELEMETRY_TYPE_FLOAT;
+		packet->telemetry.analog_float[0] = strtof(analog_1.str().c_str(), nullptr);
+		packet->telemetry.analog_float[1] = strtof(analog_2.str().c_str(), nullptr);
+		packet->telemetry.analog_float[2] = strtof(analog_3.str().c_str(), nullptr);
+		packet->telemetry.analog_float[3] = strtof(analog_4.str().c_str(), nullptr);
+		packet->telemetry.analog_float[4] = strtof(analog_5.str().c_str(), nullptr);
+	}
 
 	return true;
 }
@@ -1041,10 +1096,26 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 	// }
 	// else
 	{
-		// TODO: implement time
-		// if (packet->position.flags & APRS_POSITION_FLAG_TIME)
-		// 	ss << ((packet->position.flags & APRS_POSITION_FLAG_MESSAGING_ENABLED) ? '@' : '/');
-		// else
+		if (packet->position.flags & APRS_POSITION_FLAG_TIME)
+		{
+			ss << ((packet->position.flags & APRS_POSITION_FLAG_MESSAGING_ENABLED) ? '@' : '/');
+
+			if (packet->position.time.type & APRS_TIME_DHM)
+			{
+				ss << std::setfill('0') << std::setw(2) << packet->position.time.tm_mday;
+				ss << std::setfill('0') << std::setw(2) << packet->position.time.tm_hour;
+				ss << std::setfill('0') << std::setw(2) << packet->position.time.tm_min;
+				ss << 'z';
+			}
+			else if (packet->position.time.type & APRS_TIME_HMS)
+			{
+				ss << std::setfill('0') << std::setw(2) << packet->position.time.tm_hour;
+				ss << std::setfill('0') << std::setw(2) << packet->position.time.tm_min;
+				ss << std::setfill('0') << std::setw(2) << packet->position.time.tm_sec;
+				ss << 'h';
+			}
+		}
+		else
 			ss << ((packet->position.flags & APRS_POSITION_FLAG_MESSAGING_ENABLED) ? '=' : '!');
 
 		// if (!(packet->position.flags & APRS_POSITION_FLAG_COMPRESSED))
@@ -1524,7 +1595,7 @@ bool                      APRSERVICE_CALL aprs_packet_set_content(struct aprs_pa
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_RAW)
 		return false;
 
-	if (auto length = aprs_strlen(value); length && (length <= 256))
+	if (auto length = aprs_string_length(value); length && (length <= 256))
 	{
 		packet->content.assign(value, length);
 
@@ -1910,7 +1981,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_id(struct aprs
 
 		return true;
 	}
-	else if (auto length = aprs_strlen(value, true); length && (length >= 1) && (length <= 5))
+	else if (auto length = aprs_string_length(value, true); length && (length >= 1) && (length <= 5))
 	{
 		auto is_string_valid = [](size_t index, char value)->bool
 		{
@@ -1971,7 +2042,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_content(struct
 
 		return true;
 	}
-	else if (auto length = aprs_strlen(value); length && (length <= 67))
+	else if (auto length = aprs_string_length(value); length && (length <= 67))
 	{
 		packet->message.type = APRS_MESSAGE_TYPE_MESSAGE;
 		packet->message.content.assign(value, length);
@@ -1998,7 +2069,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_destination(st
 
 struct aprs_packet*       APRSERVICE_CALL aprs_packet_weather_init(const char* sender, const char* tocall, struct aprs_path* path, const char* type)
 {
-	auto type_length = aprs_strlen(type, true);
+	auto type_length = aprs_string_length(type, true);
 
 	if (!type_length || (type_length < 2) || (type_length > 4))
 		return nullptr;

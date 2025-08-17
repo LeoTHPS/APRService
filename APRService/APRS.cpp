@@ -129,6 +129,13 @@ struct aprs_packet
 		uint16_t               sequence;
 		std::string            comment;
 	} telemetry;
+
+	struct
+	{
+		char        id;
+		char        type;
+		std::string data;
+	} user_defined;
 };
 
 struct aprs_strlen_result
@@ -398,6 +405,20 @@ auto               aprs_validate_comment(const char* value, size_t max_length)
 		result.valid  = true;
 		result.length = length.length;
 	}
+
+	return result;
+}
+auto               aprs_validate_user_defined_data(const char* value)
+{
+	aprs_strlen_result result = { .valid = true, .length = 0 };
+
+	for (; *value; ++value, ++result.length)
+		if (!isprint(*value))
+		{
+			result.valid = false;
+
+			break;
+		}
 
 	return result;
 }
@@ -997,9 +1018,15 @@ bool               aprs_packet_decode_third_party(aprs_packet* packet)
 }
 bool               aprs_packet_decode_user_defined(aprs_packet* packet)
 {
-	// TODO: implement
+	if (packet->content.length() < 3)
+		return false;
 
-	return false;
+	packet->type              = APRS_PACKET_TYPE_USER_DEFINED;
+	packet->user_defined.id   = packet->content[1];
+	packet->user_defined.type = packet->content[2];
+	packet->user_defined.data.assign(packet->content, 3);
+
+	return true;
 }
 bool               aprs_packet_decode_shelter_time(aprs_packet* packet)
 {
@@ -1248,6 +1275,10 @@ void               aprs_packet_encode_telemetry(aprs_packet* packet, std::string
 
 	ss << packet->telemetry.comment;
 }
+void               aprs_packet_encode_user_defined(aprs_packet* packet, std::stringstream& ss)
+{
+	ss << '{' << packet->user_defined.id << packet->user_defined.type << packet->user_defined.data;
+}
 
 constexpr const aprs_packet_decoder_context aprs_packet_decoders[] =
 {
@@ -1282,13 +1313,14 @@ constexpr const aprs_packet_decoder_context aprs_packet_decoders[] =
 
 constexpr const aprs_packet_encoder_context aprs_packet_encoders[APRS_PACKET_TYPES_COUNT] =
 {
-	{ APRS_PACKET_TYPE_RAW,       &aprs_packet_encode_raw       },
-	{ APRS_PACKET_TYPE_OBJECT,    &aprs_packet_encode_object    },
-	{ APRS_PACKET_TYPE_STATUS,    &aprs_packet_encode_status    },
-	{ APRS_PACKET_TYPE_MESSAGE,   &aprs_packet_encode_message   },
-	{ APRS_PACKET_TYPE_WEATHER,   &aprs_packet_encode_weather   },
-	{ APRS_PACKET_TYPE_POSITION,  &aprs_packet_encode_position  },
-	{ APRS_PACKET_TYPE_TELEMETRY, &aprs_packet_encode_telemetry }
+	{ APRS_PACKET_TYPE_RAW,          &aprs_packet_encode_raw          },
+	{ APRS_PACKET_TYPE_OBJECT,       &aprs_packet_encode_object       },
+	{ APRS_PACKET_TYPE_STATUS,       &aprs_packet_encode_status       },
+	{ APRS_PACKET_TYPE_MESSAGE,      &aprs_packet_encode_message      },
+	{ APRS_PACKET_TYPE_WEATHER,      &aprs_packet_encode_weather      },
+	{ APRS_PACKET_TYPE_POSITION,     &aprs_packet_encode_position     },
+	{ APRS_PACKET_TYPE_TELEMETRY,    &aprs_packet_encode_telemetry    },
+	{ APRS_PACKET_TYPE_USER_DEFINED, &aprs_packet_encode_user_defined }
 };
 
 template<size_t ... I>
@@ -2865,6 +2897,84 @@ bool                      APRSERVICE_CALL aprs_packet_telemetry_set_comment(stru
 	if (auto length = aprs_validate_comment(value, 67))
 	{
 		packet->telemetry.comment.assign(value, length);
+
+		return true;
+	}
+
+	return false;
+}
+
+struct aprs_packet*       APRSERVICE_CALL aprs_packet_user_defined_init(const char* sender, const char* tocall, struct aprs_path* path, char id, char type, const char* data)
+{
+	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_USER_DEFINED))
+	{
+		if (!aprs_packet_user_defined_set_id(packet, id) ||
+			!aprs_packet_user_defined_set_type(packet, type) ||
+			!aprs_packet_user_defined_set_data(packet, data))
+		{
+			aprs_packet_deinit(packet);
+
+			return nullptr;
+		}
+
+		return packet;
+	}
+
+	return nullptr;
+}
+char                      APRSERVICE_CALL aprs_packet_user_defined_get_id(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
+		return 0;
+
+	return packet->user_defined.id;
+}
+char                      APRSERVICE_CALL aprs_packet_user_defined_get_type(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
+		return 0;
+
+	return packet->user_defined.type;
+}
+const char*               APRSERVICE_CALL aprs_packet_user_defined_get_data(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
+		return nullptr;
+
+	return packet->user_defined.data.c_str();
+}
+bool                      APRSERVICE_CALL aprs_packet_user_defined_set_id(struct aprs_packet* packet, char value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
+		return false;
+
+	if (!isprint(value))
+		return false;
+
+	packet->user_defined.id = value;
+
+	return true;
+}
+bool                      APRSERVICE_CALL aprs_packet_user_defined_set_type(struct aprs_packet* packet, char value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
+		return false;
+
+	if (!isprint(value))
+		return false;
+
+	packet->user_defined.type = value;
+
+	return true;
+}
+bool                      APRSERVICE_CALL aprs_packet_user_defined_set_data(struct aprs_packet* packet, const char* value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
+		return false;
+
+	if (auto length = aprs_validate_user_defined_data(value))
+	{
+		packet->user_defined.data.assign(value, length);
 
 		return true;
 	}

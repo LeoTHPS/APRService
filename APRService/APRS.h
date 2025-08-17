@@ -33,6 +33,7 @@ enum APRS_PACKET_TYPES
 	APRS_PACKET_TYPE_WEATHER,
 	APRS_PACKET_TYPE_POSITION,
 	APRS_PACKET_TYPE_TELEMETRY,
+	APRS_PACKET_TYPE_USER_DEFINED,
 
 	APRS_PACKET_TYPES_COUNT
 };
@@ -215,6 +216,14 @@ APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_telemetr
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_telemetry_set_digital(struct aprs_packet* packet, uint8_t value);
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_telemetry_set_sequence(struct aprs_packet* packet, uint16_t value);
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_telemetry_set_comment(struct aprs_packet* packet, const char* value);
+
+APRSERVICE_EXPORT struct aprs_packet*       APRSERVICE_CALL aprs_packet_user_defined_init(const char* sender, const char* tocall, struct aprs_path* path, char id, char type, const char* data);
+APRSERVICE_EXPORT char                      APRSERVICE_CALL aprs_packet_user_defined_get_id(struct aprs_packet* packet);
+APRSERVICE_EXPORT char                      APRSERVICE_CALL aprs_packet_user_defined_get_type(struct aprs_packet* packet);
+APRSERVICE_EXPORT const char*               APRSERVICE_CALL aprs_packet_user_defined_get_data(struct aprs_packet* packet);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_user_defined_set_id(struct aprs_packet* packet, char value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_user_defined_set_type(struct aprs_packet* packet, char value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_user_defined_set_data(struct aprs_packet* packet, const char* value);
 
 APRSERVICE_EXPORT float                     APRSERVICE_CALL aprs_distance(float latitude1, float longitude1, float latitude2, float longitude2, enum APRS_DISTANCES type);
 APRSERVICE_EXPORT float                     APRSERVICE_CALL aprs_distance_3d(float latitude1, float longitude1, int32_t altitude1, float latitude2, float longitude2, int32_t altitude2, enum APRS_DISTANCES type);

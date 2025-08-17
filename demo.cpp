@@ -267,6 +267,16 @@ void  demo_event_handler(aprservice* service, aprservice_event_information* even
 						std::cout << ']' << std::endl;
 					}
 					break;
+
+					case APRS_PACKET_TYPE_USER_DEFINED:
+					{
+						auto user_defined_id   = aprs_packet_user_defined_get_id(packet);
+						auto user_defined_type = aprs_packet_user_defined_get_type(packet);
+						auto user_defined_data = aprs_packet_user_defined_get_data(packet);
+
+						std::cout << "[Packet] [User Defined] [From: " << sender << "] [ID: " << user_defined_id << "] [Type: " << user_defined_type << "] " << user_defined_data;
+					}
+					break;
 				}
 			}
 			break;

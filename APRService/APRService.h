@@ -122,6 +122,7 @@ APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_tel
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_telemetry_ex(struct aprservice* service, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital, const char* comment, uint16_t sequence);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_telemetry_float(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_telemetry_float_ex(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital, const char* comment, uint16_t sequence);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_user_defined(struct aprservice* service, char id, char type, const char* data);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect(struct aprservice* service, const char* host, uint16_t port, uint16_t passwd);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_disconnect(struct aprservice* service);
 

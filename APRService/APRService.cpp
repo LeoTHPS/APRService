@@ -1583,6 +1583,29 @@ bool                       APRSERVICE_CALL aprservice_send_telemetry_float_ex(st
 
 	return false;
 }
+bool                       APRSERVICE_CALL aprservice_send_user_defined(struct aprservice* service, char id, char type, const char* data)
+{
+	if (!aprservice_is_connected(service))
+		return false;
+
+	if (auto packet = aprs_packet_user_defined_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), id, type, data))
+	{
+		std::string string = aprs_packet_to_string(packet);
+
+		aprs_packet_deinit(packet);
+
+		if (!aprservice_send(service, std::move(string)))
+		{
+			aprservice_log_error_ex(aprservice_send, false);
+
+			return false;
+		}
+
+		return true;
+	}
+
+	return false;
+}
 bool                       APRSERVICE_CALL aprservice_connect(struct aprservice* service, const char* host, uint16_t port, uint16_t passwd)
 {
 	if (aprservice_is_connected(service))

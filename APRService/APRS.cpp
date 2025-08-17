@@ -1001,7 +1001,11 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 		ss << 'h';
 	}
 
-	// if (!packet->object.is_compressed)
+	// if (packet->object.is_compressed)
+	// {
+		// TODO: implement
+	// }
+	// else
 	// {
 		auto latitude             = packet->object.latitude;
 		auto longitude            = packet->object.longitude;
@@ -1025,10 +1029,6 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
 		ss << longitude_west_east << packet->object.symbol_table_key;
-	// }
-	// else
-	// {
-		// TODO: implement
 	// }
 
 	ss << packet->object.comment;
@@ -1118,8 +1118,12 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 		else
 			ss << ((packet->position.flags & APRS_POSITION_FLAG_MESSAGING_ENABLED) ? '=' : '!');
 
-		// if (!(packet->position.flags & APRS_POSITION_FLAG_COMPRESSED))
-		{
+		// if (packet->position.flags & APRS_POSITION_FLAG_COMPRESSED)
+		// {
+			// TOOD: implement
+		// }
+		// else
+		// {
 			auto latitude             = packet->position.latitude;
 			auto longitude            = packet->position.longitude;
 			char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
@@ -1152,10 +1156,6 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 				ss << '/';
 				ss << std::setfill('0') << std::setw(3) << packet->position.speed;
 			}
-		}
-		// else
-		// {
-			// TODO: implement
 		// }
 	}
 }

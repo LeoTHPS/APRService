@@ -112,7 +112,7 @@ APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_poll(str
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, const char* raw);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_packet(struct aprservice* service, const char* content);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_object(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live);
-APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_status(struct aprservice* service, struct aprs_time* time, const char* message);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_status(struct aprservice* service, const char* message);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_message(struct aprservice* service, const char* destination, const char* content, uint32_t timeout, aprservice_message_callback callback, void* param);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_message_ex(struct aprservice* service, const char* destination, const char* content, const char* id, uint32_t timeout, aprservice_message_callback callback, void* param);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_weather(struct aprservice* service, uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const char* type);

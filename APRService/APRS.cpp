@@ -69,6 +69,14 @@ struct aprs_packet
 
 	struct
 	{
+		bool        is_time_set;
+
+		aprs_time   time;
+		std::string message;
+	} status;
+
+	struct
+	{
 		std::string        id;
 		APRS_MESSAGE_TYPES type;
 		std::string        content;
@@ -371,6 +379,16 @@ auto               aprs_validate_station(const char* value, bool strict = true)
 
 	return result;
 }
+bool               aprs_validate_status(const char* value, size_t max_length)
+{
+	size_t i = 0;
+
+	for (; *value && (i < max_length); ++i, ++value)
+		if (!isprint(*value) || (*value == '|') || (*value == '~'))
+			return false;
+
+	return i <= max_length;
+}
 auto               aprs_validate_comment(const char* value, size_t max_length)
 {
 	aprs_strlen_result result = { .valid = false, .length = 0 };
@@ -641,8 +659,8 @@ bool               aprs_packet_decode_query(aprs_packet* packet)
 }
 bool               aprs_packet_decode_object(aprs_packet* packet)
 {
-	static std::regex regex("^;([^ *_]{3,9}) *([*_])(.{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static std::regex regex_compressed("^;([^ *_]{3,9}) *([*_])(.{6})([z\\/h])(.{13})(.*)$");
+	static std::regex regex("^;([^ *_]{3,9}) *([*_])(\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static std::regex regex_compressed("^;([^ *_]{3,9}) *([*_])(\\d{6})([z\\/h])(.{13})(.*)$");
 
 	aprs_time   time;
 	std::cmatch match;
@@ -709,7 +727,33 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 }
 bool               aprs_packet_decode_status(aprs_packet* packet)
 {
-	// TODO: implement
+	static std::regex regex("^>(.*)$");
+	static std::regex regex_time("^>(\\d{6})([z\\/h])(.*)$");
+
+	aprs_time   time;
+	std::cmatch match;
+
+	if (aprs_regex_match(match, regex, packet->content.c_str()))
+	{
+		packet->type               = APRS_PACKET_TYPE_STATUS;
+		packet->status.is_time_set = false;
+		packet->status.message     = match[1].str();
+
+		return true;
+	}
+
+	if (aprs_regex_match(match, regex_time, packet->content.c_str()))
+	{
+		if (!aprs_decode_time(time, match[1].first, *match[2].first))
+			return false;
+
+		packet->type               = APRS_PACKET_TYPE_STATUS;
+		packet->status.is_time_set = true;
+		packet->status.time        = time;
+		packet->status.message     = match[3].str();
+
+		return true;
+	}
 
 	return false;
 }
@@ -789,7 +833,7 @@ bool               aprs_packet_decode_weather_peet_bros_uii(aprs_packet* packet)
 bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 {
 	static std::regex regex("^[!=]([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static std::regex regex_time("^[\\/@](.{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static std::regex regex_time("^[\\/@](\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
 	static std::regex regex_compressed("^[!=\\/@](.{13})(.*)$");
 
 	std::cmatch match;
@@ -1033,6 +1077,28 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 
 	ss << packet->object.comment;
 }
+void               aprs_packet_encode_status(aprs_packet* packet, std::stringstream& ss)
+{
+	ss << '>';
+
+	if (packet->status.is_time_set)
+		if (packet->status.time.type & APRS_TIME_DHM)
+		{
+			ss << std::setfill('0') << std::setw(2) << packet->status.time.tm_mday;
+			ss << std::setfill('0') << std::setw(2) << packet->status.time.tm_hour;
+			ss << std::setfill('0') << std::setw(2) << packet->status.time.tm_min;
+			ss << 'z';
+		}
+		else if (packet->status.time.type & APRS_TIME_HMS)
+		{
+			ss << std::setfill('0') << std::setw(2) << packet->status.time.tm_hour;
+			ss << std::setfill('0') << std::setw(2) << packet->status.time.tm_min;
+			ss << std::setfill('0') << std::setw(2) << packet->status.time.tm_sec;
+			ss << 'h';
+		}
+
+	ss << packet->status.message;
+}
 void               aprs_packet_encode_message(aprs_packet* packet, std::stringstream& ss)
 {
 	switch (packet->message.type)
@@ -1218,6 +1284,7 @@ constexpr const aprs_packet_encoder_context aprs_packet_encoders[APRS_PACKET_TYP
 {
 	{ APRS_PACKET_TYPE_RAW,       &aprs_packet_encode_raw       },
 	{ APRS_PACKET_TYPE_OBJECT,    &aprs_packet_encode_object    },
+	{ APRS_PACKET_TYPE_STATUS,    &aprs_packet_encode_status    },
 	{ APRS_PACKET_TYPE_MESSAGE,   &aprs_packet_encode_message   },
 	{ APRS_PACKET_TYPE_WEATHER,   &aprs_packet_encode_weather   },
 	{ APRS_PACKET_TYPE_POSITION,  &aprs_packet_encode_position  },
@@ -1860,6 +1927,75 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_symbol_table(st
 bool                      APRSERVICE_CALL aprs_packet_object_set_symbol_table_key(struct aprs_packet* packet, char value)
 {
 	return aprs_packet_object_set_symbol(packet, aprs_packet_object_get_symbol_table(packet), value);
+}
+
+struct aprs_packet*       APRSERVICE_CALL aprs_packet_status_init(const char* sender, const char* tocall, struct aprs_path* path, const char* message)
+{
+	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_STATUS))
+	{
+		if (!aprs_packet_status_set_time(packet, nullptr) ||
+			!aprs_packet_status_set_message(packet, message))
+		{
+			aprs_packet_deinit(packet);
+
+			return nullptr;
+		}
+
+		return packet;
+	}
+
+	return nullptr;
+}
+struct aprs_time*         APRSERVICE_CALL aprs_packet_status_get_time(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_STATUS)
+		return nullptr;
+
+	if (!packet->status.is_time_set)
+		return nullptr;
+
+	return &packet->status.time;
+}
+const char*               APRSERVICE_CALL aprs_packet_status_get_message(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_STATUS)
+		return nullptr;
+
+	return packet->status.message.c_str();
+}
+bool                      APRSERVICE_CALL aprs_packet_status_set_time(struct aprs_packet* packet, struct aprs_time* value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_STATUS)
+		return false;
+
+	if (!value)
+	{
+		packet->status.is_time_set = false;
+
+		return true;
+	}
+
+	if (aprs_validate_time(value))
+	{
+		packet->status.is_time_set = true;
+		packet->status.time        = *value;
+
+		return true;
+	}
+
+	return false;
+}
+bool                      APRSERVICE_CALL aprs_packet_status_set_message(struct aprs_packet* packet, const char* value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_STATUS)
+		return false;
+
+	if (!aprs_validate_status(value, packet->status.is_time_set ? 55 : 62))
+		return false;
+
+	packet->status.message = value;
+
+	return true;
 }
 
 struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init(const char* sender, const char* tocall, struct aprs_path* path, const char* destination, const char* content)

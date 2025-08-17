@@ -28,6 +28,7 @@ enum APRS_PACKET_TYPES
 {
 	APRS_PACKET_TYPE_RAW,
 	APRS_PACKET_TYPE_OBJECT,
+	APRS_PACKET_TYPE_STATUS,
 	APRS_PACKET_TYPE_MESSAGE,
 	APRS_PACKET_TYPE_WEATHER,
 	APRS_PACKET_TYPE_POSITION,
@@ -128,6 +129,12 @@ APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_object_s
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_object_set_symbol(struct aprs_packet* packet, char table, char key);
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_object_set_symbol_table(struct aprs_packet* packet, char value);
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_object_set_symbol_table_key(struct aprs_packet* packet, char value);
+
+APRSERVICE_EXPORT struct aprs_packet*       APRSERVICE_CALL aprs_packet_status_init(const char* sender, const char* tocall, struct aprs_path* path, const char* message);
+APRSERVICE_EXPORT struct aprs_time*         APRSERVICE_CALL aprs_packet_status_get_time(struct aprs_packet* packet);
+APRSERVICE_EXPORT const char*               APRSERVICE_CALL aprs_packet_status_get_message(struct aprs_packet* packet);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_status_set_time(struct aprs_packet* packet, struct aprs_time* value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_status_set_message(struct aprs_packet* packet, const char* value);
 
 APRSERVICE_EXPORT struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init(const char* sender, const char* tocall, struct aprs_path* path, const char* destination, const char* content);
 APRSERVICE_EXPORT struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init_ack(const char* sender, const char* tocall, struct aprs_path* path, const char* destination, const char* id);

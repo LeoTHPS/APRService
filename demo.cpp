@@ -103,6 +103,34 @@ void  demo_event_handler(aprservice* service, aprservice_event_information* even
 					}
 					break;
 
+					case APRS_PACKET_TYPE_STATUS:
+					{
+						auto status_message = aprs_packet_status_get_message(packet);
+
+						std::cout << "[Packet] [Status] ";
+
+						if (auto status_time = aprs_packet_status_get_time(packet))
+						{
+							uint8_t status_time_value[3];
+
+							if (aprs_time_get_dms(status_time, &status_time_value[0], &status_time_value[1], &status_time_value[2]))
+							{
+								std::cout << "[Time.DMS: " << (int)status_time_value[0] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)status_time_value[1] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)status_time_value[2] << "] ";
+							}
+							else if (aprs_time_get_hms(status_time, &status_time_value[0], &status_time_value[1], &status_time_value[2]))
+							{
+								std::cout << "[Time.HMS: " << (int)status_time_value[0] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)status_time_value[1] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)status_time_value[2] << "] ";
+							}
+						}
+
+						std::cout << "[From: " << sender << "] " << status_message << std::endl;
+					}
+					break;
+
 					case APRS_PACKET_TYPE_MESSAGE:
 					{
 						auto message_type        = aprs_packet_message_get_type(packet);

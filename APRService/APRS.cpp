@@ -1686,7 +1686,6 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_init_from_string(const cha
 
 	auto packet = new aprs_packet
 	{
-		.type            = APRS_PACKET_TYPE_RAW,
 		.path            = path,
 		.igate           = path_match[4].str(),
 		.tocall          = match[2].str(),
@@ -1698,11 +1697,7 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_init_from_string(const cha
 	};
 
 	if (!aprs_packet_decode(packet))
-	{
-		aprs_packet_deinit(packet);
-
-		return nullptr;
-	}
+		packet->type = APRS_PACKET_TYPE_RAW;
 
 	return packet;
 }

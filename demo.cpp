@@ -287,7 +287,7 @@ void  demo_event_handler(aprservice* service, aprservice_event_information* even
 						auto user_defined_type = aprs_packet_user_defined_get_type(packet);
 						auto user_defined_data = aprs_packet_user_defined_get_data(packet);
 
-						std::cout << "[Packet] [User Defined] [From: " << sender << "] [ID: " << user_defined_id << "] [Type: " << user_defined_type << "] " << user_defined_data;
+						std::cout << "[Packet] [User Defined] [From: " << sender << "] [ID: " << user_defined_id << "] [Type: " << user_defined_type << "] " << user_defined_data << std::endl;
 					}
 					break;
 				}

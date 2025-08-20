@@ -65,7 +65,7 @@ struct aprs_packet
 
 		char        symbol_table;
 		char        symbol_table_key;
-	} object;
+	} item_or_object;
 
 	struct
 	{
@@ -662,7 +662,60 @@ bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 }
 bool               aprs_packet_decode_item(aprs_packet* packet)
 {
-	// TODO: implement
+	static std::regex regex("^\\)([^ !_]{3,9}) *([!_])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static std::regex regex_compressed("^\\)([^ !_]{3,9}) *([!_])(.{13})(.*)$");
+
+	std::cmatch match;
+
+	if (aprs_regex_match(match, regex, packet->content.c_str()))
+	{
+		float latitude;
+		float longitude;
+
+		if (!aprs_decode_latitude(latitude, match[3].first, *match[4].first))
+			return false;
+
+		if (!aprs_decode_longitude(longitude, match[6].first, *match[7].first))
+			return false;
+
+		packet->type                            = APRS_PACKET_TYPE_OBJECT;
+		packet->item_or_object.is_alive         = *match[2].first == '!';
+		packet->item_or_object.is_compressed    = false;
+		packet->item_or_object.name             = match[1].str();
+		packet->item_or_object.comment          = match[9].str();
+		packet->item_or_object.speed            = 0;
+		packet->item_or_object.course           = 0;
+		packet->item_or_object.altitude         = 0;
+		packet->item_or_object.latitude         = latitude;
+		packet->item_or_object.longitude        = longitude;
+		packet->item_or_object.symbol_table     = *match[5].first;
+		packet->item_or_object.symbol_table_key = *match[8].first;
+
+		return true;
+	}
+
+	if (aprs_regex_match(match, regex_compressed, packet->content.c_str()))
+	{
+		aprs_compressed_location location;
+
+		if (!aprs_decode_compressed_location(location, match[3].first))
+			return false;
+
+		packet->type                            = APRS_PACKET_TYPE_OBJECT;
+		packet->item_or_object.is_alive         = *match[2].first == '!';
+		packet->item_or_object.is_compressed    = true;
+		packet->item_or_object.name             = match[1].str();
+		packet->item_or_object.comment          = match[4].str();
+		packet->item_or_object.speed            = location.speed;
+		packet->item_or_object.course           = location.course;
+		packet->item_or_object.altitude         = location.altitude;
+		packet->item_or_object.latitude         = location.latitude;
+		packet->item_or_object.longitude        = location.longitude;
+		packet->item_or_object.symbol_table     = location.symbol_table;
+		packet->item_or_object.symbol_table_key = location.symbol_table_key;
+
+		return true;
+	}
 
 	return false;
 }
@@ -700,19 +753,19 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 		if (!aprs_decode_longitude(longitude, match[8].first, *match[9].first))
 			return false;
 
-		packet->type                    = APRS_PACKET_TYPE_OBJECT;
-		packet->object.is_alive         = *match[2].first == '*';
-		packet->object.is_compressed    = false;
-		packet->object.time             = time;
-		packet->object.name             = match[1].str();
-		packet->object.comment          = match[11].str();
-		packet->object.speed            = 0;
-		packet->object.course           = 0;
-		packet->object.altitude         = 0;
-		packet->object.latitude         = latitude;
-		packet->object.longitude        = longitude;
-		packet->object.symbol_table     = *match[7].first;
-		packet->object.symbol_table_key = *match[10].first;
+		packet->type                            = APRS_PACKET_TYPE_OBJECT;
+		packet->item_or_object.is_alive         = *match[2].first == '*';
+		packet->item_or_object.is_compressed    = false;
+		packet->item_or_object.time             = time;
+		packet->item_or_object.name             = match[1].str();
+		packet->item_or_object.comment          = match[11].str();
+		packet->item_or_object.speed            = 0;
+		packet->item_or_object.course           = 0;
+		packet->item_or_object.altitude         = 0;
+		packet->item_or_object.latitude         = latitude;
+		packet->item_or_object.longitude        = longitude;
+		packet->item_or_object.symbol_table     = *match[7].first;
+		packet->item_or_object.symbol_table_key = *match[10].first;
 
 		return true;
 	}
@@ -727,19 +780,19 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 		if (!aprs_decode_compressed_location(location, match[5].first))
 			return false;
 
-		packet->type                    = APRS_PACKET_TYPE_OBJECT;
-		packet->object.is_alive         = *match[2].first == '*';
-		packet->object.is_compressed    = true;
-		packet->object.time             = time;
-		packet->object.name             = match[1].str();
-		packet->object.comment          = match[6].str();
-		packet->object.speed            = location.speed;
-		packet->object.course           = location.course;
-		packet->object.altitude         = location.altitude;
-		packet->object.latitude         = location.latitude;
-		packet->object.longitude        = location.longitude;
-		packet->object.symbol_table     = location.symbol_table;
-		packet->object.symbol_table_key = location.symbol_table_key;
+		packet->type                            = APRS_PACKET_TYPE_OBJECT;
+		packet->item_or_object.is_alive         = *match[2].first == '*';
+		packet->item_or_object.is_compressed    = true;
+		packet->item_or_object.time             = time;
+		packet->item_or_object.name             = match[1].str();
+		packet->item_or_object.comment          = match[6].str();
+		packet->item_or_object.speed            = location.speed;
+		packet->item_or_object.course           = location.course;
+		packet->item_or_object.altitude         = location.altitude;
+		packet->item_or_object.latitude         = location.latitude;
+		packet->item_or_object.longitude        = location.longitude;
+		packet->item_or_object.symbol_table     = location.symbol_table;
+		packet->item_or_object.symbol_table_key = location.symbol_table_key;
 
 		return true;
 	}
@@ -1051,35 +1104,20 @@ void               aprs_packet_encode_raw(aprs_packet* packet, std::stringstream
 {
 	ss << packet->content;
 }
-void               aprs_packet_encode_object(aprs_packet* packet, std::stringstream& ss)
+void               aprs_packet_encode_item(aprs_packet* packet, std::stringstream& ss)
 {
-	ss << ';';
-	ss << std::setfill(' ') << std::setw(9) << std::left << packet->object.name;
-	ss << (packet->object.is_alive ? '*' : '_');
+	ss << ')';
+	ss << std::setfill(' ') << std::setw(9) << std::left << packet->item_or_object.name;
+	ss << (packet->item_or_object.is_alive ? '!' : '_');
 
-	if (packet->object.time.type & APRS_TIME_DHM)
-	{
-		ss << std::setfill('0') << std::setw(2) << packet->object.time.tm_mday;
-		ss << std::setfill('0') << std::setw(2) << packet->object.time.tm_hour;
-		ss << std::setfill('0') << std::setw(2) << packet->object.time.tm_min;
-		ss << 'z';
-	}
-	else if (packet->object.time.type & APRS_TIME_HMS)
-	{
-		ss << std::setfill('0') << std::setw(2) << packet->object.time.tm_hour;
-		ss << std::setfill('0') << std::setw(2) << packet->object.time.tm_min;
-		ss << std::setfill('0') << std::setw(2) << packet->object.time.tm_sec;
-		ss << 'h';
-	}
-
-	// if (packet->object.is_compressed)
+	// if (packet->item_or_object.is_compressed)
 	// {
 		// TODO: implement
 	// }
 	// else
 	// {
-		auto latitude             = packet->object.latitude;
-		auto longitude            = packet->object.longitude;
+		auto latitude             = packet->item_or_object.latitude;
+		auto longitude            = packet->item_or_object.longitude;
 		char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
 		char longitude_west_east  = (longitude >= 0) ? 'E' : 'W';
 		auto latitude_hours       = aprs_from_float<int16_t>(latitude, latitude);
@@ -1093,16 +1131,69 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 		ss << std::setfill('0') << std::setw(2) << latitude_minutes;
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << latitude_seconds;
-		ss << latitude_north_south << packet->object.symbol_table;
+		ss << latitude_north_south << packet->item_or_object.symbol_table;
 
 		ss << std::setfill('0') << std::setw(2) << ((longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1));
 		ss << std::setfill('0') << std::setw(2) << longitude_minutes;
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
-		ss << longitude_west_east << packet->object.symbol_table_key;
+		ss << longitude_west_east << packet->item_or_object.symbol_table_key;
 	// }
 
-	ss << packet->object.comment;
+	ss << packet->item_or_object.comment;
+}
+void               aprs_packet_encode_object(aprs_packet* packet, std::stringstream& ss)
+{
+	ss << ';';
+	ss << std::setfill(' ') << std::setw(9) << std::left << packet->item_or_object.name;
+	ss << (packet->item_or_object.is_alive ? '*' : '_');
+
+	if (packet->item_or_object.time.type & APRS_TIME_DHM)
+	{
+		ss << std::setfill('0') << std::setw(2) << packet->item_or_object.time.tm_mday;
+		ss << std::setfill('0') << std::setw(2) << packet->item_or_object.time.tm_hour;
+		ss << std::setfill('0') << std::setw(2) << packet->item_or_object.time.tm_min;
+		ss << 'z';
+	}
+	else if (packet->item_or_object.time.type & APRS_TIME_HMS)
+	{
+		ss << std::setfill('0') << std::setw(2) << packet->item_or_object.time.tm_hour;
+		ss << std::setfill('0') << std::setw(2) << packet->item_or_object.time.tm_min;
+		ss << std::setfill('0') << std::setw(2) << packet->item_or_object.time.tm_sec;
+		ss << 'h';
+	}
+
+	// if (packet->item_or_object.is_compressed)
+	// {
+		// TODO: implement
+	// }
+	// else
+	// {
+		auto latitude             = packet->item_or_object.latitude;
+		auto longitude            = packet->item_or_object.longitude;
+		char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
+		char longitude_west_east  = (longitude >= 0) ? 'E' : 'W';
+		auto latitude_hours       = aprs_from_float<int16_t>(latitude, latitude);
+		auto latitude_minutes     = aprs_from_float<uint16_t>(((latitude < 0) ? (latitude * -1) : latitude) * 60, latitude);
+		auto latitude_seconds     = aprs_from_float<uint16_t>((latitude * 6000) / 60, latitude);
+		auto longitude_hours      = aprs_from_float<int16_t>(longitude, longitude);
+		auto longitude_minutes    = aprs_from_float<uint16_t>(((longitude < 0) ? (longitude * -1) : longitude) * 60, longitude);
+		auto longitude_seconds    = aprs_from_float<uint16_t>((longitude * 6000) / 60, longitude);
+
+		ss << std::setfill('0') << std::setw(2) << ((latitude_hours >= 0) ? latitude_hours : (latitude_hours * -1));
+		ss << std::setfill('0') << std::setw(2) << latitude_minutes;
+		ss << '.';
+		ss << std::setfill('0') << std::setw(2) << latitude_seconds;
+		ss << latitude_north_south << packet->item_or_object.symbol_table;
+
+		ss << std::setfill('0') << std::setw(2) << ((longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1));
+		ss << std::setfill('0') << std::setw(2) << longitude_minutes;
+		ss << '.';
+		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
+		ss << longitude_west_east << packet->item_or_object.symbol_table_key;
+	// }
+
+	ss << packet->item_or_object.comment;
 }
 void               aprs_packet_encode_status(aprs_packet* packet, std::stringstream& ss)
 {
@@ -1314,6 +1405,7 @@ constexpr const aprs_packet_decoder_context aprs_packet_decoders[] =
 constexpr const aprs_packet_encoder_context aprs_packet_encoders[APRS_PACKET_TYPES_COUNT] =
 {
 	{ APRS_PACKET_TYPE_RAW,          &aprs_packet_encode_raw          },
+	{ APRS_PACKET_TYPE_ITEM,         &aprs_packet_encode_item         },
 	{ APRS_PACKET_TYPE_OBJECT,       &aprs_packet_encode_object       },
 	{ APRS_PACKET_TYPE_STATUS,       &aprs_packet_encode_status       },
 	{ APRS_PACKET_TYPE_MESSAGE,      &aprs_packet_encode_message      },
@@ -1720,18 +1812,242 @@ void                      APRSERVICE_CALL aprs_packet_add_reference(struct aprs_
 	++packet->reference_count;
 }
 
+struct aprs_packet*       APRSERVICE_CALL aprs_packet_item_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key)
+{
+	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_ITEM))
+	{
+		packet->item_or_object.is_alive      = true;
+		packet->item_or_object.is_compressed = false;
+		packet->item_or_object.speed         = 0;
+		packet->item_or_object.course        = 0;
+		packet->item_or_object.altitude      = 0;
+		packet->item_or_object.latitude      = 0;
+		packet->item_or_object.longitude     = 0;
+
+		if (!aprs_packet_object_set_name(packet, name) ||
+			!aprs_packet_object_set_symbol(packet, symbol_table, symbol_table_key))
+		{
+			aprs_packet_deinit(packet);
+
+			return nullptr;
+		}
+
+		return packet;
+	}
+
+	return nullptr;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_is_alive(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return false;
+
+	return packet->item_or_object.is_alive;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_is_compressed(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return false;
+
+	return packet->item_or_object.is_compressed;
+}
+const char*               APRSERVICE_CALL aprs_packet_item_get_name(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return nullptr;
+
+	return packet->item_or_object.name.c_str();
+}
+const char*               APRSERVICE_CALL aprs_packet_item_get_comment(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return nullptr;
+
+	return packet->item_or_object.comment.c_str();
+}
+uint16_t                  APRSERVICE_CALL aprs_packet_item_get_speed(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return 0;
+
+	return packet->item_or_object.speed;
+}
+uint16_t                  APRSERVICE_CALL aprs_packet_item_get_course(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return 0;
+
+	return packet->item_or_object.course;
+}
+int32_t                   APRSERVICE_CALL aprs_packet_item_get_altitude(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return 0;
+
+	return packet->item_or_object.altitude;
+}
+float                     APRSERVICE_CALL aprs_packet_item_get_latitude(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return 0;
+
+	return packet->item_or_object.latitude;
+}
+float                     APRSERVICE_CALL aprs_packet_item_get_longitude(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return 0;
+
+	return packet->item_or_object.longitude;
+}
+char                      APRSERVICE_CALL aprs_packet_item_get_symbol_table(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return '\0';
+
+	return packet->item_or_object.symbol_table;
+}
+char                      APRSERVICE_CALL aprs_packet_item_get_symbol_table_key(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return '\0';
+
+	return packet->item_or_object.symbol_table_key;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_set_alive(struct aprs_packet* packet, bool value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return false;
+
+	packet->item_or_object.is_alive = value;
+
+	return true;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_set_compressed(struct aprs_packet* packet, bool value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return false;
+
+	packet->item_or_object.is_compressed = value;
+
+	return true;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_set_name(struct aprs_packet* packet, const char* value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return false;
+
+	if (auto length = aprs_validate_station(value, false))
+	{
+		packet->item_or_object.name.assign(value, length);
+
+		return true;
+	}
+
+	return false;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_set_comment(struct aprs_packet* packet, const char* value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return false;
+
+	if (!value)
+	{
+		packet->item_or_object.comment.clear();
+
+		return true;
+	}
+	else if (auto length = aprs_validate_comment(value, 36))
+	{
+		packet->item_or_object.comment.assign(value, length);
+
+		return true;
+	}
+
+	return false;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_set_speed(struct aprs_packet* packet, uint16_t value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return false;
+
+	packet->item_or_object.speed = value;
+
+	return true;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_set_course(struct aprs_packet* packet, uint16_t value)
+{
+	if (value > 359)
+		return false;
+
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return false;
+
+	packet->item_or_object.course = value;
+
+	return true;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_set_altitude(struct aprs_packet* packet, int32_t value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return false;
+
+	packet->item_or_object.altitude = value;
+
+	return true;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_set_latitude(struct aprs_packet* packet, float value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return false;
+
+	packet->item_or_object.latitude = value;
+
+	return true;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_set_longitude(struct aprs_packet* packet, float value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return false;
+
+	packet->item_or_object.longitude = value;
+
+	return true;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_set_symbol(struct aprs_packet* packet, char table, char key)
+{
+	if (!aprs_validate_symbol(table, key))
+		return false;
+
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
+		return false;
+
+	packet->item_or_object.symbol_table     = table;
+	packet->item_or_object.symbol_table_key = key;
+
+	return true;
+}
+bool                      APRSERVICE_CALL aprs_packet_item_set_symbol_table(struct aprs_packet* packet, char value)
+{
+	return aprs_packet_item_set_symbol(packet, value, aprs_packet_item_get_symbol_table_key(packet));
+}
+bool                      APRSERVICE_CALL aprs_packet_item_set_symbol_table_key(struct aprs_packet* packet, char value)
+{
+	return aprs_packet_item_set_symbol(packet, aprs_packet_item_get_symbol_table(packet), value);
+}
+
 struct aprs_packet*       APRSERVICE_CALL aprs_packet_object_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_OBJECT))
 	{
-		packet->object.is_alive      = true;
-		packet->object.is_compressed = false;
-		packet->object.time          = *aprs_time_now();
-		packet->object.speed         = 0;
-		packet->object.course        = 0;
-		packet->object.altitude      = 0;
-		packet->object.latitude      = 0;
-		packet->object.longitude     = 0;
+		packet->item_or_object.is_alive      = true;
+		packet->item_or_object.is_compressed = false;
+		packet->item_or_object.time          = *aprs_time_now();
+		packet->item_or_object.speed         = 0;
+		packet->item_or_object.course        = 0;
+		packet->item_or_object.altitude      = 0;
+		packet->item_or_object.latitude      = 0;
+		packet->item_or_object.longitude     = 0;
 
 		if (!aprs_packet_object_set_name(packet, name) ||
 			!aprs_packet_object_set_symbol(packet, symbol_table, symbol_table_key))
@@ -1751,81 +2067,84 @@ bool                      APRSERVICE_CALL aprs_packet_object_is_alive(struct apr
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	return packet->object.is_alive;
+	return packet->item_or_object.is_alive;
 }
 bool                      APRSERVICE_CALL aprs_packet_object_is_compressed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	return packet->object.is_compressed;
+	return packet->item_or_object.is_compressed;
 }
 const struct aprs_time*   APRSERVICE_CALL aprs_packet_object_get_time(struct aprs_packet* packet)
 {
-	return &packet->object.time;
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
+		return nullptr;
+
+	return &packet->item_or_object.time;
 }
 const char*               APRSERVICE_CALL aprs_packet_object_get_name(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return nullptr;
 
-	return packet->object.name.c_str();
+	return packet->item_or_object.name.c_str();
 }
 const char*               APRSERVICE_CALL aprs_packet_object_get_comment(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return nullptr;
 
-	return packet->object.comment.c_str();
+	return packet->item_or_object.comment.c_str();
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_object_get_speed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
-	return packet->object.speed;
+	return packet->item_or_object.speed;
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_object_get_course(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
-	return packet->object.course;
+	return packet->item_or_object.course;
 }
 int32_t                   APRSERVICE_CALL aprs_packet_object_get_altitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
-	return packet->object.altitude;
+	return packet->item_or_object.altitude;
 }
 float                     APRSERVICE_CALL aprs_packet_object_get_latitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
-	return packet->object.latitude;
+	return packet->item_or_object.latitude;
 }
 float                     APRSERVICE_CALL aprs_packet_object_get_longitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
-	return packet->object.longitude;
+	return packet->item_or_object.longitude;
 }
 char                      APRSERVICE_CALL aprs_packet_object_get_symbol_table(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return '\0';
 
-	return packet->object.symbol_table;
+	return packet->item_or_object.symbol_table;
 }
 char                      APRSERVICE_CALL aprs_packet_object_get_symbol_table_key(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return '\0';
 
-	return packet->object.symbol_table_key;
+	return packet->item_or_object.symbol_table_key;
 }
 bool                      APRSERVICE_CALL aprs_packet_object_set_time(struct aprs_packet* packet, const struct aprs_time* value)
 {
@@ -1835,7 +2154,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_time(struct apr
 	if (!aprs_validate_time(value))
 		return false;
 
-	packet->object.time = *value;
+	packet->item_or_object.time = *value;
 
 	return true;
 }
@@ -1844,7 +2163,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_alive(struct ap
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->object.is_alive = value;
+	packet->item_or_object.is_alive = value;
 
 	return true;
 }
@@ -1853,7 +2172,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_compressed(stru
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->object.is_compressed = value;
+	packet->item_or_object.is_compressed = value;
 
 	return true;
 }
@@ -1864,7 +2183,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_name(struct apr
 
 	if (auto length = aprs_validate_station(value, false))
 	{
-		packet->object.name.assign(value, length);
+		packet->item_or_object.name.assign(value, length);
 
 		return true;
 	}
@@ -1878,13 +2197,13 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_comment(struct 
 
 	if (!value)
 	{
-		packet->object.comment.clear();
+		packet->item_or_object.comment.clear();
 
 		return true;
 	}
 	else if (auto length = aprs_validate_comment(value, 36))
 	{
-		packet->object.comment.assign(value, length);
+		packet->item_or_object.comment.assign(value, length);
 
 		return true;
 	}
@@ -1896,7 +2215,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_speed(struct ap
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->object.speed = value;
+	packet->item_or_object.speed = value;
 
 	return true;
 }
@@ -1908,7 +2227,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_course(struct a
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->object.course = value;
+	packet->item_or_object.course = value;
 
 	return true;
 }
@@ -1917,7 +2236,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_altitude(struct
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->object.altitude = value;
+	packet->item_or_object.altitude = value;
 
 	return true;
 }
@@ -1926,7 +2245,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_latitude(struct
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->object.latitude = value;
+	packet->item_or_object.latitude = value;
 
 	return true;
 }
@@ -1935,7 +2254,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_longitude(struc
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->object.longitude = value;
+	packet->item_or_object.longitude = value;
 
 	return true;
 }
@@ -1947,8 +2266,8 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_symbol(struct a
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->object.symbol_table     = table;
-	packet->object.symbol_table_key = key;
+	packet->item_or_object.symbol_table     = table;
+	packet->item_or_object.symbol_table_key = key;
 
 	return true;
 }

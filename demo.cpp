@@ -72,6 +72,19 @@ void  demo_event_handler(aprservice* service, aprservice_event_information* even
 					}
 					break;
 
+					case APRS_PACKET_TYPE_ITEM:
+					{
+						auto item_name      = aprs_packet_item_get_name(packet);
+						auto item_comment   = aprs_packet_item_get_comment(packet);
+						auto item_latitude  = aprs_packet_item_get_latitude(packet);
+						auto item_longitude = aprs_packet_item_get_longitude(packet);
+
+						std::cout << "[Packet] [Item] ";
+
+						std::cout << "[From: " << sender << "] [Name: " << item_name << "] [Lat: " << item_latitude << "] [Long: " << item_longitude << "] " << item_comment << std::endl;
+					}
+					break;
+
 					case APRS_PACKET_TYPE_OBJECT:
 					{
 						auto object_name      = aprs_packet_object_get_name(packet);

@@ -27,6 +27,7 @@ enum APRS_DISTANCES
 enum APRS_PACKET_TYPES
 {
 	APRS_PACKET_TYPE_RAW,
+	APRS_PACKET_TYPE_ITEM,
 	APRS_PACKET_TYPE_OBJECT,
 	APRS_PACKET_TYPE_STATUS,
 	APRS_PACKET_TYPE_MESSAGE,
@@ -103,6 +104,31 @@ APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_set_send
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_set_content(struct aprs_packet* packet, const char* value);
 APRSERVICE_EXPORT const char*               APRSERVICE_CALL aprs_packet_to_string(struct aprs_packet* packet);
 APRSERVICE_EXPORT void                      APRSERVICE_CALL aprs_packet_add_reference(struct aprs_packet* packet);
+
+APRSERVICE_EXPORT struct aprs_packet*       APRSERVICE_CALL aprs_packet_item_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_is_alive(struct aprs_packet* packet);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_is_compressed(struct aprs_packet* packet);
+APRSERVICE_EXPORT const char*               APRSERVICE_CALL aprs_packet_item_get_name(struct aprs_packet* packet);
+APRSERVICE_EXPORT const char*               APRSERVICE_CALL aprs_packet_item_get_comment(struct aprs_packet* packet);
+APRSERVICE_EXPORT uint16_t                  APRSERVICE_CALL aprs_packet_item_get_speed(struct aprs_packet* packet);
+APRSERVICE_EXPORT uint16_t                  APRSERVICE_CALL aprs_packet_item_get_course(struct aprs_packet* packet);
+APRSERVICE_EXPORT int32_t                   APRSERVICE_CALL aprs_packet_item_get_altitude(struct aprs_packet* packet);
+APRSERVICE_EXPORT float                     APRSERVICE_CALL aprs_packet_item_get_latitude(struct aprs_packet* packet);
+APRSERVICE_EXPORT float                     APRSERVICE_CALL aprs_packet_item_get_longitude(struct aprs_packet* packet);
+APRSERVICE_EXPORT char                      APRSERVICE_CALL aprs_packet_item_get_symbol_table(struct aprs_packet* packet);
+APRSERVICE_EXPORT char                      APRSERVICE_CALL aprs_packet_item_get_symbol_table_key(struct aprs_packet* packet);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_set_alive(struct aprs_packet* packet, bool value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_set_compressed(struct aprs_packet* packet, bool value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_set_name(struct aprs_packet* packet, const char* value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_set_comment(struct aprs_packet* packet, const char* value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_set_speed(struct aprs_packet* packet, uint16_t value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_set_course(struct aprs_packet* packet, uint16_t value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_set_altitude(struct aprs_packet* packet, int32_t value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_set_latitude(struct aprs_packet* packet, float value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_set_longitude(struct aprs_packet* packet, float value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_set_symbol(struct aprs_packet* packet, char table, char key);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_set_symbol_table(struct aprs_packet* packet, char value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_set_symbol_table_key(struct aprs_packet* packet, char value);
 
 APRSERVICE_EXPORT struct aprs_packet*       APRSERVICE_CALL aprs_packet_object_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key);
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_object_is_alive(struct aprs_packet* packet);

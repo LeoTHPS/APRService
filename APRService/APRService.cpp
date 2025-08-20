@@ -105,6 +105,7 @@ struct aprservice
 	const std::string                                                               station;
 	aprservice_position                                                             position;
 
+	std::list<aprservice_item*>                                                     items;
 	std::map<uint64_t, std::list<aprservice_task*>>                                 tasks;
 	aprservice_event                                                                events[APRSERVICE_EVENTS_COUNT + 1];
 	std::list<aprservice_object*>                                                   objects;
@@ -115,6 +116,13 @@ struct aprservice
 	std::unordered_map<std::string, std::list<aprservice_message_callback_context>> message_callbacks_index;
 
 	uint16_t                                                                        telemetry_count;
+};
+
+struct aprservice_item
+{
+	aprservice*  service;
+
+	aprs_packet* packet;
 };
 
 struct aprservice_task
@@ -731,6 +739,12 @@ void                       APRSERVICE_CALL aprservice_deinit(struct aprservice* 
 		service->tasks.erase(it++);
 	}
 
+	service->items.remove_if([](aprservice_item* item) {
+		aprservice_item_destroy(item);
+
+		return true;
+	});
+
 	service->objects.remove_if([](aprservice_object* object) {
 		aprservice_object_destroy(object);
 
@@ -1190,6 +1204,101 @@ bool                       APRSERVICE_CALL aprservice_send_packet(struct aprserv
 
 	return false;
 }
+bool                       APRSERVICE_CALL aprservice_send_item(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live)
+{
+	if (!aprservice_is_connected(service))
+		return false;
+
+	if (auto packet = aprs_packet_item_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key))
+	{
+		if (!aprs_packet_item_set_alive(packet, live))
+		{
+			aprservice_log_error_ex(aprs_packet_item_set_alive, false);
+
+			aprs_packet_deinit(packet);
+
+			return false;
+		}
+
+		if (!aprs_packet_item_set_speed(packet, speed))
+		{
+			aprservice_log_error_ex(aprs_packet_item_set_speed, false);
+
+			aprs_packet_deinit(packet);
+
+			return false;
+		}
+
+		if (!aprs_packet_item_set_course(packet, course))
+		{
+			aprservice_log_error_ex(aprs_packet_item_set_course, false);
+
+			aprs_packet_deinit(packet);
+
+			return false;
+		}
+
+		if (!aprs_packet_item_set_comment(packet, comment))
+		{
+			aprservice_log_error_ex(aprs_packet_item_set_comment, false);
+
+			aprs_packet_deinit(packet);
+
+			return false;
+		}
+
+		if (!aprs_packet_item_set_altitude(packet, altitude))
+		{
+			aprservice_log_error_ex(aprs_packet_item_set_altitude, false);
+
+			aprs_packet_deinit(packet);
+
+			return false;
+		}
+
+		if (!aprs_packet_item_set_latitude(packet, latitude))
+		{
+			aprservice_log_error_ex(aprs_packet_item_set_latitude, false);
+
+			aprs_packet_deinit(packet);
+
+			return false;
+		}
+
+		if (!aprs_packet_item_set_longitude(packet, longitude))
+		{
+			aprservice_log_error_ex(aprs_packet_item_set_longitude, false);
+
+			aprs_packet_deinit(packet);
+
+			return false;
+		}
+
+		if (!aprs_packet_item_set_compressed(packet, aprservice_is_compression_enabled(service)))
+		{
+			aprservice_log_error_ex(aprs_packet_item_set_compressed, false);
+
+			aprs_packet_deinit(packet);
+
+			return false;
+		}
+
+		std::string string = aprs_packet_to_string(packet);
+
+		aprs_packet_deinit(packet);
+
+		if (!aprservice_send(service, std::move(string)))
+		{
+			aprservice_log_error_ex(aprservice_send, false);
+
+			return false;
+		}
+
+		return true;
+	}
+
+	return false;
+}
 bool                       APRSERVICE_CALL aprservice_send_object(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live)
 {
 	if (!aprservice_is_connected(service))
@@ -1197,6 +1306,15 @@ bool                       APRSERVICE_CALL aprservice_send_object(struct aprserv
 
 	if (auto packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key))
 	{
+		if (!aprs_packet_object_set_time(packet, aprs_time_now()))
+		{
+			aprservice_log_error_ex(aprs_packet_object_set_time, false);
+
+			aprs_packet_deinit(packet);
+
+			return false;
+		}
+
 		if (!aprs_packet_object_set_alive(packet, live))
 		{
 			aprservice_log_error_ex(aprs_packet_object_set_alive, false);
@@ -1775,6 +1893,175 @@ struct aprservice*         APRSERVICE_CALL aprservice_task_get_service(struct ap
 	return task->service;
 }
 
+struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
+{
+	auto item = new aprservice_item
+	{
+		.service = service
+	};
+
+	if (!(item->packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
+	{
+		delete item;
+
+		return nullptr;
+	}
+
+	aprs_packet_item_set_alive(item->packet, true);
+	aprs_packet_item_set_speed(item->packet, speed);
+	aprs_packet_item_set_course(item->packet, course);
+	aprs_packet_item_set_comment(item->packet, comment);
+	aprs_packet_item_set_altitude(item->packet, altitude);
+	aprs_packet_item_set_latitude(item->packet, latitude);
+	aprs_packet_item_set_longitude(item->packet, longitude);
+	aprs_packet_item_set_compressed(item->packet, aprservice_is_compression_enabled(service));
+
+	service->items.push_back(item);
+
+	return item;
+}
+void                       APRSERVICE_CALL aprservice_item_destroy(struct aprservice_item* item)
+{
+	if (auto service = aprservice_item_get_service(item))
+	{
+		service->items.remove(item);
+
+		aprs_packet_deinit(item->packet);
+
+		delete item;
+	}
+}
+bool                       APRSERVICE_CALL aprservice_item_is_alive(struct aprservice_item* item)
+{
+	return aprs_packet_item_is_alive(item->packet);
+}
+struct aprservice*         APRSERVICE_CALL aprservice_item_get_service(struct aprservice_item* item)
+{
+	return item->service;
+}
+const char*                APRSERVICE_CALL aprservice_item_get_name(struct aprservice_item* item)
+{
+	return aprs_packet_item_get_name(item->packet);
+}
+const char*                APRSERVICE_CALL aprservice_item_get_comment(struct aprservice_item* item)
+{
+	return aprs_packet_item_get_comment(item->packet);
+}
+uint16_t                   APRSERVICE_CALL aprservice_item_get_speed(struct aprservice_item* item)
+{
+	return aprs_packet_item_get_speed(item->packet);
+}
+uint16_t                   APRSERVICE_CALL aprservice_item_get_course(struct aprservice_item* item)
+{
+	return aprs_packet_item_get_course(item->packet);
+}
+int32_t                    APRSERVICE_CALL aprservice_item_get_altitude(struct aprservice_item* item)
+{
+	return aprs_packet_item_get_altitude(item->packet);
+}
+float                      APRSERVICE_CALL aprservice_item_get_latitude(struct aprservice_item* item)
+{
+	return aprs_packet_item_get_latitude(item->packet);
+}
+float                      APRSERVICE_CALL aprservice_item_get_longitude(struct aprservice_item* item)
+{
+	return aprs_packet_item_get_longitude(item->packet);
+}
+char                       APRSERVICE_CALL aprservice_item_get_symbol_table(struct aprservice_item* item)
+{
+	return aprs_packet_item_get_symbol_table(item->packet);
+}
+char                       APRSERVICE_CALL aprservice_item_get_symbol_table_key(struct aprservice_item* item)
+{
+	return aprs_packet_item_get_symbol_table_key(item->packet);
+}
+bool                       APRSERVICE_CALL aprservice_item_set_symbol(struct aprservice_item* item, char table, char key)
+{
+	if (!aprs_packet_item_set_symbol(item->packet, table, key))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_symbol, false);
+
+		return false;
+	}
+
+	return true;
+}
+bool                       APRSERVICE_CALL aprservice_item_set_comment(struct aprservice_item* item, const char* value)
+{
+	if (!aprs_packet_item_set_comment(item->packet, value))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_comment, false);
+
+		return false;
+	}
+
+	return true;
+}
+bool                       APRSERVICE_CALL aprservice_item_set_position(struct aprservice_item* item, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
+{
+	if (!aprs_packet_item_set_speed(item->packet, speed))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_speed, false);
+
+		return false;
+	}
+
+	if (!aprs_packet_item_set_course(item->packet, course))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_course, false);
+
+		return false;
+	}
+
+	if (!aprs_packet_item_set_altitude(item->packet, altitude))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_altitude, false);
+
+		return false;
+	}
+
+	if (!aprs_packet_item_set_latitude(item->packet, latitude))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_latitude, false);
+
+		return false;
+	}
+
+	if (!aprs_packet_item_set_longitude(item->packet, longitude))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_longitude, false);
+
+		return false;
+	}
+
+	return true;
+}
+bool                       APRSERVICE_CALL aprservice_item_kill(struct aprservice_item* item)
+{
+	if (!aprs_packet_item_is_alive(item->packet))
+		return true;
+
+	if (!aprs_packet_item_set_alive(item->packet, false))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_alive, false);
+
+		return false;
+	}
+
+	return true;
+}
+bool                       APRSERVICE_CALL aprservice_item_announce(struct aprservice_item* item)
+{
+	if (!aprservice_send(item->service, aprs_packet_to_string(item->packet)))
+	{
+		aprservice_log_error_ex(aprservice_send, false);
+
+		return false;
+	}
+
+	return true;
+}
+
 struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
 {
 	auto object = new aprservice_object
@@ -1934,6 +2221,13 @@ bool                       APRSERVICE_CALL aprservice_object_kill(struct aprserv
 }
 bool                       APRSERVICE_CALL aprservice_object_announce(struct aprservice_object* object)
 {
+	if (!aprs_packet_object_set_time(object->packet, aprs_time_now()))
+	{
+		aprservice_log_error_ex(aprs_packet_object_set_time, false);
+
+		return false;
+	}
+
 	if (!aprservice_send(object->service, aprs_packet_to_string(object->packet)))
 	{
 		aprservice_log_error_ex(aprservice_send, false);

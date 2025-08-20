@@ -1907,14 +1907,93 @@ struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprserv
 		return nullptr;
 	}
 
-	aprs_packet_item_set_alive(item->packet, true);
-	aprs_packet_item_set_speed(item->packet, speed);
-	aprs_packet_item_set_course(item->packet, course);
-	aprs_packet_item_set_comment(item->packet, comment);
-	aprs_packet_item_set_altitude(item->packet, altitude);
-	aprs_packet_item_set_latitude(item->packet, latitude);
-	aprs_packet_item_set_longitude(item->packet, longitude);
-	aprs_packet_item_set_compressed(item->packet, aprservice_is_compression_enabled(service));
+	if (!aprs_packet_item_set_alive(item->packet, true))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_alive, false);
+
+		aprs_packet_deinit(item->packet);
+
+		delete item;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_item_set_speed(item->packet, speed))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_speed, false);
+
+		aprs_packet_deinit(item->packet);
+
+		delete item;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_item_set_course(item->packet, course))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_course, false);
+
+		aprs_packet_deinit(item->packet);
+
+		delete item;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_item_set_comment(item->packet, comment))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_comment, false);
+
+		aprs_packet_deinit(item->packet);
+
+		delete item;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_item_set_altitude(item->packet, altitude))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_altitude, false);
+
+		aprs_packet_deinit(item->packet);
+
+		delete item;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_item_set_latitude(item->packet, latitude))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_latitude, false);
+
+		aprs_packet_deinit(item->packet);
+
+		delete item;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_item_set_longitude(item->packet, longitude))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_longitude, false);
+
+		aprs_packet_deinit(item->packet);
+
+		delete item;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_item_set_compressed(item->packet, aprservice_is_compression_enabled(service)))
+	{
+		aprservice_log_error_ex(aprs_packet_item_set_compressed, false);
+
+		aprs_packet_deinit(item->packet);
+
+		delete item;
+
+		return nullptr;
+	};
 
 	service->items.push_back(item);
 
@@ -2076,14 +2155,93 @@ struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprse
 		return nullptr;
 	}
 
-	aprs_packet_object_set_alive(object->packet, true);
-	aprs_packet_object_set_speed(object->packet, speed);
-	aprs_packet_object_set_course(object->packet, course);
-	aprs_packet_object_set_comment(object->packet, comment);
-	aprs_packet_object_set_altitude(object->packet, altitude);
-	aprs_packet_object_set_latitude(object->packet, latitude);
-	aprs_packet_object_set_longitude(object->packet, longitude);
-	aprs_packet_object_set_compressed(object->packet, aprservice_is_compression_enabled(service));
+	if (!aprs_packet_object_set_alive(object->packet, true))
+	{
+		aprservice_log_error_ex(aprs_packet_object_set_alive, false);
+
+		aprs_packet_deinit(object->packet);
+
+		delete object;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_object_set_speed(object->packet, speed))
+	{
+		aprservice_log_error_ex(aprs_packet_object_set_speed, false);
+
+		aprs_packet_deinit(object->packet);
+
+		delete object;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_object_set_course(object->packet, course))
+	{
+		aprservice_log_error_ex(aprs_packet_object_set_course, false);
+
+		aprs_packet_deinit(object->packet);
+
+		delete object;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_object_set_comment(object->packet, comment))
+	{
+		aprservice_log_error_ex(aprs_packet_object_set_comment, false);
+
+		aprs_packet_deinit(object->packet);
+
+		delete object;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_object_set_altitude(object->packet, altitude))
+	{
+		aprservice_log_error_ex(aprs_packet_object_set_altitude, false);
+
+		aprs_packet_deinit(object->packet);
+
+		delete object;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_object_set_latitude(object->packet, latitude))
+	{
+		aprservice_log_error_ex(aprs_packet_object_set_latitude, false);
+
+		aprs_packet_deinit(object->packet);
+
+		delete object;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_object_set_longitude(object->packet, longitude))
+	{
+		aprservice_log_error_ex(aprs_packet_object_set_longitude, false);
+
+		aprs_packet_deinit(object->packet);
+
+		delete object;
+
+		return nullptr;
+	}
+
+	if (!aprs_packet_object_set_compressed(object->packet, aprservice_is_compression_enabled(service)))
+	{
+		aprservice_log_error_ex(aprs_packet_object_set_compressed, false);
+
+		aprs_packet_deinit(object->packet);
+
+		delete object;
+
+		return nullptr;
+	};
 
 	service->objects.push_back(object);
 

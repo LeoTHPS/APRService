@@ -1614,7 +1614,7 @@ bool                                      aprs_packet_decode(aprs_packet* packet
 			if (decoder.ident == *content)
 				return decoder.function(packet);
 
-	return true;
+	return false;
 }
 bool                                      aprs_packet_encode(aprs_packet* packet, std::stringstream& ss)
 {

@@ -18,6 +18,7 @@
 #define APRS_STATION_LONGITUDE        0
 #define APRS_STATION_SYMBOL_TABLE     '/'
 #define APRS_STATION_SYMBOL_TABLE_KEY 'l'
+#define APRS_STATION_POSITION_TYPE    APRSERVICE_POSITION_TYPE_POSITION
 
 struct demo
 {
@@ -313,7 +314,13 @@ demo* demo_init()
 	};
 
 	if (!(d->path = aprs_path_init_from_string(APRS_STATION_PATH)))
+	{
+		std::cerr << "Error initializing path \"" << APRS_STATION_PATH << '"' << std::endl;
+
+		delete d;
+
 		return nullptr;
+	}
 
 	if (!(d->service = aprservice_init(APRS_STATION, d->path, APRS_STATION_SYMBOL_TABLE, APRS_STATION_SYMBOL_TABLE_KEY)))
 	{
@@ -329,6 +336,18 @@ demo* demo_init()
 	if (!aprservice_set_comment(d->service, APRS_STATION_COMMENT))
 	{
 		std::cerr << "Error setting station comment" << std::endl;
+
+		aprservice_deinit(d->service);
+		aprs_path_deinit(d->path);
+
+		delete d;
+
+		return nullptr;
+	}
+
+	if (!aprservice_set_position_type(d->service, APRS_STATION_POSITION_TYPE))
+	{
+		std::cerr << "Error setting station position type" << std::endl;
 
 		aprservice_deinit(d->service);
 		aprs_path_deinit(d->path);

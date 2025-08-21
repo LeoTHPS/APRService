@@ -1,299 +1,388 @@
-#include <fstream>
-#include <sstream>
+#include <iomanip>
 #include <iostream>
-#include <filesystem>
+
+#include <windows.h>
 
 #include <APRService.hpp>
 
-#define APRS_PATH                    { "WIDE1-1" }
-#define APRS_STATION                 "N0CALL"
-#define APRS_SYMBOL_TABLE            '/'
-#define APRS_SYMBOL_TABLE_KEY        'l'
+#define APRS_IS_HOST                  "noam.aprs2.net"
+#define APRS_IS_PORT                  14580
+#define APRS_IS_PASSCODE              0
 
-#define APRS_BEACON                  false
-#define APRS_BEACON_COMMENT          "Test"
-#define APRS_BEACON_INTERVAL         (10 * 60)
-#define APRS_BEACON_ALTITUDE         0
-#define APRS_BEACON_LATITUDE         0
-#define APRS_BEACON_LONGITUDE        0
+#define APRS_STATION                  "N0CALL"
+#define APRS_STATION_PATH             "WIDE1-1"
+#define APRS_STATION_BEACON           (0 * 60) /* interval in seconds or 0 to disable */
+#define APRS_STATION_COMMENT          "Test"
+#define APRS_STATION_ALTITUDE         0
+#define APRS_STATION_LATITUDE         0
+#define APRS_STATION_LONGITUDE        0
+#define APRS_STATION_SYMBOL_TABLE     '/'
+#define APRS_STATION_SYMBOL_TABLE_KEY 'l'
 
-#define APRS_OBJECT                  false
-#define APRS_OBJECT_NAME             "N0CALL-O"
-#define APRS_OBJECT_COMMENT          "Test"
-#define APRS_OBJECT_INTERVAL         (15 * 60)
-#define APRS_OBJECT_LATITUDE         0
-#define APRS_OBJECT_LONGITUDE        0
-#define APRS_OBJECT_SYMBOL_TABLE     '/'
-#define APRS_OBJECT_SYMBOL_TABLE_KEY 'l'
-
-#define APRS_IS_HOST                 "noam.aprs2.net"
-#define APRS_IS_PORT                 14580
-#define APRS_IS_PASSCODE             -1
-
-#define DECODE_ERROR_LOG             "decode_errors.log"
-
-struct demo_filesystem
+struct demo
 {
-	std::ofstream decode_error;
+	aprs_path*  path;
+	aprservice* service;
 };
 
-bool demo_filesystem_init(demo_filesystem* fs)
+void  demo_task_beacon(aprservice* service, aprservice_task_information* task, void* param)
 {
-	try
-	{
-		fs->decode_error.open(DECODE_ERROR_LOG, std::ios::out | std::ios::trunc);
-	}
-	catch (const std::exception& exception)
-	{
-		std::cerr << "Error opening " DECODE_ERROR_LOG << std::endl;
-		std::cerr << exception.what() << std::endl;
+	auto d = (demo*)param;
 
-		return false;
-	}
+	task->seconds    = 10;
+	task->reschedule = true;
 
-	return true;
-}
-bool demo_filesystem_write_decode_error(demo_filesystem* fs, const std::string& raw, const APRService::Exception* exception)
-{
-	if (!fs->decode_error.is_open())
-		return false;
-
-	try
-	{
-		fs->decode_error << raw << std::endl;
-
-		if (exception)
-			fs->decode_error << '\t' << exception->what() << std::endl;
-	}
-	catch (const std::exception& exception)
-	{
-		std::cerr << "Error writing " DECODE_ERROR_LOG << std::endl;
-
-		return false;
-	}
-
-	return true;
+	if (aprservice_is_authenticated(service) && aprservice_send_position(service))
+		task->seconds = APRS_STATION_BEACON;
 }
 
-void demo_dump_packet_fields(APRService::Service* service, const APRService::Packet& packet)
+void  demo_event_handler(aprservice* service, aprservice_event_information* event, void* param)
 {
-	std::cout << "\tType: " << (int)packet.Type << std::endl;
-	std::cout << "\tPath: " << packet.Path[0];
-	for (size_t i = 1; i < packet.Path.size(); ++i)
+	auto d = (demo*)param;
+
+	switch (event->type)
 	{
-		if (!packet.Path[i].length())
+		case APRSERVICE_EVENT_CONNECT:
+			if (auto connect = (aprservice_event_information_connect*)event)
+				std::cout << "Connected" << std::endl;
 			break;
 
-		std::cout << ", " << packet.Path[i];
+		case APRSERVICE_EVENT_DISCONNECT:
+			if (auto disconnect = (aprservice_event_information_disconnect*)event)
+				std::cout << "Disconnected" << std::endl;
+			break;
+
+		case APRSERVICE_EVENT_AUTHENTICATE:
+			if (auto auth = (aprservice_event_information_authenticate*)event)
+				std::cout << "Authentication complete [Success: " << auth->success << ", Verified: " << auth->verified << "] " << auth->message << std::endl;
+			break;
+
+		case APRSERVICE_EVENT_RECEIVE_PACKET:
+			if (auto packet = ((aprservice_event_information_receive_packet*)event)->packet)
+			{
+				auto sender = aprs_packet_get_sender(packet);
+
+				switch (aprs_packet_get_type(packet))
+				{
+					case APRS_PACKET_TYPE_RAW:
+					{
+						auto content = aprs_packet_get_content(packet);
+
+						std::cout << "[Packet] [From: " << sender << "] " << content << std::endl;
+					}
+					break;
+
+					case APRS_PACKET_TYPE_ITEM:
+					{
+						auto item_name      = aprs_packet_item_get_name(packet);
+						auto item_comment   = aprs_packet_item_get_comment(packet);
+						auto item_latitude  = aprs_packet_item_get_latitude(packet);
+						auto item_longitude = aprs_packet_item_get_longitude(packet);
+
+						std::cout << "[Packet] [Item] ";
+
+						std::cout << "[From: " << sender << "] [Name: " << item_name << "] [Lat: " << item_latitude << "] [Long: " << item_longitude << "] " << item_comment << std::endl;
+					}
+					break;
+
+					case APRS_PACKET_TYPE_OBJECT:
+					{
+						auto object_name      = aprs_packet_object_get_name(packet);
+						auto object_comment   = aprs_packet_object_get_comment(packet);
+						auto object_latitude  = aprs_packet_object_get_latitude(packet);
+						auto object_longitude = aprs_packet_object_get_longitude(packet);
+
+						std::cout << "[Packet] [Object] ";
+
+						if (auto object_time = aprs_packet_object_get_time(packet))
+						{
+							uint8_t object_time_value[3] = {};
+
+							if (aprs_time_get_dms(object_time, &object_time_value[0], &object_time_value[1], &object_time_value[2]))
+							{
+								std::cout << "[Time.DMS: " << (int)object_time_value[0] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)object_time_value[1] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)object_time_value[2] << "] ";
+							}
+							else if (aprs_time_get_hms(object_time, &object_time_value[0], &object_time_value[1], &object_time_value[2]))
+							{
+								std::cout << "[Time.HMS: " << (int)object_time_value[0] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)object_time_value[1] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)object_time_value[2] << "] ";
+							}
+						}
+
+						std::cout << "[From: " << sender << "] [Name: " << object_name << "] [Lat: " << object_latitude << "] [Long: " << object_longitude << "] " << object_comment << std::endl;
+					}
+					break;
+
+					case APRS_PACKET_TYPE_STATUS:
+					{
+						auto status_message = aprs_packet_status_get_message(packet);
+
+						std::cout << "[Packet] [Status] ";
+
+						if (auto status_time = aprs_packet_status_get_time(packet))
+						{
+							uint8_t status_time_value[3];
+
+							if (aprs_time_get_dms(status_time, &status_time_value[0], &status_time_value[1], &status_time_value[2]))
+							{
+								std::cout << "[Time.DMS: " << (int)status_time_value[0] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)status_time_value[1] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)status_time_value[2] << "] ";
+							}
+							else if (aprs_time_get_hms(status_time, &status_time_value[0], &status_time_value[1], &status_time_value[2]))
+							{
+								std::cout << "[Time.HMS: " << (int)status_time_value[0] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)status_time_value[1] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)status_time_value[2] << "] ";
+							}
+						}
+
+						std::cout << "[From: " << sender << "] " << status_message << std::endl;
+					}
+					break;
+
+					case APRS_PACKET_TYPE_MESSAGE:
+					{
+						auto message_type        = aprs_packet_message_get_type(packet);
+						auto message_content     = aprs_packet_message_get_content(packet);
+						auto message_destination = aprs_packet_message_get_destination(packet);
+
+						switch (message_type)
+						{
+							case APRS_MESSAGE_TYPE_MESSAGE:
+								std::cout << "[Packet] [Message] [From: " << sender << "] [To: " << message_destination << "] " << message_content << std::endl;
+								break;
+
+							case APRS_MESSAGE_TYPE_BULLETIN:
+								std::cout << "[Packet] [Bulletin] [From: " << sender << "] [To: " << message_destination << "] " << message_content << std::endl;
+								break;
+						}
+					}
+					break;
+
+					case APRS_PACKET_TYPE_WEATHER:
+					{
+						auto weather_time                    = aprs_packet_weather_get_time(packet);
+						auto weather_type                    = aprs_packet_weather_get_type(packet);
+						auto weather_wind_speed              = aprs_packet_weather_get_wind_speed(packet);
+						auto weather_wind_speed_gust         = aprs_packet_weather_get_wind_speed_gust(packet);
+						auto weather_wind_direction          = aprs_packet_weather_get_wind_direction(packet);
+						auto weather_rainfall_last_hour      = aprs_packet_weather_get_rainfall_last_hour(packet);
+						auto weather_rainfall_last_24_hours  = aprs_packet_weather_get_rainfall_last_24_hours(packet);
+						auto weather_rainfall_since_midnight = aprs_packet_weather_get_rainfall_since_midnight(packet);
+						auto weather_humidity                = aprs_packet_weather_get_humidity(packet);
+						auto weather_temperature             = aprs_packet_weather_get_temperature(packet);
+						auto weather_barometric_pressure     = aprs_packet_weather_get_barometric_pressure(packet);
+
+						std::cout << "[Packet] [Weather] ";
+
+						if (auto weather_time = aprs_packet_object_get_time(packet))
+						{
+							uint8_t weather_time_value[4];
+
+							if (aprs_time_get_mdhm(weather_time, &weather_time_value[0], &weather_time_value[1], &weather_time_value[2], &weather_time_value[3]))
+							{
+								std::cout << "[Date: ";
+								std::cout << std::setfill('0') << std::setw(2) << (int)weather_time_value[0] << '/';
+								std::cout << std::setfill('0') << std::setw(2) << (int)weather_time_value[1] << "] ";
+
+								std::cout << "[Time: ";
+								std::cout << std::setfill('0') << std::setw(2) << (int)weather_time_value[2] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)weather_time_value[3] << "] ";
+							}
+						}
+
+						std::cout << "[From: " << sender << "] " << std::endl;
+					}
+					break;
+
+					case APRS_PACKET_TYPE_POSITION:
+					{
+						auto position_flags     = aprs_packet_position_get_flags(packet);
+						auto position_comment   = aprs_packet_position_get_comment(packet);
+						auto position_latitude  = aprs_packet_position_get_latitude(packet);
+						auto position_longitude = aprs_packet_position_get_longitude(packet);
+
+						std::cout << "[Packet] [Position] ";
+
+						if (position_flags & APRS_POSITION_FLAG_TIME)
+						{
+							auto    position_time          = aprs_packet_position_get_time(packet);
+							uint8_t position_time_value[3] = {};
+
+							if (aprs_time_get_dms(position_time, &position_time_value[0], &position_time_value[1], &position_time_value[2]))
+							{
+								std::cout << "[Time.DMS: " << (int)position_time_value[0] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)position_time_value[1] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)position_time_value[2] << "] ";
+							}
+							else if (aprs_time_get_hms(position_time, &position_time_value[0], &position_time_value[1], &position_time_value[2]))
+							{
+								std::cout << "[Time.HMS: " << (int)position_time_value[0] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)position_time_value[1] << ':';
+								std::cout << std::setfill('0') << std::setw(2) << (int)position_time_value[2] << "] ";
+							}
+						}
+
+						if (position_flags & APRS_POSITION_FLAG_MIC_E)
+							std::cout << "[Mic-E] ";
+
+						std::cout << "[From: " << sender << "] [Lat: " << position_latitude << "] [Long: " << position_longitude << "] " << position_comment << std::endl;
+					}
+					break;
+
+					case APRS_PACKET_TYPE_TELEMETRY:
+					{
+						auto telemetry_digital  = aprs_packet_telemetry_get_digital(packet);
+						auto telemetry_sequence = aprs_packet_telemetry_get_sequence(packet);
+
+						std::cout << "[Packet] [Telemetry] [From: " << sender << "] [Seq: " << telemetry_sequence << "] ";
+
+						switch (aprs_packet_telemetry_get_type(packet))
+						{
+							case APRS_TELEMETRY_TYPE_U8:
+							{
+								uint8_t telemetry_analog[] =
+								{
+									aprs_packet_telemetry_get_analog(packet, 0),
+									aprs_packet_telemetry_get_analog(packet, 1),
+									aprs_packet_telemetry_get_analog(packet, 2),
+									aprs_packet_telemetry_get_analog(packet, 3),
+									aprs_packet_telemetry_get_analog(packet, 4)
+								};
+
+								std::cout << "[Analog: " << (int)telemetry_analog[0] << ", " << (int)telemetry_analog[1] << ", " << (int)telemetry_analog[2] << ", " << (int)telemetry_analog[3] << ", " << (int)telemetry_analog[4] << "] ";
+							}
+							break;
+
+							case APRS_TELEMETRY_TYPE_FLOAT:
+							{
+								float telemetry_analog[] =
+								{
+									aprs_packet_telemetry_get_analog_float(packet, 0),
+									aprs_packet_telemetry_get_analog_float(packet, 1),
+									aprs_packet_telemetry_get_analog_float(packet, 2),
+									aprs_packet_telemetry_get_analog_float(packet, 3),
+									aprs_packet_telemetry_get_analog_float(packet, 4)
+								};
+
+								std::cout << "[Analog: " << telemetry_analog[0] << ", " << telemetry_analog[1] << ", " << telemetry_analog[2] << ", " << telemetry_analog[3] << ", " << telemetry_analog[4] << "] ";
+							}
+							break;
+						}
+
+						std::cout << "[Digital: ";
+						for (uint8_t i = 0; i < 8; ++i)
+							std::cout << (((telemetry_digital & (1 << i)) == (1 << i)) ? 1 : 0);
+						std::cout << ']' << std::endl;
+					}
+					break;
+
+					case APRS_PACKET_TYPE_USER_DEFINED:
+					{
+						auto user_defined_id   = aprs_packet_user_defined_get_id(packet);
+						auto user_defined_type = aprs_packet_user_defined_get_type(packet);
+						auto user_defined_data = aprs_packet_user_defined_get_data(packet);
+
+						std::cout << "[Packet] [User Defined] [From: " << sender << "] [ID: " << user_defined_id << "] [Type: " << user_defined_type << "] " << user_defined_data << std::endl;
+					}
+					break;
+				}
+			}
+			break;
+
+		case APRSERVICE_EVENT_RECEIVE_MESSAGE:
+			if (auto message = (aprservice_event_information_receive_message*)event)
+				std::cout << "[Message] [From: " << message->sender << "] [To: " << message->destination << "] " << message->content << std::endl;
+			break;
+
+		case APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE:
+			if (auto server_message = (aprservice_event_information_receive_server_message*)event)
+				std::cout << "[Server] [Message] " << server_message->message << std::endl;
+			break;
 	}
-	std::cout << std::endl;
-	std::cout << "\tIGate: " << packet.IGate << std::endl;
-	std::cout << "\tToCall: " << packet.ToCall << std::endl;
-	std::cout << "\tSender: " << packet.Sender << std::endl;
-	std::cout << "\tContent: " << packet.Content << std::endl;
-	std::cout << "\tQConstruct: " << packet.QConstruct << std::endl;
-}
-void demo_dump_object_fields(APRService::Service* service, const APRService::Object& object)
-{
-	demo_dump_packet_fields(service, object);
-
-	std::cout << "\tFlags: " << object.Flags << std::endl;
-	std::cout << "\tComment: " << object.Comment << std::endl;
-	std::cout << "\tSpeed: " << object.Speed << std::endl;
-	std::cout << "\tCourse: " << object.Course << std::endl;
-	std::cout << "\tAltitude: " << object.Altitude << std::endl;
-	std::cout << "\tLatitude: " << object.Latitude << std::endl;
-	std::cout << "\tLongitude: " << object.Longitude << std::endl;
-	std::cout << "\tSymbolTable: " << object.SymbolTable << std::endl;
-	std::cout << "\tSymbolTableKey: " << object.SymbolTableKey << std::endl;
-	std::cout << "\tDistance: " << object.CalculateDistance(APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRService::DISTANCE_MILES) << " miles" << std::endl;
-	std::cout << "\tDistance3D: " << object.CalculateDistance3D(APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRS_BEACON_ALTITUDE, APRService::DISTANCE_MILES) << " miles" << std::endl;
-}
-void demo_dump_message_fields(APRService::Service* service, const APRService::Message& message)
-{
-	demo_dump_packet_fields(service, message);
-
-	std::cout << "\tID: " << message.ID << std::endl;
-	std::cout << "\tBody: " << message.Body << std::endl;
-	std::cout << "\tDestination: " << message.Destination << std::endl;
-}
-void demo_dump_weather_fields(APRService::Service* service, const APRService::Weather& weather)
-{
-	demo_dump_packet_fields(service, weather);
-
-	std::cout << "\tTime: " << mktime(const_cast<tm*>(&weather.Time)) << std::endl;
-	std::cout << "\tWindSpeed: " << weather.WindSpeed << std::endl;
-	std::cout << "\tWindSpeedGust: " << weather.WindSpeedGust << std::endl;
-	std::cout << "\tWindDirection: " << weather.WindDirection << std::endl;
-	std::cout << "\tRainfallLastHour: " << weather.RainfallLastHour << std::endl;
-	std::cout << "\tRainfallLast24Hours: " << weather.RainfallLast24Hours << std::endl;
-	std::cout << "\tRainfallSinceMidnight: " << weather.RainfallSinceMidnight << std::endl;
-	std::cout << "\tHumidity: " << weather.Humidity << std::endl;
-	std::cout << "\tTemperature: " << weather.Temperature << std::endl;
-	std::cout << "\tBarometricPressure: " << weather.BarometricPressure << std::endl;
-}
-void demo_dump_position_fields(APRService::Service* service, const APRService::Position& position)
-{
-	demo_dump_packet_fields(service, position);
-
-	std::cout << "\tFlags: " << position.Flags << std::endl;
-	std::cout << "\tSpeed: " << position.Speed << std::endl;
-	std::cout << "\tCourse: " << position.Course << std::endl;
-	std::cout << "\tAltitude: " << position.Altitude << std::endl;
-	std::cout << "\tLatitude: " << position.Latitude << std::endl;
-	std::cout << "\tLongitude: " << position.Longitude << std::endl;
-	std::cout << "\tComment: " << position.Comment << std::endl;
-	std::cout << "\tSymbolTable: " << position.SymbolTable << std::endl;
-	std::cout << "\tSymbolTableKey: " << position.SymbolTableKey << std::endl;
-	std::cout << "\tDistance: " << position.CalculateDistance(APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRService::DISTANCE_MILES) << " miles" << std::endl;
-	std::cout << "\tDistance3D: " << position.CalculateDistance3D(APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRS_BEACON_ALTITUDE, APRService::DISTANCE_MILES) << " miles" << std::endl;
-}
-void demo_dump_telemetry_fields(APRService::Service* service, const APRService::Telemetry& telemetry)
-{
-	demo_dump_packet_fields(service, telemetry);
-
-	std::cout << "\tAnalog: " << telemetry.Analog[0];
-	for (size_t i = 1; i < telemetry.Analog.size(); ++i)
-		std::cout << ", " << telemetry.Analog[i];
-	std::cout << std::endl;
-	std::cout << "\tDigital: ";
-	for (size_t i = 0; i < 8; ++i)
-		std::cout << ((telemetry.Digital >> i) & 1);
-	std::cout << std::endl;
-	std::cout << "\tSequence: " << telemetry.Sequence << std::endl;
 }
 
-void demo_service_on_connect(APRService::Service* service)
+demo* demo_init()
 {
-	std::cout << "APRService::OnConnect" << std::endl;
-}
-void demo_service_on_disconnect(APRService::Service* service)
-{
-	std::cout << "APRService::OnDisconnect" << std::endl;
-}
-void demo_service_on_authenticate(APRService::Service* service, const std::string& message)
-{
-	std::cout << "APRService::OnAuthenticate" << std::endl;
-	std::cout << "\tMessage: " << message << std::endl;
-}
-void demo_service_on_decode_error(demo_filesystem* fs, APRService::Service* service, const std::string& raw, const APRService::Exception* exception)
-{
-	std::cout << "APRService::OnDecodeError" << std::endl;
-	std::cout << "\tRaw: " << raw << std::endl;
-	std::cout << "\tException: " << (exception ? exception->what() : "") << std::endl;
+	auto d = new demo
+	{
+	};
 
-	demo_filesystem_write_decode_error(fs, raw, exception);
+	if (!(d->path = aprs_path_init_from_string(APRS_STATION_PATH)))
+		return nullptr;
+
+	if (!(d->service = aprservice_init(APRS_STATION, d->path, APRS_STATION_SYMBOL_TABLE, APRS_STATION_SYMBOL_TABLE_KEY)))
+	{
+		std::cerr << "Error initializing service" << std::endl;
+
+		aprs_path_deinit(d->path);
+
+		delete d;
+
+		return nullptr;
+	}
+
+	if (!aprservice_set_comment(d->service, APRS_STATION_COMMENT))
+	{
+		std::cerr << "Error setting station comment" << std::endl;
+
+		aprservice_deinit(d->service);
+		aprs_path_deinit(d->path);
+
+		delete d;
+
+		return nullptr;
+	}
+
+	if (!aprservice_set_position(d->service, APRS_STATION_LATITUDE, APRS_STATION_LONGITUDE, APRS_STATION_ALTITUDE, 0, 0))
+	{
+		std::cerr << "Error setting station position" << std::endl;
+
+		aprservice_deinit(d->service);
+		aprs_path_deinit(d->path);
+
+		delete d;
+
+		return nullptr;
+	}
+
+	aprservice_enable_monitoring(d->service, true);
+
+	aprservice_set_default_event_handler(d->service, &demo_event_handler, d);
+
+#if APRS_STATION_BEACON
+	aprservice_task_schedule(d->service, 10, &demo_task_beacon, d);
+#endif
+
+	return d;
 }
-void demo_service_on_receive_packet(APRService::Service* service, const APRService::Packet& packet)
+void  demo_deinit(demo* d)
 {
-	std::cout << "APRService::OnReceivePacket" << std::endl;
-	demo_dump_packet_fields(service, packet);
+	aprservice_deinit(d->service);
+	aprs_path_deinit(d->path);
+
+	delete d;
 }
-void demo_service_on_receive_object(APRService::Service* service, const APRService::Object& object)
+bool  demo_update(demo* d)
 {
-	std::cout << "APRService::OnReceiveObject" << std::endl;
-	demo_dump_object_fields(service, object);
-}
-void demo_service_on_receive_message(APRService::Service* service, const APRService::Message& message)
-{
-	std::cout << "APRService::OnReceiveMessage" << std::endl;
-	demo_dump_message_fields(service, message);
-}
-void demo_service_on_receive_weather(APRService::Service* service, const APRService::Weather& weather)
-{
-	std::cout << "APRService::OnReceiveWeather" << std::endl;
-	demo_dump_weather_fields(service, weather);
-}
-void demo_service_on_receive_position(APRService::Service* service, const APRService::Position& position)
-{
-	std::cout << "APRService::OnReceivePosition" << std::endl;
-	demo_dump_position_fields(service, position);
-}
-void demo_service_on_receive_telemetry(APRService::Service* service, const APRService::Telemetry& telemetry)
-{
-	std::cout << "APRService::OnReceiveTelemetry" << std::endl;
-	demo_dump_telemetry_fields(service, telemetry);
-}
-void demo_service_on_receive_server_message(APRService::Service* service, const std::string& message)
-{
-	std::cout << "APRService::OnReceiveServerMessage" << std::endl;
-	std::cout << "\tMessage: " << message << std::endl;
+	if (!aprservice_is_connected(d->service) && !aprservice_connect(d->service, APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE))
+		std::cerr << "Connection failed" << std::endl;
+
+	return aprservice_poll(d->service);
 }
 
 int main(int argc, char* argv[])
 {
-	demo_filesystem fs;
-	demo_filesystem_init(&fs);
-
-	try
+	if (auto demo = demo_init())
 	{
-		APRService::Service service(APRS_STATION, APRS_PATH, APRS_SYMBOL_TABLE, APRS_SYMBOL_TABLE_KEY);
-
-		service.EnableAutoAck();
-		service.EnableMessaging();
-		service.EnableMonitorMode();
-		service.EnableCompression();
-
-		service.OnConnect.Register(std::bind(&demo_service_on_connect, &service));
-		service.OnDisconnect.Register(std::bind(&demo_service_on_disconnect, &service));
-		service.OnAuthenticate.Register(std::bind(&demo_service_on_authenticate, &service, std::placeholders::_1));
-		service.OnDecodeError.Register(std::bind(&demo_service_on_decode_error, &fs, &service, std::placeholders::_1, std::placeholders::_2));
-		service.OnReceivePacket.Register(std::bind(&demo_service_on_receive_packet, &service, std::placeholders::_1));
-		service.OnReceiveObject.Register(std::bind(&demo_service_on_receive_object, &service, std::placeholders::_1));
-		service.OnReceiveMessage.Register(std::bind(&demo_service_on_receive_message, &service, std::placeholders::_1));
-		service.OnReceiveWeather.Register(std::bind(&demo_service_on_receive_weather, &service, std::placeholders::_1));
-		service.OnReceivePosition.Register(std::bind(&demo_service_on_receive_position, &service, std::placeholders::_1));
-		service.OnReceiveTelemetry.Register(std::bind(&demo_service_on_receive_telemetry, &service, std::placeholders::_1));
-		service.OnReceiveServerMessage.Register(std::bind(&demo_service_on_receive_server_message, &service, std::placeholders::_1));
-
-#if APRS_BEACON
-		if (!service.IsReadOnly())
-			service.ScheduleTask(1, [&service](uint32_t& seconds) {
-				if (!service.IsAuthenticated())
-				{
-					seconds = 1;
-
-					return true;
-				}
-
-				seconds = APRS_BEACON_INTERVAL;
-
-				service.SendPosition(0, 0, APRS_BEACON_ALTITUDE, APRS_BEACON_LATITUDE, APRS_BEACON_LONGITUDE, APRS_BEACON_COMMENT);
-
-				return true;
-			});
-#endif
-
-#if APRS_OBJECT
-		if (auto object = service.AddObject(APRS_OBJECT_NAME, APRS_OBJECT_COMMENT, APRS_OBJECT_LATITUDE, APRS_OBJECT_LONGITUDE, APRS_OBJECT_SYMBOL_TABLE, APRS_OBJECT_SYMBOL_TABLE_KEY))
-			service.ScheduleTask(1, [&service, object](uint32_t& seconds) {
-				if (!service.IsAuthenticated())
-				{
-					seconds = 1;
-
-					return true;
-				}
-
-				seconds = APRS_OBJECT_INTERVAL;
-
-				object->Announce();
-
-				return true;
-			});
-#endif
-
-		service.Connect(APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE);
-
-		while (service.Update())
-#if defined(APRSERVICE_UNIX)
-			sleep(10);
-#elif defined(APRSERVICE_WIN32)
+		while (demo_update(demo))
 			Sleep(10);
-#endif
-	}
-	catch (const APRService::Exception& exception)
-	{
-		std::cerr << exception.what() << std::endl;
+
+		demo_deinit(demo);
 	}
 
 	return 0;

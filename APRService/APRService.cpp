@@ -1143,7 +1143,7 @@ bool                                       aprservice_poll_messages(struct aprse
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, const char* raw)
+bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, const char* string)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -1151,7 +1151,7 @@ bool                       APRSERVICE_CALL aprservice_send(struct aprservice* se
 	if ((service->auth.state != APRSERVICE_AUTH_STATE_NONE) && aprservice_is_read_only(service))
 		return false;
 
-	if (!aprservice_io_write_line(service->io, raw))
+	if (!aprservice_io_write_line(service->io, string))
 	{
 		aprservice_log_error_ex(aprservice_io_write_line, false);
 
@@ -1162,7 +1162,7 @@ bool                       APRSERVICE_CALL aprservice_send(struct aprservice* se
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, std::string&& raw)
+bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, std::string&& string)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -1170,7 +1170,7 @@ bool                       APRSERVICE_CALL aprservice_send(struct aprservice* se
 	if ((service->auth.state != APRSERVICE_AUTH_STATE_NONE) && aprservice_is_read_only(service))
 		return false;
 
-	if (!aprservice_io_write_line(service->io, std::move(raw)))
+	if (!aprservice_io_write_line(service->io, std::move(string)))
 	{
 		aprservice_log_error_ex(aprservice_io_write_line, false);
 
@@ -1181,7 +1181,7 @@ bool                       APRSERVICE_CALL aprservice_send(struct aprservice* se
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_packet(struct aprservice* service, const char* content)
+bool                       APRSERVICE_CALL aprservice_send_raw(struct aprservice* service, const char* content)
 {
 	if (!aprservice_is_connected(service))
 		return false;

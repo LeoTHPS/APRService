@@ -121,8 +121,8 @@ APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_set_even
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_set_default_event_handler(struct aprservice* service, aprservice_event_handler handler, void* param);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_enable_monitoring(struct aprservice* service, bool value);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_poll(struct aprservice* service);
-APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, const char* raw);
-APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_packet(struct aprservice* service, const char* content);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, const char* string);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_raw(struct aprservice* service, const char* content);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_item(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_object(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_status(struct aprservice* service, const char* message);

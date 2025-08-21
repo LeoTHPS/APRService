@@ -1736,9 +1736,6 @@ const char*               APRSERVICE_CALL aprs_packet_get_sender(struct aprs_pac
 }
 const char*               APRSERVICE_CALL aprs_packet_get_content(struct aprs_packet* packet)
 {
-	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_RAW)
-		return nullptr;
-
 	return packet->content.c_str();
 }
 bool                      APRSERVICE_CALL aprs_packet_set_path(struct aprs_packet* packet, struct aprs_path* value)
@@ -1792,13 +1789,21 @@ bool                      APRSERVICE_CALL aprs_packet_set_content(struct aprs_pa
 }
 const char*               APRSERVICE_CALL aprs_packet_to_string(struct aprs_packet* packet)
 {
-	std::stringstream ss;
-	ss << aprs_packet_get_sender(packet) << '>' << aprs_packet_get_tocall(packet) << ',' << aprs_path_to_string(packet->path) << ':';
+	{
+		std::stringstream ss;
 
-	if (!aprs_packet_encode(packet, ss))
-		return nullptr;
+		if (!aprs_packet_encode(packet, ss))
+			return nullptr;
 
-	packet->string = ss.str();
+		packet->content = ss.str();
+	}
+
+	{
+		std::stringstream ss;
+		ss << aprs_packet_get_sender(packet) << '>' << aprs_packet_get_tocall(packet) << ',' << aprs_path_to_string(packet->path) << ':' << packet->content;
+
+		packet->string = ss.str();
+	}
 
 	return packet->string.c_str();
 }

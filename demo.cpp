@@ -388,7 +388,7 @@ void  demo_deinit(demo* d)
 }
 bool  demo_update(demo* d)
 {
-	if (!aprservice_is_connected(d->service) && !aprservice_connect(d->service, APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE))
+	if (!aprservice_is_connected(d->service) && !aprservice_connect_aprs_is(d->service, APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE))
 		std::cerr << "Connection failed" << std::endl;
 
 	return aprservice_poll(d->service);

@@ -8,6 +8,7 @@
 #include <regex>
 #include <chrono>
 #include <string>
+#include <cassert>
 #include <cstring>
 #include <sstream>
 #include <iostream>
@@ -20,6 +21,7 @@
 
 	#include <arpa/inet.h>
 
+	#include <sys/ioctl.h>
 	#include <sys/types.h>
 	#include <sys/socket.h>
 
@@ -28,6 +30,53 @@
 	#include <WS2tcpip.h>
 	#include <MSWSock.h>
 #endif
+
+enum APRSERVICE_IO_TYPES
+{
+	APRSERVICE_IO_TYPE_NONE,
+	APRSERVICE_IO_TYPE_APRS_IS,
+	APRSERVICE_IO_TYPE_KISS_TNC
+};
+
+enum APRSERVICE_IO_KISS_TNC_COMMANDS : uint8_t
+{
+	// The following bytes should be transmitted by the TNC.
+	// The maximum number of bytes, thus the size of the encapsulated packet, is determined by the amount of memory in the TNC.
+	APRSERVICE_IO_KISS_TNC_COMMAND_DATA             = 0x00,
+
+	// The next byte is the time to hold up the TX after the FCS has been sent, in 10 ms units.
+	// This command is obsolete, and is included here only for compatibility with some existing implementations.
+	APRSERVICE_IO_KISS_TNC_COMMAND_SET_TX_TAIL      = 0x04,
+	// The next byte is the transmitter keyup delay in 10 ms units.
+	// The default start-up value is 50 (i.e., 500 ms).
+	APRSERVICE_IO_KISS_TNC_COMMAND_SET_TX_DELAY     = 0x01,
+	// The next byte is the slot interval in 10 ms units.
+	// The default is 10 (i.e., 100ms).
+	APRSERVICE_IO_KISS_TNC_COMMAND_SET_SLOT_TIME    = 0x03,
+	// The next byte is 0 for half duplex, nonzero for full duplex.
+	// The default is 0 (i.e., half duplex).
+	APRSERVICE_IO_KISS_TNC_COMMAND_SET_FULL_DUPLEX  = 0x05,
+	// Specific for each TNC.
+	// In the TNC-1, this command sets the modem speed.
+	// Other implementations may use this function for other hardware-specific functions.
+	APRSERVICE_IO_KISS_TNC_COMMAND_SET_HARDWARE     = 0x06,
+	// The next byte is the persistence parameter, p, scaled to the range 0 - 255 with the following formula:
+	// P = p * 256 - 1
+	// The default value is P = 63 (i.e., p = 0.25).
+	APRSERVICE_IO_KISS_TNC_COMMAND_SET_PERSISTENCE  = 0x02,
+
+	// Exit KISS and return control to a higher-level program.
+	// This is useful only when KISS is incorporated into the TNC along with other applications.
+	APRSERVICE_IO_KISS_TNC_COMMAND_RETURN           = 0xFF
+};
+
+enum APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTERS : uint8_t
+{
+	APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTER_FRAME_END               = 0xC0,
+	APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE            = 0xDB,
+	APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_END    = 0xDC,
+	APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_ESCAPE = 0xDD
+};
 
 enum APRSERVICE_AUTH_STATES
 {
@@ -46,11 +95,13 @@ struct aprservice_io
 {
 	aprservice*                      service;
 
-	bool                             is_connected;
+	int                              type;
 
 #if defined(APRSERVICE_UNIX)
+	int                              serial;
 	int                              socket;
 #elif defined(APRSERVICE_WIN32)
+	HANDLE                           serial;
 	SOCKET                           socket;
 	WSADATA                          winsock;
 #endif
@@ -207,9 +258,9 @@ bool                                       aprservice_io_init(aprservice* servic
 {
 	*io = new aprservice_io
 	{
-		.service      = service,
+		.service = service,
 
-		.is_connected = false
+		.type    = APRSERVICE_IO_TYPE_NONE
 	};
 
 #if defined(APRSERVICE_WIN32)
@@ -238,12 +289,12 @@ void                                       aprservice_io_deinit(aprservice_io* i
 }
 bool                                       aprservice_io_is_connected(aprservice_io* io)
 {
-	return io->is_connected;
+	return io->type != APRSERVICE_IO_TYPE_NONE;
 }
-bool                                       aprservice_io_connect(aprservice_io* io, const char* host, uint16_t port)
+bool                                       aprservice_io_connect_aprs_is(aprservice_io* io, const char* host, uint16_t port)
 {
 	if (aprservice_io_is_connected(io))
-		return true;
+		return false;
 
 resolve_host:
 	addrinfo  dns_hint = { .ai_family = AF_UNSPEC };
@@ -364,7 +415,110 @@ socket_connect:
 	}
 #endif
 
-	io->is_connected = true;
+	io->type = APRSERVICE_IO_TYPE_APRS_IS;
+
+	return true;
+}
+bool                                       aprservice_io_connect_kiss_tnc(aprservice_io* io, const char* device, uint32_t speed)
+{
+	if (aprservice_io_is_connected(io))
+		return false;
+
+#if defined(APRSERVICE_UNIX)
+	if ((io->serial = open(device, O_RDWR | O_NOCTTY | O_NDELAY)) == -1)
+	{
+		auto error = errno;
+
+		aprservice_log_error_ex(open, error);
+
+		return false;
+	}
+
+	fcntl(io->serial, F_SETFL, O_RDWR);
+
+	termios options;
+
+	tcgetattr(io->serial, &options);
+	cfmakeraw(&options);
+	cfsetspeed(&options, speed);
+
+	options.c_cc[VMIN]  = 1;
+	options.c_cc[VTIME] = 0;
+	options.c_cflag    |= CS8;
+	options.c_cflag    |= CLOCAL | CREAD;
+	options.c_cflag    &= ~(PARENB | CSTOPB | CSIZE);
+	options.c_cflag    &= ~(ICANON | ECHO | ECHOE | ISIG | OPOST);
+
+	tcsetattr(io->serial, TCSANOW, &options);
+
+	int status;
+
+	ioctl(io->serial, TIOCMGET, &status);
+
+	status |= TIOCM_DTR | TIOCM_RTS;
+
+	ioctl(io->serial, TIOCMSET, &status);
+#elif defined(APRSERVICE_WIN32)
+	if ((io->serial = CreateFileA(device, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0)) == INVALID_HANDLE_VALUE)
+	{
+		auto error = GetLastError();
+
+		aprservice_log_error_ex(CreateFileA, error);
+
+		return false;
+	}
+
+	DCB dcb       = {};
+	dcb.DCBlength = sizeof(DCB);
+
+	if (!GetCommState(io->serial, &dcb))
+	{
+		auto error = GetLastError();
+
+		aprservice_log_error_ex(GetCommState, error);
+
+		CloseHandle(io->serial);
+
+		return false;
+	}
+
+	dcb.Parity   = NOPARITY;
+	dcb.fBinary  = TRUE;
+	dcb.BaudRate = speed;
+	dcb.ByteSize = 8;
+	dcb.StopBits = ONESTOPBIT;
+
+	if (!SetCommState(io->serial, &dcb))
+	{
+		auto error = GetLastError();
+
+		aprservice_log_error_ex(SetCommState, error);
+
+		CloseHandle(io->serial);
+
+		return false;
+	}
+
+	COMMTIMEOUTS timeouts                = {};
+	timeouts.ReadIntervalTimeout         = MAXWORD;
+	timeouts.ReadTotalTimeoutConstant    = 0;
+	timeouts.ReadTotalTimeoutMultiplier  = 0;
+	timeouts.WriteTotalTimeoutConstant   = 50;
+	timeouts.WriteTotalTimeoutMultiplier = 10;
+
+	if (!SetCommTimeouts(io->serial, &timeouts))
+	{
+		auto error = GetLastError();
+
+		aprservice_log_error_ex(SetCommTimeouts, error);
+
+		CloseHandle(io->serial);
+
+		return false;
+	}
+#endif
+
+	io->type = APRSERVICE_IO_TYPE_KISS_TNC;
 
 	return true;
 }
@@ -372,48 +526,50 @@ void                                       aprservice_io_disconnect(aprservice_i
 {
 	if (aprservice_io_is_connected(io))
 	{
+		switch (io->type)
+		{
+			case APRSERVICE_IO_TYPE_APRS_IS:
 #if defined(APRSERVICE_UNIX)
-		close(io->socket);
+				close(io->socket);
 #elif defined(APRSERVICE_WIN32)
-		closesocket(io->socket);
+				closesocket(io->socket);
 #endif
+				break;
+
+			case APRSERVICE_IO_TYPE_KISS_TNC:
+#if defined(APRSERVICE_UNIX)
+				close(io->serial);
+#elif defined(APRSERVICE_WIN32)
+				CloseHandle(io->serial);
+#endif
+				break;
+		}
 
 		io->rx_buffer.clear();
 
 		while (!io->tx_buffer_queue.empty())
 			io->tx_buffer_queue.pop();
 
-		io->is_connected = false;
+		io->type = APRSERVICE_IO_TYPE_NONE;
 	}
 }
 bool                                       aprservice_io_flush(aprservice_io* io)
 {
+	size_t buffer_size;
 	size_t number_of_bytes_sent;
 
 	while (auto buffer = io->tx_buffer_queue.empty() ? nullptr : &io->tx_buffer_queue.front())
 	{
-		if (buffer->offset < buffer->value.length())
-		{
-			switch (aprservice_io_write(io, &buffer->value[buffer->offset], buffer->value.length() - buffer->offset, &number_of_bytes_sent))
-			{
-				case 0:  return false;
-				case -1: return true;
-			}
+		buffer_size = buffer->value.length();
 
-			buffer->offset += number_of_bytes_sent;
+		switch (aprservice_io_write(io, &buffer->value[buffer->offset], buffer_size - buffer->offset, &number_of_bytes_sent))
+		{
+			case 0:  return false;
+			case -1: return true;
 		}
 
-		if (buffer->offset >= buffer->value.length())
-		{
-			switch (aprservice_io_write(io, &"\r\n"[buffer->offset - buffer->value.length()], (buffer->value.length() + 2) - buffer->offset, &number_of_bytes_sent))
-			{
-				case 0:  return false;
-				case -1: return true;
-			}
-
-			if ((buffer->offset += number_of_bytes_sent) == (buffer->value.length() + 2))
-				io->tx_buffer_queue.pop();
-		}
+		if ((buffer->offset += number_of_bytes_sent) == buffer_size)
+			io->tx_buffer_queue.pop();
 	}
 
 	return true;
@@ -425,53 +581,102 @@ int                                        aprservice_io_read(aprservice_io* io,
 	if (!aprservice_io_is_connected(io))
 		return 0;
 
-#if defined(APRSERVICE_UNIX)
-	ssize_t bytes_received;
-
-	if ((bytes_received = recv(io->socket, buffer, size, 0)) == -1)
+	switch (io->type)
 	{
-		auto error = errno;
-
-		if ((error == EAGAIN) || (error == EWOULDBLOCK))
-			return -1;
-
-		aprservice_io_disconnect(io);
-
-		if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
-			return 0;
-
-		aprservice_log_error_ex(recv, error);
-
-		return 0;
-	}
-
-	*number_of_bytes_received = bytes_received;
-#elif defined(APRSERVICE_WIN32)
-	int bytes_received;
-
-	if ((bytes_received = recv(io->socket, reinterpret_cast<char*>(buffer), static_cast<int>(size), 0)) == SOCKET_ERROR)
-	{
-		auto error = WSAGetLastError();
-
-		switch (error)
+		case APRSERVICE_IO_TYPE_APRS_IS:
 		{
-			case WSAEWOULDBLOCK:
+#if defined(APRSERVICE_UNIX)
+			ssize_t bytes_received;
+
+			if ((bytes_received = recv(io->socket, buffer, size, 0)) == -1)
+			{
+				auto error = errno;
+
+				if ((error == EAGAIN) || (error == EWOULDBLOCK))
+					return -1;
+
+				aprservice_io_disconnect(io);
+
+				if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
+					return 0;
+
+				aprservice_log_error_ex(recv, error);
+
+				return 0;
+			}
+
+			*number_of_bytes_received = bytes_received;
+#elif defined(APRSERVICE_WIN32)
+			int bytes_received;
+
+			if ((bytes_received = recv(io->socket, reinterpret_cast<char*>(buffer), static_cast<int>(size), 0)) == SOCKET_ERROR)
+			{
+				auto error = WSAGetLastError();
+
+				switch (error)
+				{
+					case WSAEWOULDBLOCK:
+						return -1;
+
+					case WSAENETDOWN:
+					case WSAENETRESET:
+					case WSAETIMEDOUT:
+					case WSAECONNRESET:
+					case WSAECONNABORTED:
+						aprservice_io_disconnect(io);
+						return 0;
+				}
+
+				return 0;
+			}
+
+			*number_of_bytes_received = bytes_received;
+#endif
+		}
+		break;
+
+		case APRSERVICE_IO_TYPE_KISS_TNC:
+		{
+#if defined(APRSERVICE_UNIX)
+			int bytes_received;
+
+			if ((bytes_received = read(io->serial, buffer, size)) == -1)
+			{
+				auto error = errno;
+
+				aprservice_log_error_ex(read, error);
+
+				aprservice_io_disconnect(io);
+
+				return 0;
+			}
+
+			if (bytes_received == 0)
 				return -1;
 
-			case WSAENETDOWN:
-			case WSAENETRESET:
-			case WSAETIMEDOUT:
-			case WSAECONNRESET:
-			case WSAECONNABORTED:
+			*number_of_bytes_received = bytes_received;
+#elif defined(APRSERVICE_WIN32)
+			DWORD bytes_received;
+
+			if (!ReadFile(io->serial, &buffer, size, &bytes_received, nullptr))
+			{
+				auto error = GetLastError();
+
+				aprservice_log_error_ex(ReadFile, error);
+
 				aprservice_io_disconnect(io);
+
 				return 0;
-		}
+			}
 
-		return 0;
-	}
+			if (bytes_received == 0)
+				return -1;
 
-	*number_of_bytes_received = bytes_received;
+			*number_of_bytes_received = bytes_received;
 #endif
+		}
+		break;
+	}
 
 	return 1;
 }
@@ -482,63 +687,118 @@ int                                        aprservice_io_write(aprservice_io* io
 	if (!aprservice_io_is_connected(io))
 		return false;
 
-#if defined(APRSERVICE_UNIX)
-	ssize_t bytes_sent;
-
-	if ((bytes_sent = send(io->socket, buffer, size, 0)) == -1)
+	switch (io->type)
 	{
-		auto error = errno;
-
-		if ((error == EAGAIN) || (error == EWOULDBLOCK))
-			return -1;
-
-		aprservice_io_disconnect(sn);
-
-		if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
-			return 0;
-
-		aprservice_log_error_ex(send, error);
-
-		return 0;
-	}
-
-	*number_of_bytes_sent = bytes_sent;
-#elif defined(APRSERVICE_WIN32)
-	int bytes_sent;
-
-	if ((bytes_sent = send(io->socket, reinterpret_cast<const char*>(buffer), static_cast<int>(size), 0)) == SOCKET_ERROR)
-	{
-		auto error = WSAGetLastError();
-
-		switch (error)
+		case APRSERVICE_IO_TYPE_APRS_IS:
 		{
-			case WSAEWOULDBLOCK:
+#if defined(APRSERVICE_UNIX)
+			ssize_t bytes_sent;
+
+			if ((bytes_sent = send(io->socket, buffer, size, 0)) == -1)
+			{
+				auto error = errno;
+
+				if ((error == EAGAIN) || (error == EWOULDBLOCK))
+					return -1;
+
+				aprservice_io_disconnect(sn);
+
+				if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
+					return 0;
+
+				aprservice_log_error_ex(send, error);
+
+				return 0;
+			}
+
+			*number_of_bytes_sent = bytes_sent;
+#elif defined(APRSERVICE_WIN32)
+			int bytes_sent;
+
+			if ((bytes_sent = send(io->socket, reinterpret_cast<const char*>(buffer), static_cast<int>(size), 0)) == SOCKET_ERROR)
+			{
+				auto error = WSAGetLastError();
+
+				switch (error)
+				{
+					case WSAEWOULDBLOCK:
+						return -1;
+
+					case WSAENETDOWN:
+					case WSAENETRESET:
+					case WSAETIMEDOUT:
+					case WSAECONNRESET:
+					case WSAECONNABORTED:
+					case WSAEHOSTUNREACH:
+						aprservice_io_disconnect(io);
+						return 0;
+				}
+
+				aprservice_log_error_ex(send, error);
+
+				return 0;
+			}
+
+			*number_of_bytes_sent = bytes_sent;
+#endif
+		}
+		break;
+
+		case APRSERVICE_IO_TYPE_KISS_TNC:
+		{
+#if defined(APRSERVICE_UNIX)
+			int bytes_sent;
+
+			if ((bytes_sent = write(io->serial, buffer, size)) == -1)
+			{
+				auto error = errno;
+
+				aprservice_log_error_ex(write, error);
+
+				aprservice_io_disconnect(io);
+
+				return 0;
+			}
+
+			if (bytes_sent == 0)
 				return -1;
 
-			case WSAENETDOWN:
-			case WSAENETRESET:
-			case WSAETIMEDOUT:
-			case WSAECONNRESET:
-			case WSAECONNABORTED:
-			case WSAEHOSTUNREACH:
+			*number_of_bytes_sent = bytes_sent;
+#elif defined(APRSERVICE_WIN32)
+			DWORD bytes_sent;
+
+			if (!WriteFile(io->serial, buffer, size, &bytes_sent, nullptr))
+			{
+				auto error = GetLastError();
+
+				aprservice_log_error_ex(WriteFile, error);
+
 				aprservice_io_disconnect(io);
+
 				return 0;
-		}
+			}
 
-		aprservice_log_error_ex(send, error);
+			if (bytes_sent == 0)
+				return -1;
 
-		return 0;
-	}
-
-	*number_of_bytes_sent = bytes_sent;
+			*number_of_bytes_sent = bytes_sent;
 #endif
+		}
+		break;
+	}
 
 	return 1;
 }
+// @note this function only works for aprs-is
 // @return 0 on disconnect
 // @return -1 on would block
 int                                        aprservice_io_read_line(aprservice_io* io, std::string& value)
 {
+	if (!aprservice_io_is_connected(io))
+		return 0;
+
+	assert(io->type == APRSERVICE_IO_TYPE_APRS_IS);
+
 	size_t number_of_bytes_received;
 
 	switch (aprservice_io_read(io, &io->rx_buffer_tmp[0], io->rx_buffer_tmp.max_size(), &number_of_bytes_received))
@@ -559,45 +819,82 @@ int                                        aprservice_io_read_line(aprservice_io
 
 	return -1;
 }
-bool                                       aprservice_io_write_line(aprservice_io* io, std::string&& value)
+// @note this function only works for aprs-is
+bool                                       aprservice_io_write_line(aprservice_io* io, const char* value)
 {
-	size_t number_of_bytes_sent[2];
+	if (!aprservice_io_is_connected(io))
+		return false;
 
-	switch (aprservice_io_write(io, value.c_str(), value.length(), &number_of_bytes_sent[0]))
+	assert(io->type == APRSERVICE_IO_TYPE_APRS_IS);
+
+	io->tx_buffer_queue.push({ .value = value,  .offset = 0 });
+	io->tx_buffer_queue.push({ .value = "\r\n", .offset = 0 });
+
+	return true;
+}
+// @return 0 on disconnect
+// @return -1 on would block
+int                                        aprservice_io_read_packet(aprservice_io* io, aprs_packet*& value)
+{
+	if (!aprservice_io_is_connected(io))
+		return 0;
+
+	switch (io->type)
 	{
-		case 0:
-			return false;
+		case APRSERVICE_IO_TYPE_APRS_IS:
+		{
+			switch (aprservice_io_read_line(io, io->service->line))
+			{
+				case 0:
+					aprservice_io_disconnect(io);
+					return 0;
 
-		case -1:
-			number_of_bytes_sent[0] = 0;
+				case -1:
+					return -1;
+			}
+
+			if (value = aprs_packet_init_from_string(io->service->line.c_str()))
+				return 1;
+		}
+		break;
+
+		case APRSERVICE_IO_TYPE_KISS_TNC:
+			// TODO: implement
 			break;
 	}
 
-	if (number_of_bytes_sent[0] != value.length())
+	return -1;
+}
+bool                                       aprservice_io_write_packet(aprservice_io* io, aprs_packet* value)
+{
+	if (!aprservice_io_is_connected(io))
+		return false;
+
+	// calling aprs_packet_to_string populates aprs_packet_get_content
+	auto string = aprs_packet_to_string(value);
+
+	switch (io->type)
 	{
-		io->tx_buffer_queue.push({
-			.value  = std::move(value),
-			.offset = number_of_bytes_sent[0]
-		});
-
-		return true;
-	}
-
-	switch (aprservice_io_write(io, "\r\n", 2, &number_of_bytes_sent[1]))
-	{
-		case 0:
-			return false;
-
-		case -1:
-			number_of_bytes_sent[1] = 0;
+		case APRSERVICE_IO_TYPE_APRS_IS:
+			io->tx_buffer_queue.push({ .value = string, .offset = 0 });
+			io->tx_buffer_queue.push({ .value = "\r\n", .offset = 0 });
 			break;
-	}
 
-	if (number_of_bytes_sent[1] != 2)
-		io->tx_buffer_queue.push({
-			.value  = std::move(value),
-			.offset = number_of_bytes_sent[0] + number_of_bytes_sent[1]
-		});
+		case APRSERVICE_IO_TYPE_KISS_TNC:
+		{
+			auto        path    = aprs_packet_get_path(value);
+			std::string content = aprs_packet_get_content(value);
+			std::string buffer; // TODO: precalculate size
+
+			buffer.append(1, (char)APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTER_FRAME_END);
+			buffer.append(1, (char)APRSERVICE_IO_KISS_TNC_COMMAND_DATA);
+			// TODO: implement
+			buffer.append(1, (char)APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTER_FRAME_END);
+
+			io->tx_buffer_queue.push({ .value = std::move(buffer), .offset = 0 });
+		}
+		break;
+	}
 
 	return true;
 }
@@ -767,7 +1064,7 @@ bool                       APRSERVICE_CALL aprservice_is_read_only(struct aprser
 	if (service->auth.state == APRSERVICE_AUTH_STATE_RECEIVED)
 		return !service->auth.success || !service->auth.verified;
 
-	return false;
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_is_connected(struct aprservice* service)
 {
@@ -990,6 +1287,66 @@ bool                       APRSERVICE_CALL aprservice_poll(struct aprservice* se
 }
 bool                                       aprservice_poll_io(struct aprservice* service)
 {
+	auto on_receive_packet = [](aprservice* service, aprs_packet* packet)
+	{
+		auto packet_type   = aprs_packet_get_type(packet);
+		auto packet_sender = aprs_packet_get_sender(packet);
+
+		aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_PACKET, { .packet = packet });
+
+		if (packet_type == APRS_PACKET_TYPE_MESSAGE)
+		{
+			auto packet_message_id          = aprs_packet_message_get_id(packet);
+			auto packet_message_type        = aprs_packet_message_get_type(packet);
+			auto packet_message_content     = aprs_packet_message_get_content(packet);
+			auto packet_message_destination = aprs_packet_message_get_destination(packet);
+
+			switch (packet_message_type)
+			{
+				case APRS_MESSAGE_TYPE_ACK:
+				case APRS_MESSAGE_TYPE_REJECT:
+					if (packet_message_id && !stricmp(aprservice_get_station(service), packet_message_destination))
+						if (auto it = service->message_callbacks_index.find(packet_sender); it != service->message_callbacks_index.end())
+							for (auto jt = it->second.begin(); jt != it->second.end(); ++jt)
+								if (!jt->id.compare(packet_message_id))
+								{
+									jt->callback(service, (packet_message_type == APRS_MESSAGE_TYPE_ACK) ? APRSERVICE_MESSAGE_ERROR_SUCCESS : APRSERVICE_MESSAGE_ERROR_REJECTED, jt->callback_param);
+
+									for (auto lt = service->message_callbacks.begin(); lt != service->message_callbacks.end(); ++lt)
+										if (*lt == &*jt)
+										{
+											service->message_callbacks.erase(lt);
+
+											break;
+										}
+
+									it->second.erase(jt);
+
+									if (it->second.empty())
+										service->message_callbacks_index.erase(it);
+
+									break;
+								}
+					break;
+
+				case APRS_MESSAGE_TYPE_MESSAGE:
+					if (stricmp(aprservice_get_station(service), packet_message_destination))
+					{
+						if (aprservice_is_monitoring_enabled(service))
+							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
+					}
+					else
+					{
+						if (packet_message_id)
+							aprservice_send_message_ack(service, packet_sender, packet_message_id);
+
+						aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
+					}
+					break;
+			}
+		}
+	};
+
 	do
 	{
 		if (!aprservice_io_flush(service->io))
@@ -999,83 +1356,55 @@ bool                                       aprservice_poll_io(struct aprservice*
 			return false;
 		}
 
-		switch (aprservice_io_read_line(service->io, service->line))
+		switch (service->io->type)
 		{
-			case 0:
-				aprservice_disconnect(service);
-				return false;
-
-			case -1:
-				return true;
-		}
-
-		if (service->line.starts_with("# "))
-		{
-			if (aprservice_is_authenticating(service) && aprservice_authentication_from_string(&service->auth, &service->line[2], service->is_auth_verified))
-				aprservice_event_execute(service, APRSERVICE_EVENT_AUTHENTICATE, { .message = service->auth.message.c_str(), .success = service->auth.success, .verified = service->auth.verified });
-			else
-				aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE, { .message = &service->line[2] });
-		}
-		else if (auto packet = aprs_packet_init_from_string(service->line.c_str()))
-		{
-			auto packet_type   = aprs_packet_get_type(packet);
-			auto packet_sender = aprs_packet_get_sender(packet);
-
-			aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_PACKET, { .packet = packet });
-
-			if (packet_type == APRS_PACKET_TYPE_MESSAGE)
+			case APRSERVICE_IO_TYPE_APRS_IS:
 			{
-				auto packet_message_id          = aprs_packet_message_get_id(packet);
-				auto packet_message_type        = aprs_packet_message_get_type(packet);
-				auto packet_message_content     = aprs_packet_message_get_content(packet);
-				auto packet_message_destination = aprs_packet_message_get_destination(packet);
-
-				switch (packet_message_type)
+				switch (aprservice_io_read_line(service->io, service->line))
 				{
-					case APRS_MESSAGE_TYPE_ACK:
-					case APRS_MESSAGE_TYPE_REJECT:
-						if (packet_message_id && !stricmp(aprservice_get_station(service), packet_message_destination))
-							if (auto it = service->message_callbacks_index.find(packet_sender); it != service->message_callbacks_index.end())
-								for (auto jt = it->second.begin(); jt != it->second.end(); ++jt)
-									if (!jt->id.compare(packet_message_id))
-									{
-										jt->callback(service, (packet_message_type == APRS_MESSAGE_TYPE_ACK) ? APRSERVICE_MESSAGE_ERROR_SUCCESS : APRSERVICE_MESSAGE_ERROR_REJECTED, jt->callback_param);
+					case 0:
+						aprservice_disconnect(service);
+						return false;
 
-										for (auto lt = service->message_callbacks.begin(); lt != service->message_callbacks.end(); ++lt)
-											if (*lt == &*jt)
-											{
-												service->message_callbacks.erase(lt);
+					case -1:
+						return true;
+				}
 
-												break;
-											}
+				if (service->line.starts_with("# "))
+				{
+					if (aprservice_is_authenticating(service) && aprservice_authentication_from_string(&service->auth, &service->line[2], service->is_auth_verified))
+						aprservice_event_execute(service, APRSERVICE_EVENT_AUTHENTICATE, { .message = service->auth.message.c_str(), .success = service->auth.success, .verified = service->auth.verified });
+					else
+						aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE, { .message = &service->line[2] });
+				}
+				else if (auto packet = aprs_packet_init_from_string(service->line.c_str()))
+				{
+					on_receive_packet(service, packet);
 
-										it->second.erase(jt);
-
-										if (it->second.empty())
-											service->message_callbacks_index.erase(it);
-
-										break;
-									}
-						break;
-
-					case APRS_MESSAGE_TYPE_MESSAGE:
-						if (stricmp(aprservice_get_station(service), packet_message_destination))
-						{
-							if (aprservice_is_monitoring_enabled(service))
-								aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
-						}
-						else
-						{
-							if (packet_message_id)
-								aprservice_send_message_ack(service, packet_sender, packet_message_id);
-
-							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
-						}
-						break;
+					aprs_packet_deinit(packet);
 				}
 			}
+			break;
 
-			aprs_packet_deinit(packet);
+			case APRSERVICE_IO_TYPE_KISS_TNC:
+			{
+				aprs_packet* packet;
+
+				switch (aprservice_io_read_packet(service->io, packet))
+				{
+					case 0:
+						aprservice_disconnect(service);
+						return false;
+
+					case -1:
+						return true;
+				}
+
+				on_receive_packet(service, packet);
+
+				aprs_packet_deinit(packet);
+			}
+			break;
 		}
 	} while (aprservice_is_connected(service));
 
@@ -1143,61 +1472,26 @@ bool                                       aprservice_poll_messages(struct aprse
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, const char* string)
-{
-	if (!aprservice_is_connected(service))
-		return false;
-
-	if ((service->auth.state != APRSERVICE_AUTH_STATE_NONE) && aprservice_is_read_only(service))
-		return false;
-
-	if (!aprservice_io_write_line(service->io, string))
-	{
-		aprservice_log_error_ex(aprservice_io_write_line, false);
-
-		aprservice_disconnect(service);
-
-		return false;
-	}
-
-	return true;
-}
-bool                                       aprservice_send(struct aprservice* service, std::string&& string)
-{
-	if (!aprservice_is_connected(service))
-		return false;
-
-	if ((service->auth.state != APRSERVICE_AUTH_STATE_NONE) && aprservice_is_read_only(service))
-		return false;
-
-	if (!aprservice_io_write_line(service->io, std::move(string)))
-	{
-		aprservice_log_error_ex(aprservice_io_write_line, false);
-
-		aprservice_disconnect(service);
-
-		return false;
-	}
-
-	return true;
-}
 bool                       APRSERVICE_CALL aprservice_send_raw(struct aprservice* service, const char* content)
 {
 	if (!aprservice_is_connected(service))
 		return false;
 
+	if (aprservice_is_read_only(service))
+		return false;
+
 	if (auto packet = aprs_packet_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service)))
 	{
-		std::string string = aprs_packet_to_string(packet);
-
-		aprs_packet_deinit(packet);
-
-		if (!aprservice_send(service, std::move(string)))
+		if (!aprservice_io_write_packet(service->io, packet))
 		{
-			aprservice_log_error_ex(aprservice_send, false);
+			aprservice_log_error_ex(aprservice_io_write_packet, false);
+
+			aprs_packet_deinit(packet);
 
 			return false;
 		}
+
+		aprs_packet_deinit(packet);
 
 		return true;
 	}
@@ -1207,6 +1501,9 @@ bool                       APRSERVICE_CALL aprservice_send_raw(struct aprservice
 bool                       APRSERVICE_CALL aprservice_send_item(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live)
 {
 	if (!aprservice_is_connected(service))
+		return false;
+
+	if (aprservice_is_read_only(service))
 		return false;
 
 	if (auto packet = aprs_packet_item_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key))
@@ -1283,16 +1580,16 @@ bool                       APRSERVICE_CALL aprservice_send_item(struct aprservic
 			return false;
 		}
 
-		std::string string = aprs_packet_to_string(packet);
-
-		aprs_packet_deinit(packet);
-
-		if (!aprservice_send(service, std::move(string)))
+		if (!aprservice_io_write_packet(service->io, packet))
 		{
-			aprservice_log_error_ex(aprservice_send, false);
+			aprservice_log_error_ex(aprservice_io_write_packet, false);
+
+			aprs_packet_deinit(packet);
 
 			return false;
 		}
+
+		aprs_packet_deinit(packet);
 
 		return true;
 	}
@@ -1302,6 +1599,9 @@ bool                       APRSERVICE_CALL aprservice_send_item(struct aprservic
 bool                       APRSERVICE_CALL aprservice_send_object(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live)
 {
 	if (!aprservice_is_connected(service))
+		return false;
+
+	if (aprservice_is_read_only(service))
 		return false;
 
 	if (auto packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key))
@@ -1387,16 +1687,16 @@ bool                       APRSERVICE_CALL aprservice_send_object(struct aprserv
 			return false;
 		}
 
-		std::string string = aprs_packet_to_string(packet);
-
-		aprs_packet_deinit(packet);
-
-		if (!aprservice_send(service, std::move(string)))
+		if (!aprservice_io_write_packet(service->io, packet))
 		{
-			aprservice_log_error_ex(aprservice_send, false);
+			aprservice_log_error_ex(aprservice_io_write_packet, false);
+
+			aprs_packet_deinit(packet);
 
 			return false;
 		}
+
+		aprs_packet_deinit(packet);
 
 		return true;
 	}
@@ -1406,6 +1706,9 @@ bool                       APRSERVICE_CALL aprservice_send_object(struct aprserv
 bool                       APRSERVICE_CALL aprservice_send_status(struct aprservice* service, const char* message)
 {
 	if (!aprservice_is_connected(service))
+		return false;
+
+	if (aprservice_is_read_only(service))
 		return false;
 
 	if (auto packet = aprs_packet_status_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), message))
@@ -1419,16 +1722,16 @@ bool                       APRSERVICE_CALL aprservice_send_status(struct aprserv
 			return false;
 		}
 
-		std::string string = aprs_packet_to_string(packet);
-
-		aprs_packet_deinit(packet);
-
-		if (!aprservice_send(service, std::move(string)))
+		if (!aprservice_io_write_packet(service->io, packet))
 		{
-			aprservice_log_error_ex(aprservice_send, false);
+			aprservice_log_error_ex(aprservice_io_write_packet, false);
+
+			aprs_packet_deinit(packet);
 
 			return false;
 		}
+
+		aprs_packet_deinit(packet);
 
 		return true;
 	}
@@ -1450,6 +1753,9 @@ bool                       APRSERVICE_CALL aprservice_send_message_ex(struct apr
 	if (!aprservice_is_connected(service))
 		return false;
 
+	if (aprservice_is_read_only(service))
+		return false;
+
 	if (auto packet = aprs_packet_message_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, content))
 	{
 		if (id && !aprs_packet_message_set_id(packet, id))
@@ -1461,13 +1767,11 @@ bool                       APRSERVICE_CALL aprservice_send_message_ex(struct apr
 			return false;
 		}
 
-		std::string string = aprs_packet_to_string(packet);
-
-		aprs_packet_deinit(packet);
-
-		if (!aprservice_send(service, std::move(string)))
+		if (!aprservice_io_write_packet(service->io, packet))
 		{
-			aprservice_log_error_ex(aprservice_send, false);
+			aprservice_log_error_ex(aprservice_io_write_packet, false);
+
+			aprs_packet_deinit(packet);
 
 			return false;
 		}
@@ -1481,6 +1785,8 @@ bool                       APRSERVICE_CALL aprservice_send_message_ex(struct apr
 				.callback_param = param
 			}));
 
+		aprs_packet_deinit(packet);
+
 		return true;
 	}
 
@@ -1491,18 +1797,21 @@ bool                       APRSERVICE_CALL aprservice_send_message_ack(struct ap
 	if (!aprservice_is_connected(service))
 		return false;
 
+	if (aprservice_is_read_only(service))
+		return false;
+
 	if (auto packet = aprs_packet_message_init_ack(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, id))
 	{
-		std::string string = aprs_packet_to_string(packet);
-
-		aprs_packet_deinit(packet);
-
-		if (!aprservice_send(service, std::move(string)))
+		if (!aprservice_io_write_packet(service->io, packet))
 		{
-			aprservice_log_error_ex(aprservice_send, false);
+			aprservice_log_error_ex(aprservice_io_write_packet, false);
+
+			aprs_packet_deinit(packet);
 
 			return false;
 		}
+
+		aprs_packet_deinit(packet);
 
 		return true;
 	}
@@ -1514,18 +1823,21 @@ bool                       APRSERVICE_CALL aprservice_send_message_reject(struct
 	if (!aprservice_is_connected(service))
 		return false;
 
+	if (aprservice_is_read_only(service))
+		return false;
+
 	if (auto packet = aprs_packet_message_init_reject(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, id))
 	{
-		std::string string = aprs_packet_to_string(packet);
-
-		aprs_packet_deinit(packet);
-
-		if (!aprservice_send(service, std::move(string)))
+		if (!aprservice_io_write_packet(service->io, packet))
 		{
-			aprservice_log_error_ex(aprservice_send, false);
+			aprservice_log_error_ex(aprservice_io_write_packet, false);
+
+			aprs_packet_deinit(packet);
 
 			return false;
 		}
+
+		aprs_packet_deinit(packet);
 
 		return true;
 	}
@@ -1535,6 +1847,9 @@ bool                       APRSERVICE_CALL aprservice_send_message_reject(struct
 bool                       APRSERVICE_CALL aprservice_send_weather(struct aprservice* service, uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const char* type)
 {
 	if (!aprservice_is_connected(service))
+		return false;
+
+	if (aprservice_is_read_only(service))
 		return false;
 
 	if (auto packet = aprs_packet_weather_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), type))
@@ -1629,16 +1944,16 @@ bool                       APRSERVICE_CALL aprservice_send_weather(struct aprser
 			return false;
 		}
 
-		std::string string = aprs_packet_to_string(packet);
-
-		aprs_packet_deinit(packet);
-
-		if (!aprservice_send(service, std::move(string)))
+		if (!aprservice_io_write_packet(service->io, packet))
 		{
-			aprservice_log_error_ex(aprservice_send, false);
+			aprservice_log_error_ex(aprservice_io_write_packet, false);
+
+			aprs_packet_deinit(packet);
 
 			return false;
 		}
+
+		aprs_packet_deinit(packet);
 
 		return true;
 	}
@@ -1650,11 +1965,12 @@ bool                       APRSERVICE_CALL aprservice_send_position(struct aprse
 	if (!aprservice_is_connected(service))
 		return false;
 
-	std::string string = aprs_packet_to_string(service->position.packet);
+	if (aprservice_is_read_only(service))
+		return false;
 
-	if (!aprservice_send(service, std::move(string)))
+	if (!aprservice_io_write_packet(service->io, service->position.packet))
 	{
-		aprservice_log_error_ex(aprservice_send, false);
+		aprservice_log_error_ex(aprservice_io_write_packet, false);
 
 		return false;
 	}
@@ -1666,21 +1982,24 @@ bool                       APRSERVICE_CALL aprservice_send_position_ex(struct ap
 	if (!aprservice_is_connected(service))
 		return false;
 
+	if (aprservice_is_read_only(service))
+		return false;
+
 	if (auto packet = aprs_packet_position_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), latitude, longitude, altitude, speed, course, comment, aprservice_get_symbol_table(service), aprservice_get_symbol_table_key(service)))
 	{
 		aprs_packet_position_enable_messaging(packet, true);
 		aprs_packet_position_enable_compression(packet, aprs_packet_position_is_compressed(service->position.packet));
 
-		std::string string = aprs_packet_to_string(packet);
-
-		aprs_packet_deinit(packet);
-
-		if (!aprservice_send(service, std::move(string)))
+		if (!aprservice_io_write_packet(service->io, packet))
 		{
-			aprservice_log_error_ex(aprservice_send, false);
+			aprservice_log_error_ex(aprservice_io_write_packet, false);
+
+			aprs_packet_deinit(packet);
 
 			return false;
 		}
+
+		aprs_packet_deinit(packet);
 
 		return true;
 	}
@@ -1699,6 +2018,9 @@ bool                       APRSERVICE_CALL aprservice_send_telemetry_ex(struct a
 	if (!aprservice_is_connected(service))
 		return false;
 
+	if (aprservice_is_read_only(service))
+		return false;
+
 	if (auto packet = aprs_packet_telemetry_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), a1, a2, a3, a4, a5, digital, sequence))
 	{
 		if (comment && !aprs_packet_telemetry_set_comment(packet, comment))
@@ -1710,16 +2032,16 @@ bool                       APRSERVICE_CALL aprservice_send_telemetry_ex(struct a
 			return false;
 		}
 
-		std::string string = aprs_packet_to_string(packet);
-
-		aprs_packet_deinit(packet);
-
-		if (!aprservice_send(service, std::move(string)))
+		if (!aprservice_io_write_packet(service->io, packet))
 		{
-			aprservice_log_error_ex(aprservice_send, false);
+			aprservice_log_error_ex(aprservice_io_write_packet, false);
+
+			aprs_packet_deinit(packet);
 
 			return false;
 		}
+
+		aprs_packet_deinit(packet);
 
 		return true;
 	}
@@ -1738,6 +2060,9 @@ bool                       APRSERVICE_CALL aprservice_send_telemetry_float_ex(st
 	if (!aprservice_is_connected(service))
 		return false;
 
+	if (aprservice_is_read_only(service))
+		return false;
+
 	if (auto packet = aprs_packet_telemetry_init_float(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), a1, a2, a3, a4, a5, digital, sequence))
 	{
 		if (comment && !aprs_packet_telemetry_set_comment(packet, comment))
@@ -1749,16 +2074,16 @@ bool                       APRSERVICE_CALL aprservice_send_telemetry_float_ex(st
 			return false;
 		}
 
-		std::string string = aprs_packet_to_string(packet);
-
-		aprs_packet_deinit(packet);
-
-		if (!aprservice_send(service, std::move(string)))
+		if (!aprservice_io_write_packet(service->io, packet))
 		{
-			aprservice_log_error_ex(aprservice_send, false);
+			aprservice_log_error_ex(aprservice_io_write_packet, false);
+
+			aprs_packet_deinit(packet);
 
 			return false;
 		}
+
+		aprs_packet_deinit(packet);
 
 		return true;
 	}
@@ -1770,60 +2095,96 @@ bool                       APRSERVICE_CALL aprservice_send_user_defined(struct a
 	if (!aprservice_is_connected(service))
 		return false;
 
+	if (aprservice_is_read_only(service))
+		return false;
+
 	if (auto packet = aprs_packet_user_defined_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), id, type, data))
 	{
-		std::string string = aprs_packet_to_string(packet);
-
-		aprs_packet_deinit(packet);
-
-		if (!aprservice_send(service, std::move(string)))
+		if (!aprservice_io_write_packet(service->io, packet))
 		{
-			aprservice_log_error_ex(aprservice_send, false);
+			aprservice_log_error_ex(aprservice_io_write_packet, false);
+
+			aprs_packet_deinit(packet);
 
 			return false;
 		}
+
+		aprs_packet_deinit(packet);
 
 		return true;
 	}
 
 	return false;
 }
-bool                       APRSERVICE_CALL aprservice_connect(struct aprservice* service, const char* host, uint16_t port, uint16_t passwd)
+bool                       APRSERVICE_CALL aprservice_connect_aprs_is(struct aprservice* service, const char* host, uint16_t port, uint16_t passwd)
 {
 	if (aprservice_is_connected(service))
-		return true;
+		return false;
 
-	if (!aprservice_io_connect(service->io, host, port))
+	if (!aprservice_io_connect_aprs_is(service->io, host, port))
 	{
-		aprservice_log_error_ex(aprservice_io_connect, false);
+		aprservice_log_error_ex(aprservice_io_connect_aprs_is, false);
 
 		return false;
 	}
 
-	std::stringstream ss;
-	ss << "user " << service->station << " pass " << (passwd ? passwd : -1);
-	ss << " vers " << APRSERVICE_SOFTWARE_NAME << ' ' << APRSERVICE_SOFTWARE_VERSION;
-	ss << " filter t/poimqstunw";
+	auto generate_auth_request = [](aprservice* service, uint16_t passwd)
+	{
+		std::stringstream ss;
+		ss << "user " << service->station << " pass " << (passwd ? passwd : -1);
+		ss << " vers " << APRSERVICE_SOFTWARE_NAME << ' ' << APRSERVICE_SOFTWARE_VERSION;
+		ss << " filter t/poimqstunw";
+
+		return ss.str();
+	};
+
+	{
+		auto auth_request = generate_auth_request(service, passwd);
+
+		if (!aprservice_io_write_line(service->io, auth_request.c_str()))
+		{
+			aprservice_log_error_ex(aprservice_io_write_line, false);
+
+			aprservice_io_disconnect(service->io);
+
+			service->is_connected = false;
+
+			return false;
+		}
+	}
 
 	service->is_connected     = true;
 	service->is_auth_verified = passwd != 0;
+	service->auth             = { .state = APRSERVICE_AUTH_STATE_SENT };
 
-	service->auth.state = APRSERVICE_AUTH_STATE_NONE;
+	aprservice_event_execute(service, APRSERVICE_EVENT_CONNECT, {});
 
-	if (!aprservice_send(service, ss.str()))
+	return true;
+}
+bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc(struct aprservice* service, const char* device, uint32_t speed)
+{
+	if (aprservice_is_connected(service))
+		return false;
+
+	if (!aprservice_io_connect_kiss_tnc(service->io, device, speed))
 	{
-		aprservice_log_error_ex(aprservice_send, false);
-
-		aprservice_io_disconnect(service->io);
-
-		service->is_connected = false;
+		aprservice_log_error_ex(aprservice_io_connect_kiss_tnc, false);
 
 		return false;
 	}
 
-	service->auth.state = APRSERVICE_AUTH_STATE_SENT;
+	service->auth =
+	{
+		.state    = APRSERVICE_AUTH_STATE_RECEIVED,
+		.success  = true,
+		.verified = true
+	};
+
+	service->is_connected     = true;
+	service->is_auth_verified = true;
 
 	aprservice_event_execute(service, APRSERVICE_EVENT_CONNECT, {});
+	aprservice_event_execute(service, APRSERVICE_EVENT_AUTHENTICATE, { .message = service->auth.message.c_str(), .success = service->auth.success, .verified = service->auth.verified });
 
 	return true;
 }
@@ -2131,9 +2492,9 @@ bool                       APRSERVICE_CALL aprservice_item_kill(struct aprservic
 }
 bool                       APRSERVICE_CALL aprservice_item_announce(struct aprservice_item* item)
 {
-	if (!aprservice_send(item->service, aprs_packet_to_string(item->packet)))
+	if (!aprservice_io_write_packet(item->service->io, item->packet))
 	{
-		aprservice_log_error_ex(aprservice_send, false);
+		aprservice_log_error_ex(aprservice_io_write_packet, false);
 
 		return false;
 	}
@@ -2386,9 +2747,9 @@ bool                       APRSERVICE_CALL aprservice_object_announce(struct apr
 		return false;
 	}
 
-	if (!aprservice_send(object->service, aprs_packet_to_string(object->packet)))
+	if (!aprservice_io_write_packet(object->service->io, object->packet))
 	{
-		aprservice_log_error_ex(aprservice_send, false);
+		aprservice_log_error_ex(aprservice_io_write_packet, false);
 
 		return false;
 	}

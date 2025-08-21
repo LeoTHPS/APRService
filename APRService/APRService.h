@@ -121,7 +121,6 @@ APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_set_even
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_set_default_event_handler(struct aprservice* service, aprservice_event_handler handler, void* param);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_enable_monitoring(struct aprservice* service, bool value);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_poll(struct aprservice* service);
-APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, const char* string);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_raw(struct aprservice* service, const char* content);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_item(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_object(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live);
@@ -136,7 +135,8 @@ APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_tel
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_telemetry_float(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_telemetry_float_ex(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital, const char* comment, uint16_t sequence);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_user_defined(struct aprservice* service, char id, char type, const char* data);
-APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect(struct aprservice* service, const char* host, uint16_t port, uint16_t passwd);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect_aprs_is(struct aprservice* service, const char* host, uint16_t port, uint16_t passwd);
+// APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc(struct aprservice* service, const char* device, uint32_t speed);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_disconnect(struct aprservice* service);
 
 APRSERVICE_EXPORT struct aprservice_task*    APRSERVICE_CALL aprservice_task_schedule(struct aprservice* service, uint32_t seconds, aprservice_task_handler handler, void* param);

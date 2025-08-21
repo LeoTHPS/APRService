@@ -1162,7 +1162,7 @@ bool                       APRSERVICE_CALL aprservice_send(struct aprservice* se
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, std::string&& string)
+bool                                       aprservice_send(struct aprservice* service, std::string&& string)
 {
 	if (!aprservice_is_connected(service))
 		return false;

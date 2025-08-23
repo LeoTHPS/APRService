@@ -8,6 +8,7 @@
 #include <regex>
 #include <chrono>
 #include <string>
+#include <vector>
 #include <cassert>
 #include <cstring>
 #include <sstream>
@@ -31,51 +32,44 @@
 	#include <MSWSock.h>
 #endif
 
-enum APRSERVICE_IO_TYPES
-{
-	APRSERVICE_IO_TYPE_NONE,
-	APRSERVICE_IO_TYPE_APRS_IS,
-	APRSERVICE_IO_TYPE_KISS_TNC
-};
-
-enum APRSERVICE_IO_KISS_TNC_COMMANDS : uint8_t
+enum KISS_TNC_COMMANDS : uint8_t
 {
 	// The following bytes should be transmitted by the TNC.
 	// The maximum number of bytes, thus the size of the encapsulated packet, is determined by the amount of memory in the TNC.
-	APRSERVICE_IO_KISS_TNC_COMMAND_DATA             = 0x00,
+	KISS_TNC_COMMAND_DATA             = 0x00,
 
 	// The next byte is the time to hold up the TX after the FCS has been sent, in 10 ms units.
 	// This command is obsolete, and is included here only for compatibility with some existing implementations.
-	APRSERVICE_IO_KISS_TNC_COMMAND_SET_TX_TAIL      = 0x04,
+	KISS_TNC_COMMAND_SET_TX_TAIL      = 0x04,
 	// The next byte is the transmitter keyup delay in 10 ms units.
 	// The default start-up value is 50 (i.e., 500 ms).
-	APRSERVICE_IO_KISS_TNC_COMMAND_SET_TX_DELAY     = 0x01,
+	KISS_TNC_COMMAND_SET_TX_DELAY     = 0x01,
 	// The next byte is the slot interval in 10 ms units.
 	// The default is 10 (i.e., 100ms).
-	APRSERVICE_IO_KISS_TNC_COMMAND_SET_SLOT_TIME    = 0x03,
+	KISS_TNC_COMMAND_SET_SLOT_TIME    = 0x03,
 	// The next byte is 0 for half duplex, nonzero for full duplex.
 	// The default is 0 (i.e., half duplex).
-	APRSERVICE_IO_KISS_TNC_COMMAND_SET_FULL_DUPLEX  = 0x05,
+	KISS_TNC_COMMAND_SET_FULL_DUPLEX  = 0x05,
 	// Specific for each TNC.
 	// In the TNC-1, this command sets the modem speed.
 	// Other implementations may use this function for other hardware-specific functions.
-	APRSERVICE_IO_KISS_TNC_COMMAND_SET_HARDWARE     = 0x06,
+	KISS_TNC_COMMAND_SET_HARDWARE     = 0x06,
 	// The next byte is the persistence parameter, p, scaled to the range 0 - 255 with the following formula:
 	// P = p * 256 - 1
 	// The default value is P = 63 (i.e., p = 0.25).
-	APRSERVICE_IO_KISS_TNC_COMMAND_SET_PERSISTENCE  = 0x02,
+	KISS_TNC_COMMAND_SET_PERSISTENCE  = 0x02,
 
 	// Exit KISS and return control to a higher-level program.
 	// This is useful only when KISS is incorporated into the TNC along with other applications.
-	APRSERVICE_IO_KISS_TNC_COMMAND_RETURN           = 0xFF
+	KISS_TNC_COMMAND_RETURN           = 0xFF
 };
 
-enum APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTERS : uint8_t
+enum KISS_TNC_SPECIAL_CHARACTERS : uint8_t
 {
-	APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTER_FRAME_END               = 0xC0,
-	APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE            = 0xDB,
-	APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_END    = 0xDC,
-	APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_ESCAPE = 0xDD
+	KISS_TNC_SPECIAL_CHARACTER_FRAME_END               = 0xC0,
+	KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE            = 0xDB,
+	KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_END    = 0xDC,
+	KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_ESCAPE = 0xDD
 };
 
 enum APRSERVICE_AUTH_STATES
@@ -83,41 +77,6 @@ enum APRSERVICE_AUTH_STATES
 	APRSERVICE_AUTH_STATE_NONE,
 	APRSERVICE_AUTH_STATE_SENT,
 	APRSERVICE_AUTH_STATE_RECEIVED
-};
-
-struct aprservice_io_buffer
-{
-	std::string value;
-	size_t      offset;
-};
-
-struct aprservice_io
-{
-	aprservice*                      service;
-
-	int                              type;
-
-#if defined(APRSERVICE_UNIX)
-	int                              serial;
-	int                              socket;
-#elif defined(APRSERVICE_WIN32)
-	HANDLE                           serial;
-	SOCKET                           socket;
-	WSADATA                          winsock;
-#endif
-
-	std::string                      rx_buffer;
-	std::array<char, 128>            rx_buffer_tmp;
-
-	std::queue<aprservice_io_buffer> tx_buffer_queue;
-};
-
-struct aprservice_auth
-{
-	APRSERVICE_AUTH_STATES state;
-	std::string            message;
-	bool                   success;
-	bool                   verified;
 };
 
 struct aprservice_event
@@ -130,6 +89,48 @@ struct aprservice_position
 {
 	APRSERVICE_POSITION_TYPES type;
 	aprs_packet*              packet;
+};
+
+struct aprservice_connection_auth
+{
+	APRSERVICE_AUTH_STATES state;
+	std::string            message;
+	bool                   success;
+	bool                   verified;
+};
+struct aprservice_connection_buffer
+{
+	std::string value;
+	size_t      offset;
+};
+struct aprservice_connection
+{
+	aprservice*                              service;
+
+	bool                                     is_open;
+
+	aprservice_connection_auth               auth;
+	int                                      mode;
+	int                                      type;
+
+#if defined(APRSERVICE_UNIX)
+	int                                      serial;
+	int                                      socket;
+#elif defined(APRSERVICE_WIN32)
+	HANDLE                                   serial;
+	SOCKET                                   socket;
+	WSADATA                                  winsock;
+#endif
+
+	std::queue<std::string>                  rx_queue;
+	std::string                              rx_buffer;
+	std::array<char, 128>                    rx_buffer_tmp;
+
+	std::queue<aprservice_connection_buffer> tx_queue;
+
+	uint32_t                                 device_speed;
+	std::string                              host_or_device;
+	std::uint16_t                            port, passcode;
 };
 
 struct aprservice_message_callback_context
@@ -145,12 +146,10 @@ struct aprservice
 {
 	bool                                                                            is_connected;
 	bool                                                                            is_monitoring;
-	bool                                                                            is_auth_verified;
 
-	aprservice_io*                                                                  io;
-	aprservice_auth                                                                 auth;
 	std::string                                                                     line;
 	int64_t                                                                         time;
+	std::vector<aprservice_connection*>                                             connections;
 
 	aprs_path*                                                                      path;
 	const std::string                                                               station;
@@ -183,12 +182,6 @@ struct aprservice_task
 	uint32_t                seconds;
 	aprservice_task_handler handler;
 	void*                   handler_param;
-};
-
-struct aprservice_error
-{
-	int         code;
-	const char* string;
 };
 
 struct aprservice_object
@@ -249,654 +242,15 @@ struct aprservice_get_event_information<APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE>
 #endif
 #define                                    aprservice_log_error_ex(function, error) std::cerr << #function " returned " << error << std::endl
 
-bool                                       aprservice_io_is_connected(aprservice_io* io);
-void                                       aprservice_io_disconnect(aprservice_io* io);
-int                                        aprservice_io_read(aprservice_io* io, char* buffer, size_t size, size_t* number_of_bytes_received);
-int                                        aprservice_io_write(aprservice_io* io, const char* buffer, size_t size, size_t* number_of_bytes_sent);
-
-bool                                       aprservice_io_init(aprservice* service, aprservice_io** io)
+template<typename T>
+T                                          aprservice_parse_uint(const char* string)
 {
-	*io = new aprservice_io
-	{
-		.service = service,
+	T value = 0;
 
-		.type    = APRSERVICE_IO_TYPE_NONE
-	};
+	for (size_t i = 0; *string; ++i, ++string)
+		value = 10 * value + (*string - '0');
 
-#if defined(APRSERVICE_WIN32)
-	if (auto error = WSAStartup(MAKEWORD(2, 2), &(*io)->winsock))
-	{
-		aprservice_log_error_ex(WSAStartup, error);
-
-		delete *io;
-
-		return false;
-	}
-#endif
-
-	return true;
-}
-void                                       aprservice_io_deinit(aprservice_io* io)
-{
-	if (aprservice_io_is_connected(io))
-		aprservice_io_disconnect(io);
-
-#if defined(APRSERVICE_WIN32)
-	WSACleanup();
-#endif
-
-	delete io;
-}
-bool                                       aprservice_io_is_connected(aprservice_io* io)
-{
-	return io->type != APRSERVICE_IO_TYPE_NONE;
-}
-bool                                       aprservice_io_connect_aprs_is(aprservice_io* io, const char* host, uint16_t port)
-{
-	if (aprservice_io_is_connected(io))
-		return false;
-
-resolve_host:
-	addrinfo  dns_hint = { .ai_family = AF_UNSPEC };
-	addrinfo* dns_result;
-
-	if (auto error = getaddrinfo(host, "", &dns_hint, &dns_result))
-	{
-		switch (error)
-		{
-			case EAI_FAIL:
-			case EAI_AGAIN:
-			case EAI_NONAME:
-				return false;
-		}
-
-		aprservice_log_error_ex(getaddrinfo, error);
-
-		return false;
-	}
-
-	union
-	{
-		sockaddr_in  dns_result_ipv4;
-		sockaddr_in6 dns_result_ipv6;
-	};
-
-	sockaddr* dns_result_address;
-	int       dns_result_address_length = 0;
-
-	switch (dns_result->ai_family)
-	{
-		case AF_INET:
-			dns_result_ipv4          = *reinterpret_cast<const sockaddr_in*>(dns_result->ai_addr);
-			dns_result_ipv4.sin_port = htons(port);
-			dns_result_address        = reinterpret_cast<sockaddr*>(&dns_result_ipv4);
-			dns_result_address_length = sizeof(sockaddr_in);
-			break;
-
-		case AF_INET6:
-			dns_result_ipv6           = *reinterpret_cast<const sockaddr_in6*>(dns_result->ai_addr);
-			dns_result_ipv6.sin6_port = htons(port);
-			dns_result_address        = reinterpret_cast<sockaddr*>(&dns_result_ipv6);
-			dns_result_address_length = sizeof(sockaddr_in6);
-			break;
-	}
-
-	freeaddrinfo(dns_result);
-
-	if (!dns_result_address_length)
-		return false;
-
-socket_open:
-#if defined(APRSERVICE_UNIX)
-	if ((io->socket = socket(dns_result_address->sa_family, SOCK_STREAM, IPPROTO_TCP)) == -1)
-	{
-		aprservice_log_error(socket);
-
-		return false;
-	}
-#elif defined(APRSERVICE_WIN32)
-	if ((io->socket = WSASocketW(dns_result_address->sa_family, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, 0)) == INVALID_SOCKET)
-	{
-		aprservice_log_error(WSASocketW);
-
-		return false;
-	}
-#endif
-
-socket_connect:
-#if defined(APRSERVICE_UNIX)
-	if (connect(io->socket, socket_address, socket_address_length) == -1)
-	{
-		aprservice_log_error(connect);
-
-		close(io->socket);
-
-		return false;
-	}
-
-	int flags;
-
-	if ((flags = fcntl(io->socket, F_GETFL, 0)) == -1)
-	{
-		aprservice_log_error(fcntl);
-
-		close(io->socket);
-
-		return false;
-	}
-
-	if (fcntl(io->socket, F_SETFL, flags | O_NONBLOCK) == -1)
-	{
-		aprservice_log_error(fcntl);
-
-		close(io->socket);
-
-		return false;
-	}
-#elif defined(APRSERVICE_WIN32)
-	if (connect(io->socket, dns_result_address, dns_result_address_length) == SOCKET_ERROR)
-	{
-		aprservice_log_error(connect);
-
-		closesocket(io->socket);
-
-		return false;
-	}
-
-	u_long arg = 1;
-
-	if (ioctlsocket(io->socket, FIONBIO, &arg) == SOCKET_ERROR)
-	{
-		aprservice_log_error(ioctlsocket);
-
-		closesocket(io->socket);
-
-		return false;
-	}
-#endif
-
-	io->type = APRSERVICE_IO_TYPE_APRS_IS;
-
-	return true;
-}
-bool                                       aprservice_io_connect_kiss_tnc(aprservice_io* io, const char* device, uint32_t speed)
-{
-	if (aprservice_io_is_connected(io))
-		return false;
-
-#if defined(APRSERVICE_UNIX)
-	if ((io->serial = open(device, O_RDWR | O_NOCTTY | O_NDELAY)) == -1)
-	{
-		auto error = errno;
-
-		aprservice_log_error_ex(open, error);
-
-		return false;
-	}
-
-	fcntl(io->serial, F_SETFL, O_RDWR);
-
-	termios options;
-
-	tcgetattr(io->serial, &options);
-	cfmakeraw(&options);
-	cfsetspeed(&options, speed);
-
-	options.c_cc[VMIN]  = 1;
-	options.c_cc[VTIME] = 0;
-	options.c_cflag    |= CS8;
-	options.c_cflag    |= CLOCAL | CREAD;
-	options.c_cflag    &= ~(PARENB | CSTOPB | CSIZE);
-	options.c_cflag    &= ~(ICANON | ECHO | ECHOE | ISIG | OPOST);
-
-	tcsetattr(io->serial, TCSANOW, &options);
-
-	int status;
-
-	ioctl(io->serial, TIOCMGET, &status);
-
-	status |= TIOCM_DTR | TIOCM_RTS;
-
-	ioctl(io->serial, TIOCMSET, &status);
-#elif defined(APRSERVICE_WIN32)
-	if ((io->serial = CreateFileA(device, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0)) == INVALID_HANDLE_VALUE)
-	{
-		auto error = GetLastError();
-
-		aprservice_log_error_ex(CreateFileA, error);
-
-		return false;
-	}
-
-	DCB dcb       = {};
-	dcb.DCBlength = sizeof(DCB);
-
-	if (!GetCommState(io->serial, &dcb))
-	{
-		auto error = GetLastError();
-
-		aprservice_log_error_ex(GetCommState, error);
-
-		CloseHandle(io->serial);
-
-		return false;
-	}
-
-	dcb.Parity   = NOPARITY;
-	dcb.fBinary  = TRUE;
-	dcb.BaudRate = speed;
-	dcb.ByteSize = 8;
-	dcb.StopBits = ONESTOPBIT;
-
-	if (!SetCommState(io->serial, &dcb))
-	{
-		auto error = GetLastError();
-
-		aprservice_log_error_ex(SetCommState, error);
-
-		CloseHandle(io->serial);
-
-		return false;
-	}
-
-	COMMTIMEOUTS timeouts                = {};
-	timeouts.ReadIntervalTimeout         = MAXWORD;
-	timeouts.ReadTotalTimeoutConstant    = 0;
-	timeouts.ReadTotalTimeoutMultiplier  = 0;
-	timeouts.WriteTotalTimeoutConstant   = 50;
-	timeouts.WriteTotalTimeoutMultiplier = 10;
-
-	if (!SetCommTimeouts(io->serial, &timeouts))
-	{
-		auto error = GetLastError();
-
-		aprservice_log_error_ex(SetCommTimeouts, error);
-
-		CloseHandle(io->serial);
-
-		return false;
-	}
-#endif
-
-	io->type = APRSERVICE_IO_TYPE_KISS_TNC;
-
-	return true;
-}
-void                                       aprservice_io_disconnect(aprservice_io* io)
-{
-	if (aprservice_io_is_connected(io))
-	{
-		switch (io->type)
-		{
-			case APRSERVICE_IO_TYPE_APRS_IS:
-#if defined(APRSERVICE_UNIX)
-				close(io->socket);
-#elif defined(APRSERVICE_WIN32)
-				closesocket(io->socket);
-#endif
-				break;
-
-			case APRSERVICE_IO_TYPE_KISS_TNC:
-#if defined(APRSERVICE_UNIX)
-				close(io->serial);
-#elif defined(APRSERVICE_WIN32)
-				CloseHandle(io->serial);
-#endif
-				break;
-		}
-
-		io->rx_buffer.clear();
-
-		while (!io->tx_buffer_queue.empty())
-			io->tx_buffer_queue.pop();
-
-		io->type = APRSERVICE_IO_TYPE_NONE;
-	}
-}
-bool                                       aprservice_io_flush(aprservice_io* io)
-{
-	size_t buffer_size;
-	size_t number_of_bytes_sent;
-
-	while (auto buffer = io->tx_buffer_queue.empty() ? nullptr : &io->tx_buffer_queue.front())
-	{
-		buffer_size = buffer->value.length();
-
-		switch (aprservice_io_write(io, &buffer->value[buffer->offset], buffer_size - buffer->offset, &number_of_bytes_sent))
-		{
-			case 0:  return false;
-			case -1: return true;
-		}
-
-		if ((buffer->offset += number_of_bytes_sent) == buffer_size)
-			io->tx_buffer_queue.pop();
-	}
-
-	return true;
-}
-// @return 0 on disconnect
-// @return -1 on would block
-int                                        aprservice_io_read(aprservice_io* io, char* buffer, size_t size, size_t* number_of_bytes_received)
-{
-	if (!aprservice_io_is_connected(io))
-		return 0;
-
-	switch (io->type)
-	{
-		case APRSERVICE_IO_TYPE_APRS_IS:
-		{
-#if defined(APRSERVICE_UNIX)
-			ssize_t bytes_received;
-
-			if ((bytes_received = recv(io->socket, buffer, size, 0)) == -1)
-			{
-				auto error = errno;
-
-				if ((error == EAGAIN) || (error == EWOULDBLOCK))
-					return -1;
-
-				aprservice_io_disconnect(io);
-
-				if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
-					return 0;
-
-				aprservice_log_error_ex(recv, error);
-
-				return 0;
-			}
-
-			*number_of_bytes_received = bytes_received;
-#elif defined(APRSERVICE_WIN32)
-			int bytes_received;
-
-			if ((bytes_received = recv(io->socket, reinterpret_cast<char*>(buffer), static_cast<int>(size), 0)) == SOCKET_ERROR)
-			{
-				auto error = WSAGetLastError();
-
-				switch (error)
-				{
-					case WSAEWOULDBLOCK:
-						return -1;
-
-					case WSAENETDOWN:
-					case WSAENETRESET:
-					case WSAETIMEDOUT:
-					case WSAECONNRESET:
-					case WSAECONNABORTED:
-						aprservice_io_disconnect(io);
-						return 0;
-				}
-
-				return 0;
-			}
-
-			*number_of_bytes_received = bytes_received;
-#endif
-		}
-		break;
-
-		case APRSERVICE_IO_TYPE_KISS_TNC:
-		{
-#if defined(APRSERVICE_UNIX)
-			int bytes_received;
-
-			if ((bytes_received = read(io->serial, buffer, size)) == -1)
-			{
-				auto error = errno;
-
-				aprservice_log_error_ex(read, error);
-
-				aprservice_io_disconnect(io);
-
-				return 0;
-			}
-
-			if (bytes_received == 0)
-				return -1;
-
-			*number_of_bytes_received = bytes_received;
-#elif defined(APRSERVICE_WIN32)
-			DWORD bytes_received;
-
-			if (!ReadFile(io->serial, &buffer, size, &bytes_received, nullptr))
-			{
-				auto error = GetLastError();
-
-				aprservice_log_error_ex(ReadFile, error);
-
-				aprservice_io_disconnect(io);
-
-				return 0;
-			}
-
-			if (bytes_received == 0)
-				return -1;
-
-			*number_of_bytes_received = bytes_received;
-#endif
-		}
-		break;
-	}
-
-	return 1;
-}
-// @return 0 on disconnect
-// @return -1 on would block
-int                                        aprservice_io_write(aprservice_io* io, const char* buffer, size_t size, size_t* number_of_bytes_sent)
-{
-	if (!aprservice_io_is_connected(io))
-		return false;
-
-	switch (io->type)
-	{
-		case APRSERVICE_IO_TYPE_APRS_IS:
-		{
-#if defined(APRSERVICE_UNIX)
-			ssize_t bytes_sent;
-
-			if ((bytes_sent = send(io->socket, buffer, size, 0)) == -1)
-			{
-				auto error = errno;
-
-				if ((error == EAGAIN) || (error == EWOULDBLOCK))
-					return -1;
-
-				aprservice_io_disconnect(sn);
-
-				if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
-					return 0;
-
-				aprservice_log_error_ex(send, error);
-
-				return 0;
-			}
-
-			*number_of_bytes_sent = bytes_sent;
-#elif defined(APRSERVICE_WIN32)
-			int bytes_sent;
-
-			if ((bytes_sent = send(io->socket, reinterpret_cast<const char*>(buffer), static_cast<int>(size), 0)) == SOCKET_ERROR)
-			{
-				auto error = WSAGetLastError();
-
-				switch (error)
-				{
-					case WSAEWOULDBLOCK:
-						return -1;
-
-					case WSAENETDOWN:
-					case WSAENETRESET:
-					case WSAETIMEDOUT:
-					case WSAECONNRESET:
-					case WSAECONNABORTED:
-					case WSAEHOSTUNREACH:
-						aprservice_io_disconnect(io);
-						return 0;
-				}
-
-				aprservice_log_error_ex(send, error);
-
-				return 0;
-			}
-
-			*number_of_bytes_sent = bytes_sent;
-#endif
-		}
-		break;
-
-		case APRSERVICE_IO_TYPE_KISS_TNC:
-		{
-#if defined(APRSERVICE_UNIX)
-			int bytes_sent;
-
-			if ((bytes_sent = write(io->serial, buffer, size)) == -1)
-			{
-				auto error = errno;
-
-				aprservice_log_error_ex(write, error);
-
-				aprservice_io_disconnect(io);
-
-				return 0;
-			}
-
-			if (bytes_sent == 0)
-				return -1;
-
-			*number_of_bytes_sent = bytes_sent;
-#elif defined(APRSERVICE_WIN32)
-			DWORD bytes_sent;
-
-			if (!WriteFile(io->serial, buffer, size, &bytes_sent, nullptr))
-			{
-				auto error = GetLastError();
-
-				aprservice_log_error_ex(WriteFile, error);
-
-				aprservice_io_disconnect(io);
-
-				return 0;
-			}
-
-			if (bytes_sent == 0)
-				return -1;
-
-			*number_of_bytes_sent = bytes_sent;
-#endif
-		}
-		break;
-	}
-
-	return 1;
-}
-// @note this function only works for aprs-is
-// @return 0 on disconnect
-// @return -1 on would block
-int                                        aprservice_io_read_line(aprservice_io* io, std::string& value)
-{
-	if (!aprservice_io_is_connected(io))
-		return 0;
-
-	assert(io->type == APRSERVICE_IO_TYPE_APRS_IS);
-
-	size_t number_of_bytes_received;
-
-	switch (aprservice_io_read(io, &io->rx_buffer_tmp[0], io->rx_buffer_tmp.max_size(), &number_of_bytes_received))
-	{
-		case 0:  return 0;
-		case -1: return -1;
-	}
-
-	io->rx_buffer.append(&io->rx_buffer_tmp[0], number_of_bytes_received);
-
-	if (auto i = io->rx_buffer.find("\r\n"); i != std::string::npos)
-	{
-		value         = io->rx_buffer.substr(0, i);
-		io->rx_buffer = io->rx_buffer.substr(i + 2);
-
-		return 1;
-	}
-
-	return -1;
-}
-// @note this function only works for aprs-is
-bool                                       aprservice_io_write_line(aprservice_io* io, const char* value)
-{
-	if (!aprservice_io_is_connected(io))
-		return false;
-
-	assert(io->type == APRSERVICE_IO_TYPE_APRS_IS);
-
-	io->tx_buffer_queue.push({ .value = value,  .offset = 0 });
-	io->tx_buffer_queue.push({ .value = "\r\n", .offset = 0 });
-
-	return true;
-}
-// @return 0 on disconnect
-// @return -1 on would block
-int                                        aprservice_io_read_packet(aprservice_io* io, aprs_packet*& value)
-{
-	if (!aprservice_io_is_connected(io))
-		return 0;
-
-	switch (io->type)
-	{
-		case APRSERVICE_IO_TYPE_APRS_IS:
-		{
-			switch (aprservice_io_read_line(io, io->service->line))
-			{
-				case 0:
-					aprservice_io_disconnect(io);
-					return 0;
-
-				case -1:
-					return -1;
-			}
-
-			if (value = aprs_packet_init_from_string(io->service->line.c_str()))
-				return 1;
-		}
-		break;
-
-		case APRSERVICE_IO_TYPE_KISS_TNC:
-			// TODO: implement
-			break;
-	}
-
-	return -1;
-}
-bool                                       aprservice_io_write_packet(aprservice_io* io, aprs_packet* value)
-{
-	if (!aprservice_io_is_connected(io))
-		return false;
-
-	// calling aprs_packet_to_string populates aprs_packet_get_content
-	auto string = aprs_packet_to_string(value);
-
-	switch (io->type)
-	{
-		case APRSERVICE_IO_TYPE_APRS_IS:
-			io->tx_buffer_queue.push({ .value = string, .offset = 0 });
-			io->tx_buffer_queue.push({ .value = "\r\n", .offset = 0 });
-			break;
-
-		case APRSERVICE_IO_TYPE_KISS_TNC:
-		{
-			auto        path    = aprs_packet_get_path(value);
-			std::string content = aprs_packet_get_content(value);
-			std::string buffer; // TODO: precalculate size
-
-			buffer.append(1, (char)APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTER_FRAME_END);
-			buffer.append(1, (char)APRSERVICE_IO_KISS_TNC_COMMAND_DATA);
-			// TODO: implement
-			buffer.append(1, (char)APRSERVICE_IO_KISS_TNC_SPECIAL_CHARACTER_FRAME_END);
-
-			io->tx_buffer_queue.push({ .value = std::move(buffer), .offset = 0 });
-		}
-		break;
-	}
-
-	return true;
+	return value;
 }
 
 template<APRSERVICE_EVENTS EVENT>
@@ -933,7 +287,7 @@ bool                                       aprservice_regex_match(std::cmatch& m
 	return true;
 }
 
-bool                                       aprservice_authentication_from_string(aprservice_auth* auth, const char* string, bool is_verified)
+bool                                       aprservice_connection_auth_from_string(aprservice_connection_auth* auth, const char* string, bool is_verified)
 {
 	static const std::regex regex("^logresp ([^ ]+) ([^ ,]+)[^ ]* ?(.*)$");
 
@@ -952,12 +306,1008 @@ bool                                       aprservice_authentication_from_string
 	return true;
 }
 
-bool                                       aprservice_poll_io(struct aprservice* service);
+aprservice_connection*                     aprservice_connection_init(aprservice* service, int mode, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode);
+void                                       aprservice_connection_deinit(aprservice_connection* connection);
+bool                                       aprservice_connection_is_open(aprservice_connection* connection);
+bool                                       aprservice_connection_open(aprservice_connection* connection);
+void                                       aprservice_connection_close(aprservice_connection* connection);
+bool                                       aprservice_connection_poll(aprservice_connection* connection);
+// @return 0 on disconnect
+// @return -1 on would block
+int                                        aprservice_connection_read(aprservice_connection* connection, void* buffer, size_t size, size_t* number_of_bytes_received);
+// @return 0 on disconnect
+// @return -1 on would block
+int                                        aprservice_connection_write(aprservice_connection* connection, const void* buffer, size_t size, size_t* number_of_bytes_sent);
+bool                                       aprservice_connection_read_string(aprservice_connection* connection, std::string& value);
+bool                                       aprservice_connection_write_packet(aprservice_connection* connection, aprs_packet* value);
+bool                                       aprservice_connection_write_aprs_is(aprservice_connection* connection, std::string&& value);
+
+bool                                       aprservice_enum_connections(aprservice* service, bool(*callback)(aprservice* service, aprservice_connection* connection, void* param), void* param)
+{
+	for (auto connection : service->connections)
+		if (!callback(service, connection, param))
+			return false;
+
+	return true;
+}
+bool                                       aprservice_enum_connections_by_mode(aprservice* service, int mode, bool(*callback)(aprservice* service, aprservice_connection* connection, void* param), void* param)
+{
+	for (auto connection : service->connections)
+		if (!mode || (connection->mode & mode))
+			if (!callback(service, connection, param))
+				return false;
+
+	return true;
+}
+
 bool                                       aprservice_poll_tasks(struct aprservice* service);
 bool                                       aprservice_poll_messages(struct aprservice* service);
+bool                                       aprservice_poll_connections(struct aprservice* service);
 
 bool                                       aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id);
 bool                                       aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id);
+
+aprservice_connection*                     aprservice_connection_init(aprservice* service, int mode, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode)
+{
+	auto connection = new aprservice_connection
+	{
+		.service        = service,
+
+		.is_open        = false,
+
+		.mode           = mode,
+		.type           = type,
+
+		.device_speed   = speed,
+		.host_or_device = host_or_device,
+		.port           = port,
+		.passcode       = passcode
+	};
+
+#if defined(APRSERVICE_WIN32)
+	if (auto error = WSAStartup(MAKEWORD(2, 2), &connection->winsock))
+	{
+		aprservice_log_error_ex(WSAStartup, error);
+
+		delete connection;
+
+		return nullptr;
+	}
+#endif
+
+	return connection;
+}
+void                                       aprservice_connection_deinit(aprservice_connection* connection)
+{
+	if (aprservice_connection_is_open(connection))
+		aprservice_connection_close(connection);
+
+#if defined(APRSERVICE_WIN32)
+	WSACleanup();
+#endif
+
+	delete connection;
+}
+bool                                       aprservice_connection_is_open(aprservice_connection* connection)
+{
+	return connection->is_open;
+}
+bool                                       aprservice_connection_open_tcp(aprservice_connection* connection)
+{
+resolve_host:
+	addrinfo  dns_hint = { .ai_family = AF_UNSPEC };
+	addrinfo* dns_result;
+
+	if (auto error = getaddrinfo(connection->host_or_device.c_str(), "", &dns_hint, &dns_result))
+	{
+		switch (error)
+		{
+			case EAI_FAIL:
+			case EAI_AGAIN:
+			case EAI_NONAME:
+				return false;
+		}
+
+		aprservice_log_error_ex(getaddrinfo, error);
+
+		return false;
+	}
+
+	union
+	{
+		sockaddr_in  dns_result_ipv4;
+		sockaddr_in6 dns_result_ipv6;
+	};
+
+	sockaddr* dns_result_address;
+	int       dns_result_address_length = 0;
+
+	switch (dns_result->ai_family)
+	{
+		case AF_INET:
+			dns_result_ipv4          = *reinterpret_cast<const sockaddr_in*>(dns_result->ai_addr);
+			dns_result_ipv4.sin_port = htons(connection->port);
+			dns_result_address        = reinterpret_cast<sockaddr*>(&dns_result_ipv4);
+			dns_result_address_length = sizeof(sockaddr_in);
+			break;
+
+		case AF_INET6:
+			dns_result_ipv6           = *reinterpret_cast<const sockaddr_in6*>(dns_result->ai_addr);
+			dns_result_ipv6.sin6_port = htons(connection->port);
+			dns_result_address        = reinterpret_cast<sockaddr*>(&dns_result_ipv6);
+			dns_result_address_length = sizeof(sockaddr_in6);
+			break;
+	}
+
+	freeaddrinfo(dns_result);
+
+	if (!dns_result_address_length)
+		return false;
+
+socket_open:
+#if defined(APRSERVICE_UNIX)
+	if ((connection->socket = socket(dns_result_address->sa_family, SOCK_STREAM, IPPROTO_TCP)) == -1)
+	{
+		aprservice_log_error(socket);
+
+		return false;
+	}
+#elif defined(APRSERVICE_WIN32)
+	if ((connection->socket = WSASocketW(dns_result_address->sa_family, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, 0)) == INVALID_SOCKET)
+	{
+		aprservice_log_error(WSASocketW);
+
+		return false;
+	}
+#endif
+
+socket_connect:
+#if defined(APRSERVICE_UNIX)
+	if (connect(connection->socket, socket_address, socket_address_length) == -1)
+	{
+		aprservice_log_error(connect);
+
+		close(connection->socket);
+
+		return false;
+	}
+
+	int flags;
+
+	if ((flags = fcntl(connection->socket, F_GETFL, 0)) == -1)
+	{
+		aprservice_log_error(fcntl);
+
+		close(connection->socket);
+
+		return false;
+	}
+
+	if (fcntl(connection->socket, F_SETFL, flags | O_NONBLOCK) == -1)
+	{
+		aprservice_log_error(fcntl);
+
+		close(connection->socket);
+
+		return false;
+	}
+#elif defined(APRSERVICE_WIN32)
+	if (connect(connection->socket, dns_result_address, dns_result_address_length) == SOCKET_ERROR)
+	{
+		aprservice_log_error(connect);
+
+		closesocket(connection->socket);
+
+		return false;
+	}
+
+	u_long arg = 1;
+
+	if (ioctlsocket(connection->socket, FIONBIO, &arg) == SOCKET_ERROR)
+	{
+		aprservice_log_error(ioctlsocket);
+
+		closesocket(connection->socket);
+
+		return false;
+	}
+#endif
+
+	connection->is_open = true;
+
+	return true;
+}
+bool                                       aprservice_connection_open_serial(aprservice_connection* connection)
+{
+#if defined(APRSERVICE_UNIX)
+	if ((connection->serial = open(connection->host_or_device.c_str(), O_RDWR | O_NOCTTY | O_NDELAY)) == -1)
+	{
+		auto error = errno;
+
+		aprservice_log_error_ex(open, error);
+
+		return false;
+	}
+
+	fcntl(connection->serial, F_SETFL, O_RDWR);
+
+	termios options;
+	tcgetattr(connection->serial, &options);
+	cfmakeraw(&options);
+	cfsetspeed(&options, connection->device_speed);
+
+	options.c_cc[VMIN]  = 1;
+	options.c_cc[VTIME] = 0;
+	options.c_cflag    |= CS8;
+	options.c_cflag    |= CLOCAL | CREAD;
+	options.c_cflag    &= ~(PARENB | CSTOPB | CSIZE);
+	options.c_cflag    &= ~(ICANON | ECHO | ECHOE | ISIG | OPOST);
+
+	tcsetattr(connection->serial, TCSANOW, &options);
+
+	int status;
+	ioctl(connection->serial, TIOCMGET, &status);
+
+	status |= TIOCM_DTR | TIOCM_RTS;
+	ioctl(connection->serial, TIOCMSET, &status);
+#elif defined(APRSERVICE_WIN32)
+	if ((connection->serial = CreateFileA(connection->host_or_device.c_str(), GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0)) == INVALID_HANDLE_VALUE)
+	{
+		auto error = GetLastError();
+
+		aprservice_log_error_ex(CreateFileA, error);
+
+		return false;
+	}
+
+	DCB dcb       = {};
+	dcb.DCBlength = sizeof(DCB);
+
+	if (!GetCommState(connection->serial, &dcb))
+	{
+		auto error = GetLastError();
+
+		aprservice_log_error_ex(GetCommState, error);
+
+		CloseHandle(connection->serial);
+
+		return false;
+	}
+
+	dcb.Parity   = NOPARITY;
+	dcb.fBinary  = TRUE;
+	dcb.BaudRate = connection->device_speed;
+	dcb.ByteSize = 8;
+	dcb.StopBits = ONESTOPBIT;
+
+	if (!SetCommState(connection->serial, &dcb))
+	{
+		auto error = GetLastError();
+
+		aprservice_log_error_ex(SetCommState, error);
+
+		CloseHandle(connection->serial);
+
+		return false;
+	}
+
+	COMMTIMEOUTS timeouts                = {};
+	timeouts.ReadIntervalTimeout         = MAXWORD;
+	timeouts.ReadTotalTimeoutConstant    = 0;
+	timeouts.ReadTotalTimeoutMultiplier  = 0;
+	timeouts.WriteTotalTimeoutConstant   = 50;
+	timeouts.WriteTotalTimeoutMultiplier = 10;
+
+	if (!SetCommTimeouts(connection->serial, &timeouts))
+	{
+		auto error = GetLastError();
+
+		aprservice_log_error_ex(SetCommTimeouts, error);
+
+		CloseHandle(connection->serial);
+
+		return false;
+	}
+#endif
+
+	connection->is_open = true;
+
+	return true;
+}
+bool                                       aprservice_connection_open(aprservice_connection* connection)
+{
+	if (aprservice_connection_is_open(connection))
+		return false;
+
+	switch (connection->type)
+	{
+		case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+			if (!aprservice_connection_open_tcp(connection))
+			{
+				aprservice_log_error_ex(aprservice_connection_open_tcp, false);
+
+				return false;
+			}
+			break;
+
+		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+			if (!aprservice_connection_open_serial(connection))
+			{
+				aprservice_log_error_ex(aprservice_connection_open_serial, false);
+
+				return false;
+			}
+			break;
+	}
+
+	aprservice_event_execute(connection->service, APRSERVICE_EVENT_CONNECT, { .connection_mode = connection->mode, .connection_type = connection->type });
+
+	auto generate_auth_request = [](aprservice* service, uint16_t passcode)
+	{
+		std::stringstream ss;
+		ss << "user " << service->station << " pass " << (passcode ? passcode : -1);
+		ss << " vers " << APRSERVICE_SOFTWARE_NAME << ' ' << APRSERVICE_SOFTWARE_VERSION;
+		ss << " filter t/poimqstunw";
+
+		return ss.str();
+	};
+
+	switch (connection->type)
+	{
+		case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+			if (auto auth_request = generate_auth_request(connection->service, connection->passcode); !aprservice_connection_write_aprs_is(connection, std::move(auth_request)))
+			{
+				aprservice_log_error_ex(aprservice_connection_write_aprs_is, false);
+
+				aprservice_connection_close(connection);
+
+				return false;
+			}
+			connection->auth.state    = APRSERVICE_AUTH_STATE_SENT;
+			connection->auth.success  = false;
+			connection->auth.verified = false;
+			break;
+
+		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+			connection->auth.state    = APRSERVICE_AUTH_STATE_RECEIVED;
+			connection->auth.success  = true;
+			connection->auth.verified = true;
+			connection->auth.message.clear();
+			aprservice_event_execute(connection->service, APRSERVICE_EVENT_AUTHENTICATE, { .message = connection->auth.message.c_str(), .success = connection->auth.success, .verified = connection->auth.verified, .connection_mode = connection->mode, .connection_type = connection->type });
+			break;
+	}
+
+	return true;
+}
+void                                       aprservice_connection_close(aprservice_connection* connection)
+{
+	if (aprservice_connection_is_open(connection))
+	{
+		switch (connection->type)
+		{
+			case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+#if defined(APRSERVICE_UNIX)
+				close(connection->socket);
+#elif defined(APRSERVICE_WIN32)
+				closesocket(connection->socket);
+#endif
+				break;
+
+			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+#if defined(APRSERVICE_UNIX)
+				close(connection->serial);
+#elif defined(APRSERVICE_WIN32)
+				CloseHandle(connection->serial);
+#endif
+				break;
+		}
+
+		connection->rx_buffer.clear();
+
+		while (!connection->rx_queue.empty())
+			connection->rx_queue.pop();
+
+		while (!connection->tx_queue.empty())
+			connection->tx_queue.pop();
+
+		connection->is_open = false;
+
+		connection->auth.state = APRSERVICE_AUTH_STATE_NONE;
+
+		aprservice_event_execute(connection->service, APRSERVICE_EVENT_DISCONNECT, { .connection_mode = connection->mode, .connection_type = connection->type });
+	}
+}
+// @return false on connection closed
+bool                                       aprservice_connection_poll_aprs_is(aprservice_connection* connection)
+{
+	size_t number_of_bytes_received;
+
+read_once:
+	switch (aprservice_connection_read(connection, &connection->rx_buffer_tmp[0], connection->rx_buffer_tmp.max_size(), &number_of_bytes_received))
+	{
+		case 0:
+			return false;
+
+		case -1:
+			break;
+
+		default:
+			connection->rx_buffer.append(&connection->rx_buffer_tmp[0], number_of_bytes_received);
+
+			for (auto i = connection->rx_buffer.find("\r\n"); i != std::string::npos; i = connection->rx_buffer.find("\r\n"))
+			{
+				connection->rx_queue.push(connection->rx_buffer.substr(0, i));
+				connection->rx_buffer = connection->rx_buffer.substr(i + 2);
+			}
+			goto read_once;
+	}
+
+	return true;
+}
+// @return false on connection closed
+bool                                       aprservice_connection_poll_kiss_tnc(aprservice_connection* connection)
+{
+	size_t number_of_bytes_received;
+
+read_once:
+	switch (aprservice_connection_read(connection, &connection->rx_buffer_tmp[0], connection->rx_buffer_tmp.max_size(), &number_of_bytes_received))
+	{
+		case 0:
+			return false;
+
+		case -1:
+			break;
+
+		default:
+			connection->rx_buffer.append(&connection->rx_buffer_tmp[0], number_of_bytes_received);
+
+		parse_once:
+			uint8_t              command;
+			std::vector<uint8_t> command_buffer;
+
+			command_buffer.reserve(connection->rx_buffer.length());
+
+			for (size_t i = 0, e = 0; i < connection->rx_buffer.length(); ++i)
+				if (connection->rx_buffer[i] == (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_END)
+					for (size_t j = i + 2; j < connection->rx_buffer.length(); ++j)
+						switch (uint8_t byte = connection->rx_buffer[j])
+						{
+							case KISS_TNC_SPECIAL_CHARACTER_FRAME_END:
+								if (e)
+									command_buffer.push_back(KISS_TNC_SPECIAL_CHARACTER_FRAME_END);
+								else
+								{
+									command               = connection->rx_buffer[i + 1] & 0x0F;
+									connection->rx_buffer = connection->rx_buffer.erase(0, j + 1);
+
+									if ((command & 0x0F) == KISS_TNC_COMMAND_DATA)
+									{
+										std::string string;
+
+										string.reserve(command_buffer.size());
+
+										auto command_decode_path = [](std::string& string, const std::vector<uint8_t>& buffer, size_t offset)
+										{
+											bool is_last;
+
+											do
+											{
+												string.append(1, ',');
+
+												is_last = buffer[offset + 6] & 0x01;
+
+												for (size_t i = 0; i < 6; ++i, ++offset)
+													if (buffer[offset] != 0x40)
+														string.append(1, (char)(buffer[offset] >> 1));
+
+												bool is_repeated = buffer[offset] & 0x80;
+
+												if (uint8_t ssid = ((buffer[offset++] & 0x0E) >> 1))
+												{
+													string.append(1, '-');
+
+													do
+														string.append(1, '0' + ssid % 10);
+													while (ssid /= 10);
+												}
+
+												if (is_repeated)
+													string.append(1, '*');
+											} while (!is_last);
+
+											return offset;
+										};
+										auto command_decode_tocall = [](std::string& string, const std::vector<uint8_t>& buffer, size_t offset)
+										{
+											for (size_t i = 0; i < 6; ++i, ++offset)
+												if (buffer[offset] != 0x40)
+													string.append(1, (char)(buffer[offset] >> 1));
+
+											if (uint8_t ssid = ((buffer[offset++] & 0x1E) >> 1))
+											{
+												string.append(1, '-');
+
+												do
+													string.append(1, '0' + ssid % 10);
+												while (ssid /= 10);
+											}
+										};
+										auto command_decode_station = [](std::string& string, const std::vector<uint8_t>& buffer, size_t offset)
+										{
+											for (size_t i = 0; i < 6; ++i, ++offset)
+												if (buffer[offset] != 0x40)
+													string.append(1, (char)(buffer[offset] >> 1));
+
+											if (uint8_t ssid = ((buffer[offset++] & 0x1E) >> 1))
+											{
+												string.append(1, '-');
+
+												do
+													string.append(1, '0' + ssid % 10);
+												while (ssid /= 10);
+											}
+
+											string.append(1, '>');
+										};
+
+										command_decode_station(string, command_buffer, 7);
+										command_decode_tocall(string, command_buffer, 0);
+										auto offset = command_decode_path(string, command_buffer, 14);
+
+										if ((command_buffer[offset++] == 0x03) && (command_buffer[offset++] == 0xF0))
+										{
+											string.append(1, ':');
+											string.append((const char*)&command_buffer[offset], command_buffer.size() - offset);
+
+											// TODO: why is this needed with pinpoint?
+											if (string.ends_with('\r'))
+												string.pop_back();
+
+											connection->rx_queue.push(std::move(string));
+										}
+									}
+
+									goto parse_once;
+								}
+								break;
+
+							case KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE:
+								e = e ? 0 : 1;
+								break;
+
+							case KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_END:
+								if (e) command_buffer.push_back(KISS_TNC_SPECIAL_CHARACTER_FRAME_END);
+								break;
+
+							case KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_ESCAPE:
+								if (e) command_buffer.push_back(KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE);
+								break;
+
+							default:
+								command_buffer.push_back((char)byte);
+								break;
+						}
+			goto read_once;
+	}
+
+	return true;
+}
+// @return false on connection closed
+bool                                       aprservice_connection_poll(aprservice_connection* connection)
+{
+	if (!aprservice_connection_is_open(connection))
+		return false;
+
+	size_t number_of_bytes_transferred;
+
+	while (auto buffer = connection->tx_queue.empty() ? nullptr : &connection->tx_queue.front())
+	{
+		auto buffer_size = buffer->value.length();
+
+		switch (aprservice_connection_write(connection, &buffer->value[buffer->offset], buffer_size - buffer->offset, &number_of_bytes_transferred))
+		{
+			case 0:  return false;
+			case -1: return true;
+		}
+
+		if ((buffer->offset += number_of_bytes_transferred) == buffer_size)
+			connection->tx_queue.pop();
+	}
+
+	switch (connection->type)
+	{
+		case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+			return aprservice_connection_poll_aprs_is(connection);
+
+		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+			return aprservice_connection_poll_kiss_tnc(connection);
+	}
+
+	return true;
+}
+// @return 0 on disconnect
+// @return -1 on would block
+int                                        aprservice_connection_read(aprservice_connection* connection, void* buffer, size_t size, size_t* number_of_bytes_received)
+{
+	if (!aprservice_connection_is_open(connection))
+		return 0;
+
+	switch (connection->type)
+	{
+		case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+		{
+#if defined(APRSERVICE_UNIX)
+			ssize_t bytes_received;
+
+			if ((bytes_received = recv(connection->socket, buffer, size, 0)) == -1)
+			{
+				auto error = errno;
+
+				if ((error == EAGAIN) || (error == EWOULDBLOCK))
+					return -1;
+
+				aprservice_connection_close(connection);
+
+				if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
+					return 0;
+
+				aprservice_log_error_ex(recv, error);
+
+				return 0;
+			}
+
+			*number_of_bytes_received = bytes_received;
+#elif defined(APRSERVICE_WIN32)
+			int bytes_received;
+
+			if ((bytes_received = recv(connection->socket, reinterpret_cast<char*>(buffer), static_cast<int>(size), 0)) == SOCKET_ERROR)
+			{
+				auto error = WSAGetLastError();
+
+				switch (error)
+				{
+					case WSAEWOULDBLOCK:
+						return -1;
+
+					case WSAENETDOWN:
+					case WSAENETRESET:
+					case WSAETIMEDOUT:
+					case WSAECONNRESET:
+					case WSAECONNABORTED:
+						aprservice_connection_close(connection);
+						return 0;
+				}
+
+				return 0;
+			}
+
+			*number_of_bytes_received = bytes_received;
+#endif
+		}
+		break;
+
+		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+		{
+#if defined(APRSERVICE_UNIX)
+			int bytes_received;
+
+			if ((bytes_received = read(connection->serial, buffer, size)) == -1)
+			{
+				auto error = errno;
+
+				aprservice_log_error_ex(read, error);
+
+				aprservice_connection_close(connection);
+
+				return 0;
+			}
+
+			if (bytes_received == 0)
+				return -1;
+
+			*number_of_bytes_received = bytes_received;
+#elif defined(APRSERVICE_WIN32)
+			DWORD bytes_received;
+
+			if (!ReadFile(connection->serial, &buffer, size, &bytes_received, nullptr))
+			{
+				auto error = GetLastError();
+
+				aprservice_log_error_ex(ReadFile, error);
+
+				aprservice_connection_close(connection);
+
+				return 0;
+			}
+
+			if (bytes_received == 0)
+				return -1;
+
+			*number_of_bytes_received = bytes_received;
+#endif
+		}
+		break;
+	}
+
+	return 1;
+}
+// @return 0 on disconnect
+// @return -1 on would block
+int                                        aprservice_connection_write(aprservice_connection* connection, const void* buffer, size_t size, size_t* number_of_bytes_sent)
+{
+	if (!aprservice_connection_is_open(connection))
+		return false;
+
+	switch (connection->type)
+	{
+		case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+		{
+#if defined(APRSERVICE_UNIX)
+			ssize_t bytes_sent;
+
+			if ((bytes_sent = send(connection->socket, buffer, size, 0)) == -1)
+			{
+				auto error = errno;
+
+				if ((error == EAGAIN) || (error == EWOULDBLOCK))
+					return -1;
+
+				aprservice_connection_close(sn);
+
+				if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
+					return 0;
+
+				aprservice_log_error_ex(send, error);
+
+				return 0;
+			}
+
+			*number_of_bytes_sent = bytes_sent;
+#elif defined(APRSERVICE_WIN32)
+			int bytes_sent;
+
+			if ((bytes_sent = send(connection->socket, reinterpret_cast<const char*>(buffer), static_cast<int>(size), 0)) == SOCKET_ERROR)
+			{
+				auto error = WSAGetLastError();
+
+				switch (error)
+				{
+					case WSAEWOULDBLOCK:
+						return -1;
+
+					case WSAENETDOWN:
+					case WSAENETRESET:
+					case WSAETIMEDOUT:
+					case WSAECONNRESET:
+					case WSAECONNABORTED:
+					case WSAEHOSTUNREACH:
+						aprservice_connection_close(connection);
+						return 0;
+				}
+
+				aprservice_log_error_ex(send, error);
+
+				return 0;
+			}
+
+			*number_of_bytes_sent = bytes_sent;
+#endif
+		}
+		break;
+
+		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+		{
+#if defined(APRSERVICE_UNIX)
+			int bytes_sent;
+
+			if ((bytes_sent = write(connection->serial, buffer, size)) == -1)
+			{
+				auto error = errno;
+
+				aprservice_log_error_ex(write, error);
+
+				aprservice_connection_close(connection);
+
+				return 0;
+			}
+
+			if (bytes_sent == 0)
+				return -1;
+
+			*number_of_bytes_sent = bytes_sent;
+#elif defined(APRSERVICE_WIN32)
+			DWORD bytes_sent;
+
+			if (!WriteFile(connection->serial, buffer, size, &bytes_sent, nullptr))
+			{
+				auto error = GetLastError();
+
+				aprservice_log_error_ex(WriteFile, error);
+
+				aprservice_connection_close(connection);
+
+				return 0;
+			}
+
+			if (bytes_sent == 0)
+				return -1;
+
+			*number_of_bytes_sent = bytes_sent;
+#endif
+		}
+		break;
+	}
+
+	return 1;
+}
+bool                                       aprservice_connection_read_string(aprservice_connection* connection, std::string& value)
+{
+	if (!aprservice_connection_is_open(connection))
+		return false;
+
+	if (connection->rx_queue.empty())
+		return false;
+
+	value = std::move(connection->rx_queue.front());
+
+	connection->rx_queue.pop();
+
+	return true;
+}
+bool                                       aprservice_connection_write_packet(aprservice_connection* connection, aprs_packet* value)
+{
+	if (aprservice_connection_is_open(connection))
+		switch (connection->type)
+		{
+			case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+				if (auto string = aprs_packet_to_string(value))
+					return aprservice_connection_write_aprs_is(connection, string);
+				break;
+
+			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+			{
+				auto packet_to_ax25   = [](aprs_packet* value)
+				{
+					auto        path         = aprs_packet_get_path(value);
+					auto        path_size    = aprs_path_get_length(path);
+					std::string content      = aprs_packet_get_content(value);
+					auto        content_size = content.length();
+
+					std::vector<uint8_t> buffer(14 + (path_size * 7) + 2 + content_size, 0);
+					auto                 buffer_encode_path = [](std::vector<uint8_t>& buffer, size_t offset, aprs_path* value)
+					{
+						auto size = aprs_path_get_length(value);
+
+						for (size_t i = 0; i < size; ++i)
+						{
+							auto path = aprs_path_get(value, i);
+
+							for (size_t j = 0; j < 6; ++j)
+								switch (*path)
+								{
+									case '-':
+										while (j++ < 6)
+											buffer[offset++] = 0x40;
+										break;
+
+									case '*':
+										buffer[offset - j] |= 0x80;
+										while (j++ < 6)
+											buffer[offset++] = 0x40;
+										break;
+
+									default:
+										buffer[offset++] = *path << 1;
+										break;
+								}
+
+							buffer[offset++] = (aprservice_parse_uint<uint8_t>(path) & 0x0F) << 1;
+						}
+
+						return offset;
+					};
+					auto                 buffer_encode_tocall = [](std::vector<uint8_t>& buffer, size_t offset, const char* value)
+					{
+						for (size_t i = 0; i < 6; ++i, ++value)
+							if (*value != '-')
+								buffer[offset++] = *value << 1;
+							else
+							{
+								++value;
+
+								while (i++ < 6)
+									buffer[offset++] = 0x40;
+
+								break;
+							}
+
+						buffer[offset] = (aprservice_parse_uint<uint8_t>(value) & 0x0F) << 1;
+					};
+					auto                 buffer_encode_station = [](std::vector<uint8_t>& buffer, size_t offset, const char* value)
+					{
+						for (size_t i = 0; i < 6; ++i, ++value)
+							if (*value != '-')
+								buffer[offset++] = *value << 1;
+							else
+							{
+								++value;
+
+								while (i++ < 6)
+									buffer[offset++] = 0x40;
+							}
+
+						buffer[offset] = (aprservice_parse_uint<uint8_t>(value) & 0x0F) << 1;
+					};
+
+					// TODO: debug this
+
+					buffer_encode_tocall(buffer, 0, aprs_packet_get_tocall(value));
+					buffer_encode_station(buffer, 7, aprs_packet_get_sender(value));
+					auto offset      = buffer_encode_path(buffer, 14, path);
+					buffer[offset++] = 0x03;
+					buffer[offset++] = 0xF0;
+					memcpy(&buffer[offset], content.c_str(), content_size);
+
+					return buffer;
+				};
+				auto ax25_to_kiss_tnc = [](const uint8_t* value, size_t count)
+				{
+					std::string buffer;
+
+					buffer.reserve(1 + 1 + (count * 2) + 1);
+					buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_END);
+					buffer.append(1, (char)KISS_TNC_COMMAND_DATA);
+					for (size_t i = 0; i < count; ++i, ++value)
+					{
+						switch (*value)
+						{
+							case KISS_TNC_SPECIAL_CHARACTER_FRAME_END:
+								buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE);
+								buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_END);
+								break;
+
+							case KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE:
+								buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE);
+								buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_ESCAPE);
+								break;
+
+							default:
+								buffer.append(1, *value);
+								break;
+						}
+					}
+					buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_END);
+
+					return buffer;
+				};
+
+				auto ax25 = packet_to_ax25(value);
+				auto kiss = ax25_to_kiss_tnc(ax25.data(), ax25.size());
+
+				connection->tx_queue.push({ .value = std::move(kiss), .offset = 0 });
+			}
+			return true;
+		}
+
+	return false;
+}
+bool                                       aprservice_connection_write_aprs_is(aprservice_connection* connection, std::string&& value)
+{
+	if (!aprservice_connection_is_open(connection))
+		return false;
+
+	connection->tx_queue.push({ .value = std::move(value), .offset = 0 });
+	connection->tx_queue.push({ .value = "\r\n",           .offset = 0 });
+
+	return true;
+}
 
 struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, struct aprs_path* path, char symbol_table, char symbol_table_key)
 {
@@ -968,10 +1318,7 @@ struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, 
 	{
 		.is_connected     = false,
 		.is_monitoring    = false,
-		.is_auth_verified = false,
 
-		.io               = nullptr,
-		.auth             = { .state = APRSERVICE_AUTH_STATE_NONE },
 		.time             = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
 
 		.path             = path,
@@ -988,17 +1335,6 @@ struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, 
 	if (!(service->position.packet = aprs_packet_position_init(station, APRSERVICE_TOCALL, path, 0, 0, 0, 0, 0, "", symbol_table, symbol_table_key)))
 	{
 		aprservice_log_error_ex(aprs_packet_position_init, nullptr);
-
-		delete service;
-
-		return nullptr;
-	}
-
-	if (!aprservice_io_init(service, &service->io))
-	{
-		aprservice_log_error_ex(aprservice_io_init, false);
-
-		aprs_packet_deinit(service->position.packet);
 
 		delete service;
 
@@ -1051,8 +1387,6 @@ void                       APRSERVICE_CALL aprservice_deinit(struct aprservice* 
 	for (auto it = service->commands.begin(); it != service->commands.end(); )
 		aprservice_command_unregister((it++)->second);
 
-	aprservice_io_deinit(service->io);
-
 	aprs_packet_deinit(service->position.packet);
 
 	aprs_path_deinit(service->path);
@@ -1061,10 +1395,22 @@ void                       APRSERVICE_CALL aprservice_deinit(struct aprservice* 
 }
 bool                       APRSERVICE_CALL aprservice_is_read_only(struct aprservice* service)
 {
-	if (service->auth.state == APRSERVICE_AUTH_STATE_RECEIVED)
-		return !service->auth.success || !service->auth.verified;
+	return !aprservice_enum_connections_by_mode(service, APRSERVICE_CONNECTION_MODE_OUTPUT, [](aprservice* service, aprservice_connection* connection, void* param) {
+		if (connection->auth.state == APRSERVICE_AUTH_STATE_RECEIVED)
+			if (connection->auth.success && connection->auth.verified)
+				return false;
 
-	return true;
+		return true;
+	}, nullptr);
+}
+bool                       APRSERVICE_CALL aprservice_is_gateway(struct aprservice* service)
+{
+	return !aprservice_enum_connections(service, [](aprservice* service, aprservice_connection* connection, void* param) {
+		if (connection->mode & APRSERVICE_CONNECTION_MODE_GATEWAY)
+			return false;
+
+		return true;
+	}, nullptr);
 }
 bool                       APRSERVICE_CALL aprservice_is_connected(struct aprservice* service)
 {
@@ -1072,14 +1418,24 @@ bool                       APRSERVICE_CALL aprservice_is_connected(struct aprser
 }
 bool                       APRSERVICE_CALL aprservice_is_authenticated(struct aprservice* service)
 {
-	if (service->auth.state == APRSERVICE_AUTH_STATE_RECEIVED)
-		return service->auth.success && service->auth.verified;
+	return aprservice_enum_connections(service, [](aprservice* service, aprservice_connection* connection, void* param) {
+		if (connection->auth.state != APRSERVICE_AUTH_STATE_RECEIVED)
+			return false;
 
-	return false;
+		if (!connection->auth.success || !connection->auth.verified)
+			return false;
+
+		return true;
+	}, nullptr);
 }
 bool                       APRSERVICE_CALL aprservice_is_authenticating(struct aprservice* service)
 {
-	return service->auth.state == APRSERVICE_AUTH_STATE_SENT;
+	return !aprservice_enum_connections(service, [](aprservice* service, aprservice_connection* connection, void* param) {
+		if (connection->auth.state == APRSERVICE_AUTH_STATE_SENT)
+			return false;
+
+		return true;
+	}, nullptr);
 }
 bool                       APRSERVICE_CALL aprservice_is_monitoring_enabled(struct aprservice* service)
 {
@@ -1276,139 +1632,14 @@ bool                       APRSERVICE_CALL aprservice_poll(struct aprservice* se
 		return false;
 	}
 
-	if (!aprservice_poll_io(service) && aprservice_is_connected(service))
+	if (!aprservice_poll_connections(service) && aprservice_is_connected(service))
 	{
-		aprservice_log_error_ex(aprservice_poll_io, false);
+		aprservice_log_error_ex(aprservice_poll_connections, false);
 
 		return false;
 	}
 
 	return true;
-}
-bool                                       aprservice_poll_io(struct aprservice* service)
-{
-	auto on_receive_packet = [](aprservice* service, aprs_packet* packet)
-	{
-		auto packet_type   = aprs_packet_get_type(packet);
-		auto packet_sender = aprs_packet_get_sender(packet);
-
-		aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_PACKET, { .packet = packet });
-
-		if (packet_type == APRS_PACKET_TYPE_MESSAGE)
-		{
-			auto packet_message_id          = aprs_packet_message_get_id(packet);
-			auto packet_message_type        = aprs_packet_message_get_type(packet);
-			auto packet_message_content     = aprs_packet_message_get_content(packet);
-			auto packet_message_destination = aprs_packet_message_get_destination(packet);
-
-			switch (packet_message_type)
-			{
-				case APRS_MESSAGE_TYPE_ACK:
-				case APRS_MESSAGE_TYPE_REJECT:
-					if (packet_message_id && !stricmp(aprservice_get_station(service), packet_message_destination))
-						if (auto it = service->message_callbacks_index.find(packet_sender); it != service->message_callbacks_index.end())
-							for (auto jt = it->second.begin(); jt != it->second.end(); ++jt)
-								if (!jt->id.compare(packet_message_id))
-								{
-									jt->callback(service, (packet_message_type == APRS_MESSAGE_TYPE_ACK) ? APRSERVICE_MESSAGE_ERROR_SUCCESS : APRSERVICE_MESSAGE_ERROR_REJECTED, jt->callback_param);
-
-									for (auto lt = service->message_callbacks.begin(); lt != service->message_callbacks.end(); ++lt)
-										if (*lt == &*jt)
-										{
-											service->message_callbacks.erase(lt);
-
-											break;
-										}
-
-									it->second.erase(jt);
-
-									if (it->second.empty())
-										service->message_callbacks_index.erase(it);
-
-									break;
-								}
-					break;
-
-				case APRS_MESSAGE_TYPE_MESSAGE:
-					if (stricmp(aprservice_get_station(service), packet_message_destination))
-					{
-						if (aprservice_is_monitoring_enabled(service))
-							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
-					}
-					else
-					{
-						if (packet_message_id)
-							aprservice_send_message_ack(service, packet_sender, packet_message_id);
-
-						aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
-					}
-					break;
-			}
-		}
-	};
-
-	do
-	{
-		if (!aprservice_io_flush(service->io))
-		{
-			aprservice_disconnect(service);
-
-			return false;
-		}
-
-		switch (service->io->type)
-		{
-			case APRSERVICE_IO_TYPE_APRS_IS:
-			{
-				switch (aprservice_io_read_line(service->io, service->line))
-				{
-					case 0:
-						aprservice_disconnect(service);
-						return false;
-
-					case -1:
-						return true;
-				}
-
-				if (service->line.starts_with("# "))
-				{
-					if (aprservice_is_authenticating(service) && aprservice_authentication_from_string(&service->auth, &service->line[2], service->is_auth_verified))
-						aprservice_event_execute(service, APRSERVICE_EVENT_AUTHENTICATE, { .message = service->auth.message.c_str(), .success = service->auth.success, .verified = service->auth.verified });
-					else
-						aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE, { .message = &service->line[2] });
-				}
-				else if (auto packet = aprs_packet_init_from_string(service->line.c_str()))
-				{
-					on_receive_packet(service, packet);
-
-					aprs_packet_deinit(packet);
-				}
-			}
-			break;
-
-			case APRSERVICE_IO_TYPE_KISS_TNC:
-			{
-				aprs_packet* packet;
-
-				switch (aprservice_io_read_packet(service->io, packet))
-				{
-					case 0:
-						aprservice_disconnect(service);
-						return false;
-
-					case -1:
-						return true;
-				}
-
-				on_receive_packet(service, packet);
-
-				aprs_packet_deinit(packet);
-			}
-			break;
-		}
-	} while (aprservice_is_connected(service));
-
-	return false;
 }
 bool                                       aprservice_poll_tasks(struct aprservice* service)
 {
@@ -1472,6 +1703,133 @@ bool                                       aprservice_poll_messages(struct aprse
 
 	return true;
 }
+bool                                       aprservice_poll_connections(struct aprservice* service)
+{
+	auto callback = [](aprservice* service, aprservice_connection* connection, void* param)
+	{
+		auto on_receive_packet = [](aprservice* service, aprs_packet* packet, aprservice_connection* connection)
+		{
+			auto packet_type   = aprs_packet_get_type(packet);
+			auto packet_sender = aprs_packet_get_sender(packet);
+
+			aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_PACKET, { .packet = packet, .connection_mode = connection->mode, .connection_type = connection->type });
+
+			if (packet_type == APRS_PACKET_TYPE_MESSAGE)
+			{
+				auto packet_message_id          = aprs_packet_message_get_id(packet);
+				auto packet_message_type        = aprs_packet_message_get_type(packet);
+				auto packet_message_content     = aprs_packet_message_get_content(packet);
+				auto packet_message_destination = aprs_packet_message_get_destination(packet);
+
+				switch (packet_message_type)
+				{
+					case APRS_MESSAGE_TYPE_ACK:
+					case APRS_MESSAGE_TYPE_REJECT:
+						if (packet_message_id && !stricmp(aprservice_get_station(service), packet_message_destination))
+							if (auto it = service->message_callbacks_index.find(packet_sender); it != service->message_callbacks_index.end())
+								for (auto jt = it->second.begin(); jt != it->second.end(); ++jt)
+									if (!jt->id.compare(packet_message_id))
+									{
+										jt->callback(service, (packet_message_type == APRS_MESSAGE_TYPE_ACK) ? APRSERVICE_MESSAGE_ERROR_SUCCESS : APRSERVICE_MESSAGE_ERROR_REJECTED, jt->callback_param);
+
+										for (auto lt = service->message_callbacks.begin(); lt != service->message_callbacks.end(); ++lt)
+											if (*lt == &*jt)
+											{
+												service->message_callbacks.erase(lt);
+
+												break;
+											}
+
+										it->second.erase(jt);
+
+										if (it->second.empty())
+											service->message_callbacks_index.erase(it);
+
+										break;
+									}
+						break;
+
+					case APRS_MESSAGE_TYPE_MESSAGE:
+						if (stricmp(aprservice_get_station(service), packet_message_destination))
+						{
+							if (aprservice_is_monitoring_enabled(service))
+								aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination, .connection_mode = connection->mode, .connection_type = connection->type });
+						}
+						else
+						{
+							if (packet_message_id)
+								aprservice_send_message_ack(service, packet_sender, packet_message_id);
+
+							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination, .connection_mode = connection->mode, .connection_type = connection->type });
+						}
+						break;
+				}
+			}
+		};
+
+		if (!aprservice_connection_poll(connection))
+		{
+			aprservice_connection_close(connection);
+
+			return false;
+		}
+
+		if (connection->mode & APRSERVICE_CONNECTION_MODE_INPUT)
+			switch (connection->type)
+			{
+				case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+					if (aprservice_connection_read_string(connection, service->line))
+						if (service->line.starts_with("# "))
+						{
+							if ((connection->auth.state == APRSERVICE_AUTH_STATE_SENT) && aprservice_connection_auth_from_string(&connection->auth, &service->line[2], connection->passcode != 0))
+								aprservice_event_execute(service, APRSERVICE_EVENT_AUTHENTICATE, { .message = connection->auth.message.c_str(), .success = connection->auth.success, .verified = connection->auth.verified, .connection_mode = connection->mode, .connection_type = connection->type });
+							else
+								aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE, { .message = &service->line[2], .connection_mode = connection->mode, .connection_type = connection->type });
+						}
+						else if (auto packet = aprs_packet_init_from_string(service->line.c_str()))
+						{
+							on_receive_packet(service, packet, connection);
+
+							aprs_packet_deinit(packet);
+						}
+					break;
+
+				case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+				case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+					if (aprservice_connection_read_string(connection, service->line))
+						if (auto packet = aprs_packet_init_from_string(service->line.c_str()))
+						{
+							on_receive_packet(service, packet, connection);
+
+							aprs_packet_deinit(packet);
+						}
+					break;
+			}
+
+		return true;
+	};
+
+	if (!aprservice_enum_connections(service, callback, nullptr))
+		aprservice_disconnect(service);
+
+	return true;
+}
+bool                                       aprservice_send(struct aprservice* service, aprs_packet* packet)
+{
+	auto callback = [](aprservice* service, aprservice_connection* connection, void* param)
+	{
+		if (!aprservice_connection_write_packet(connection, (aprs_packet*)param))
+		{
+			aprservice_log_error_ex(aprservice_connection_write_packet, false);
+
+			return false;
+		}
+
+		return true;
+	};
+
+	return aprservice_enum_connections_by_mode(service, APRSERVICE_CONNECTION_MODE_OUTPUT, callback, packet);
+}
 bool                       APRSERVICE_CALL aprservice_send_raw(struct aprservice* service, const char* content)
 {
 	if (!aprservice_is_connected(service))
@@ -1482,9 +1840,9 @@ bool                       APRSERVICE_CALL aprservice_send_raw(struct aprservice
 
 	if (auto packet = aprs_packet_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service)))
 	{
-		if (!aprservice_io_write_packet(service->io, packet))
+		if (!aprservice_send(service, packet))
 		{
-			aprservice_log_error_ex(aprservice_io_write_packet, false);
+			aprservice_log_error_ex(aprservice_send, false);
 
 			aprs_packet_deinit(packet);
 
@@ -1580,9 +1938,9 @@ bool                       APRSERVICE_CALL aprservice_send_item(struct aprservic
 			return false;
 		}
 
-		if (!aprservice_io_write_packet(service->io, packet))
+		if (!aprservice_send(service, packet))
 		{
-			aprservice_log_error_ex(aprservice_io_write_packet, false);
+			aprservice_log_error_ex(aprservice_send, false);
 
 			aprs_packet_deinit(packet);
 
@@ -1687,9 +2045,9 @@ bool                       APRSERVICE_CALL aprservice_send_object(struct aprserv
 			return false;
 		}
 
-		if (!aprservice_io_write_packet(service->io, packet))
+		if (!aprservice_send(service, packet))
 		{
-			aprservice_log_error_ex(aprservice_io_write_packet, false);
+			aprservice_log_error_ex(aprservice_send, false);
 
 			aprs_packet_deinit(packet);
 
@@ -1722,9 +2080,9 @@ bool                       APRSERVICE_CALL aprservice_send_status(struct aprserv
 			return false;
 		}
 
-		if (!aprservice_io_write_packet(service->io, packet))
+		if (!aprservice_send(service, packet))
 		{
-			aprservice_log_error_ex(aprservice_io_write_packet, false);
+			aprservice_log_error_ex(aprservice_send, false);
 
 			aprs_packet_deinit(packet);
 
@@ -1767,9 +2125,9 @@ bool                       APRSERVICE_CALL aprservice_send_message_ex(struct apr
 			return false;
 		}
 
-		if (!aprservice_io_write_packet(service->io, packet))
+		if (!aprservice_send(service, packet))
 		{
-			aprservice_log_error_ex(aprservice_io_write_packet, false);
+			aprservice_log_error_ex(aprservice_send, false);
 
 			aprs_packet_deinit(packet);
 
@@ -1802,9 +2160,9 @@ bool                       APRSERVICE_CALL aprservice_send_message_ack(struct ap
 
 	if (auto packet = aprs_packet_message_init_ack(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, id))
 	{
-		if (!aprservice_io_write_packet(service->io, packet))
+		if (!aprservice_send(service, packet))
 		{
-			aprservice_log_error_ex(aprservice_io_write_packet, false);
+			aprservice_log_error_ex(aprservice_send, false);
 
 			aprs_packet_deinit(packet);
 
@@ -1828,9 +2186,9 @@ bool                       APRSERVICE_CALL aprservice_send_message_reject(struct
 
 	if (auto packet = aprs_packet_message_init_reject(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, id))
 	{
-		if (!aprservice_io_write_packet(service->io, packet))
+		if (!aprservice_send(service, packet))
 		{
-			aprservice_log_error_ex(aprservice_io_write_packet, false);
+			aprservice_log_error_ex(aprservice_send, false);
 
 			aprs_packet_deinit(packet);
 
@@ -1944,9 +2302,9 @@ bool                       APRSERVICE_CALL aprservice_send_weather(struct aprser
 			return false;
 		}
 
-		if (!aprservice_io_write_packet(service->io, packet))
+		if (!aprservice_send(service, packet))
 		{
-			aprservice_log_error_ex(aprservice_io_write_packet, false);
+			aprservice_log_error_ex(aprservice_send, false);
 
 			aprs_packet_deinit(packet);
 
@@ -1968,9 +2326,9 @@ bool                       APRSERVICE_CALL aprservice_send_position(struct aprse
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (!aprservice_io_write_packet(service->io, service->position.packet))
+	if (!aprservice_send(service, service->position.packet))
 	{
-		aprservice_log_error_ex(aprservice_io_write_packet, false);
+		aprservice_log_error_ex(aprservice_send, false);
 
 		return false;
 	}
@@ -1990,9 +2348,9 @@ bool                       APRSERVICE_CALL aprservice_send_position_ex(struct ap
 		aprs_packet_position_enable_messaging(packet, true);
 		aprs_packet_position_enable_compression(packet, aprs_packet_position_is_compressed(service->position.packet));
 
-		if (!aprservice_io_write_packet(service->io, packet))
+		if (!aprservice_send(service, packet))
 		{
-			aprservice_log_error_ex(aprservice_io_write_packet, false);
+			aprservice_log_error_ex(aprservice_send, false);
 
 			aprs_packet_deinit(packet);
 
@@ -2032,9 +2390,9 @@ bool                       APRSERVICE_CALL aprservice_send_telemetry_ex(struct a
 			return false;
 		}
 
-		if (!aprservice_io_write_packet(service->io, packet))
+		if (!aprservice_send(service, packet))
 		{
-			aprservice_log_error_ex(aprservice_io_write_packet, false);
+			aprservice_log_error_ex(aprservice_send, false);
 
 			aprs_packet_deinit(packet);
 
@@ -2074,9 +2432,9 @@ bool                       APRSERVICE_CALL aprservice_send_telemetry_float_ex(st
 			return false;
 		}
 
-		if (!aprservice_io_write_packet(service->io, packet))
+		if (!aprservice_send(service, packet))
 		{
-			aprservice_log_error_ex(aprservice_io_write_packet, false);
+			aprservice_log_error_ex(aprservice_send, false);
 
 			aprs_packet_deinit(packet);
 
@@ -2100,9 +2458,9 @@ bool                       APRSERVICE_CALL aprservice_send_user_defined(struct a
 
 	if (auto packet = aprs_packet_user_defined_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), id, type, data))
 	{
-		if (!aprservice_io_write_packet(service->io, packet))
+		if (!aprservice_send(service, packet))
 		{
-			aprservice_log_error_ex(aprservice_io_write_packet, false);
+			aprservice_log_error_ex(aprservice_send, false);
 
 			aprs_packet_deinit(packet);
 
@@ -2116,75 +2474,57 @@ bool                       APRSERVICE_CALL aprservice_send_user_defined(struct a
 
 	return false;
 }
-bool                       APRSERVICE_CALL aprservice_connect_aprs_is(struct aprservice* service, const char* host, uint16_t port, uint16_t passwd)
+bool                       APRSERVICE_CALL aprservice_connect(struct aprservice* service, struct aprservice_connection_information* connections, size_t count)
 {
 	if (aprservice_is_connected(service))
 		return false;
 
-	if (!aprservice_io_connect_aprs_is(service->io, host, port))
+	service->connections.resize(count);
+
+	for (size_t i = 0; i < count; ++i)
 	{
-		aprservice_log_error_ex(aprservice_io_connect_aprs_is, false);
-
-		return false;
-	}
-
-	auto generate_auth_request = [](aprservice* service, uint16_t passwd)
-	{
-		std::stringstream ss;
-		ss << "user " << service->station << " pass " << (passwd ? passwd : -1);
-		ss << " vers " << APRSERVICE_SOFTWARE_NAME << ' ' << APRSERVICE_SOFTWARE_VERSION;
-		ss << " filter t/poimqstunw";
-
-		return ss.str();
-	};
-
-	{
-		auto auth_request = generate_auth_request(service, passwd);
-
-		if (!aprservice_io_write_line(service->io, auth_request.c_str()))
+		switch (connections[i].type)
 		{
-			aprservice_log_error_ex(aprservice_io_write_line, false);
+			case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+				service->connections[i] = aprservice_connection_init(service, connections[i].mode, connections[i].type, connections[i].aprs_is.host, connections[i].aprs_is.port, 0, connections[i].aprs_is.passcode);
+				break;
 
-			aprservice_io_disconnect(service->io);
+			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+				service->connections[i] = aprservice_connection_init(service, connections[i].mode, connections[i].type, connections[i].kiss_tnc_tcp.host, connections[i].kiss_tnc_tcp.port, 0, 0);
+				break;
 
-			service->is_connected = false;
+			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+				service->connections[i] = aprservice_connection_init(service, connections[i].mode, connections[i].type, connections[i].kiss_tnc_serial.device, 0, connections[i].kiss_tnc_serial.speed, 0);
+				break;
+		}
+
+		if (!service->connections[i])
+		{
+			aprservice_log_error_ex(aprservice_connection_init, nullptr);
+
+			while (i--)
+				aprservice_connection_deinit(service->connections[i]);
+
+			service->connections.clear();
+
+			return false;
+		}
+
+		if (!aprservice_connection_open(service->connections[i]))
+		{
+			aprservice_log_error_ex(aprservice_connection_open, false);
+
+			do
+				aprservice_connection_deinit(service->connections[i]);
+			while (i--);
+
+			service->connections.clear();
 
 			return false;
 		}
 	}
 
-	service->is_connected     = true;
-	service->is_auth_verified = passwd != 0;
-	service->auth             = { .state = APRSERVICE_AUTH_STATE_SENT };
-
-	aprservice_event_execute(service, APRSERVICE_EVENT_CONNECT, {});
-
-	return true;
-}
-bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc(struct aprservice* service, const char* device, uint32_t speed)
-{
-	if (aprservice_is_connected(service))
-		return false;
-
-	if (!aprservice_io_connect_kiss_tnc(service->io, device, speed))
-	{
-		aprservice_log_error_ex(aprservice_io_connect_kiss_tnc, false);
-
-		return false;
-	}
-
-	service->auth =
-	{
-		.state    = APRSERVICE_AUTH_STATE_RECEIVED,
-		.success  = true,
-		.verified = true
-	};
-
-	service->is_connected     = true;
-	service->is_auth_verified = true;
-
-	aprservice_event_execute(service, APRSERVICE_EVENT_CONNECT, {});
-	aprservice_event_execute(service, APRSERVICE_EVENT_AUTHENTICATE, { .message = service->auth.message.c_str(), .success = service->auth.success, .verified = service->auth.verified });
+	service->is_connected = true;
 
 	return true;
 }
@@ -2192,7 +2532,10 @@ void                       APRSERVICE_CALL aprservice_disconnect(struct aprservi
 {
 	if (aprservice_is_connected(service))
 	{
-		aprservice_io_disconnect(service->io);
+		for (auto connection : service->connections)
+			aprservice_connection_deinit(connection);
+
+		service->connections.clear();
 
 		service->message_callbacks.remove_if([service](aprservice_message_callback_context* context) {
 			context->callback(service, APRSERVICE_MESSAGE_ERROR_DISCONNECTED, context->callback_param);
@@ -2202,12 +2545,7 @@ void                       APRSERVICE_CALL aprservice_disconnect(struct aprservi
 
 		service->message_callbacks_index.clear();
 
-		service->auth.state = APRSERVICE_AUTH_STATE_NONE;
-
-		service->is_connected     = false;
-		service->is_auth_verified = false;
-
-		aprservice_event_execute(service, APRSERVICE_EVENT_DISCONNECT, {});
+		service->is_connected = false;
 	}
 }
 
@@ -2492,9 +2830,9 @@ bool                       APRSERVICE_CALL aprservice_item_kill(struct aprservic
 }
 bool                       APRSERVICE_CALL aprservice_item_announce(struct aprservice_item* item)
 {
-	if (!aprservice_io_write_packet(item->service->io, item->packet))
+	if (!aprservice_send(item->service, item->packet))
 	{
-		aprservice_log_error_ex(aprservice_io_write_packet, false);
+		aprservice_log_error_ex(aprservice_send, false);
 
 		return false;
 	}
@@ -2747,9 +3085,9 @@ bool                       APRSERVICE_CALL aprservice_object_announce(struct apr
 		return false;
 	}
 
-	if (!aprservice_io_write_packet(object->service->io, object->packet))
+	if (!aprservice_send(object->service, object->packet))
 	{
-		aprservice_log_error_ex(aprservice_io_write_packet, false);
+		aprservice_log_error_ex(aprservice_send, false);
 
 		return false;
 	}

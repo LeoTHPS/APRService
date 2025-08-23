@@ -9,6 +9,12 @@
 #define APRS_IS_PORT                  14580
 #define APRS_IS_PASSCODE              0
 
+#define APRS_KISS_TNC_TCP_HOST        "127.0.0.1"
+#define APRS_KISS_TNC_TCP_PORT        8001
+
+#define APRS_KISS_TNC_SERIAL_DEVICE   "COM3"
+#define APRS_KISS_TNC_SERIAL_SPEED    115200
+
 #define APRS_STATION                  "N0CALL"
 #define APRS_STATION_PATH             "WIDE1-1"
 #define APRS_STATION_BEACON           (0 * 60) /* interval in seconds or 0 to disable */
@@ -26,7 +32,7 @@ struct demo
 	aprservice* service;
 };
 
-void  demo_task_beacon(aprservice* service, aprservice_task_information* task, void* param)
+void    demo_task_beacon(aprservice* service, aprservice_task_information* task, void* param)
 {
 	auto d = (demo*)param;
 
@@ -37,7 +43,7 @@ void  demo_task_beacon(aprservice* service, aprservice_task_information* task, v
 		task->seconds = APRS_STATION_BEACON;
 }
 
-void  demo_event_handler(aprservice* service, aprservice_event_information* event, void* param)
+void    demo_event_handler(aprservice* service, aprservice_event_information* event, void* param)
 {
 	auto d = (demo*)param;
 
@@ -45,12 +51,38 @@ void  demo_event_handler(aprservice* service, aprservice_event_information* even
 	{
 		case APRSERVICE_EVENT_CONNECT:
 			if (auto connect = (aprservice_event_information_connect*)event)
-				std::cout << "Connected" << std::endl;
+				switch (connect->connection_type)
+				{
+					case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+						std::cout << "Connected to APRS-IS" << std::endl;
+						break;
+
+					case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+						std::cout << "Connected to KISS TNC via TCP" << std::endl;
+						break;
+
+					case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+						std::cout << "Connected to KISS TNC via serial" << std::endl;
+						break;
+				}
 			break;
 
 		case APRSERVICE_EVENT_DISCONNECT:
 			if (auto disconnect = (aprservice_event_information_disconnect*)event)
-				std::cout << "Disconnected" << std::endl;
+				switch (disconnect->connection_type)
+				{
+					case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+						std::cout << "Disconnected from APRS-IS" << std::endl;
+						break;
+
+					case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+						std::cout << "Disconnected from KISS TNC via TCP" << std::endl;
+						break;
+
+					case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+						std::cout << "Disconnected from KISS TNC via serial" << std::endl;
+						break;
+				}
 			break;
 
 		case APRSERVICE_EVENT_AUTHENTICATE:
@@ -307,7 +339,7 @@ void  demo_event_handler(aprservice* service, aprservice_event_information* even
 	}
 }
 
-demo* demo_init()
+demo*   demo_init()
 {
 	auto d = new demo
 	{
@@ -379,19 +411,135 @@ demo* demo_init()
 
 	return d;
 }
-void  demo_deinit(demo* d)
+void    demo_deinit(demo* d)
 {
 	aprservice_deinit(d->service);
 	aprs_path_deinit(d->path);
 
 	delete d;
 }
-bool  demo_update(demo* d)
-{
-	if (!aprservice_is_connected(d->service) && !aprservice_connect_aprs_is(d->service, APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE))
-		std::cerr << "Connection failed" << std::endl;
 
-	return aprservice_poll(d->service);
+bool    demo_is_connected(demo* d)
+{
+	return aprservice_is_connected(d->service);
+}
+
+#define demo_connect demo_connect_aprs_is
+bool    demo_connect_aprs_is(demo* d)
+{
+	aprservice_connection_information connection =
+	{
+		.mode    = APRSERVICE_CONNECTION_MODE_INPUT | APRSERVICE_CONNECTION_MODE_OUTPUT,
+		.type    = APRSERVICE_CONNECTION_TYPE_APRS_IS,
+		.aprs_is =
+		{
+			.host     = APRS_IS_HOST,
+			.port     = APRS_IS_PORT,
+			.passcode = APRS_IS_PASSCODE
+		}
+	};
+
+	if (!aprservice_connect(d->service, &connection, 1))
+	{
+		std::cerr << "Error connecting to APRS-IS" << std::endl;
+
+		return false;
+	}
+
+	return true;
+}
+bool    demo_connect_kiss_tnc_tcp(demo* d)
+{
+	aprservice_connection_information connection =
+	{
+		.mode         = APRSERVICE_CONNECTION_MODE_INPUT | APRSERVICE_CONNECTION_MODE_OUTPUT,
+		.type         = APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP,
+		.kiss_tnc_tcp =
+		{
+			.host = APRS_KISS_TNC_TCP_HOST,
+			.port = APRS_KISS_TNC_TCP_PORT
+		}
+	};
+
+	if (!aprservice_connect(d->service, &connection, 1))
+	{
+		std::cerr << "Error connecting to KISS TNC via TCP" << std::endl;
+
+		return false;
+	}
+
+	return true;
+}
+bool    demo_connect_kiss_tnc_serial(demo* d)
+{
+	aprservice_connection_information connection =
+	{
+		.mode            = APRSERVICE_CONNECTION_MODE_INPUT | APRSERVICE_CONNECTION_MODE_OUTPUT,
+		.type            = APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL,
+		.kiss_tnc_serial =
+		{
+			.device = APRS_KISS_TNC_SERIAL_DEVICE,
+			.speed  = APRS_KISS_TNC_SERIAL_SPEED
+		}
+	};
+
+	if (!aprservice_connect(d->service, &connection, 1))
+	{
+		std::cerr << "Error connecting to KISS TNC via serial" << std::endl;
+
+		return false;
+	}
+
+	return true;
+}
+bool    demo_connect_kiss_tnc_tcp_igate(demo* d)
+{
+	aprservice_connection_information connections[2] =
+	{
+		{
+			.mode         = APRSERVICE_CONNECTION_MODE_INPUT,
+			.type         = APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP,
+			.kiss_tnc_tcp =
+			{
+				.host = APRS_KISS_TNC_TCP_HOST,
+				.port = APRS_KISS_TNC_TCP_PORT
+			}
+		},
+		{
+			.mode    = APRSERVICE_CONNECTION_MODE_OUTPUT | APRSERVICE_CONNECTION_MODE_GATEWAY,
+			.type    = APRSERVICE_CONNECTION_TYPE_APRS_IS,
+			.aprs_is =
+			{
+				.host     = APRS_IS_HOST,
+				.port     = APRS_IS_PORT,
+				.passcode = APRS_IS_PASSCODE
+			}
+		}
+	};
+
+	if (!aprservice_connect(d->service, connections, 2))
+	{
+		std::cerr << "Error connecting to KISS TNC via TCP + APRS-IS" << std::endl;
+
+		return false;
+	}
+
+	return true;
+}
+
+bool    demo_update(demo* d)
+{
+	if (!demo_is_connected(d) && !demo_connect(d))
+		;
+
+	if (!aprservice_poll(d->service))
+	{
+		std::cerr << "Error polling service" << std::endl;
+
+		return false;
+	}
+
+	return true;
 }
 
 int main(int argc, char* argv[])

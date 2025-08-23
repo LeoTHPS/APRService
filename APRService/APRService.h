@@ -39,6 +39,20 @@ enum APRSERVICE_POSITION_TYPES
 	APRSERVICE_POSITION_TYPES_COUNT
 };
 
+enum APRSERVICE_CONNECTION_MODES
+{
+	APRSERVICE_CONNECTION_MODE_INPUT   = 0x1,
+	APRSERVICE_CONNECTION_MODE_OUTPUT  = 0x2,
+	APRSERVICE_CONNECTION_MODE_GATEWAY = 0x4
+};
+
+enum APRSERVICE_CONNECTION_TYPES
+{
+	APRSERVICE_CONNECTION_TYPE_APRS_IS,
+	APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP,
+	APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL
+};
+
 struct aprservice;
 struct aprservice_item;
 struct aprservice_task;
@@ -60,10 +74,14 @@ struct aprservice_event_information
 struct aprservice_event_information_connect
 {
 	enum APRSERVICE_EVENTS type;
+	int                    connection_mode;
+	int                    connection_type;
 };
 struct aprservice_event_information_disconnect
 {
 	enum APRSERVICE_EVENTS type;
+	int                    connection_mode;
+	int                    connection_type;
 };
 struct aprservice_event_information_authenticate
 {
@@ -71,11 +89,15 @@ struct aprservice_event_information_authenticate
 	const char*            message;
 	bool                   success;
 	bool                   verified;
+	int                    connection_mode;
+	int                    connection_type;
 };
 struct aprservice_event_information_receive_packet
 {
 	enum APRSERVICE_EVENTS type;
 	struct aprs_packet*    packet;
+	int                    connection_mode;
+	int                    connection_type;
 };
 struct aprservice_event_information_receive_message
 {
@@ -84,11 +106,44 @@ struct aprservice_event_information_receive_message
 	const char*            sender;
 	const char*            content;
 	const char*            destination;
+	int                    connection_mode;
+	int                    connection_type;
 };
 struct aprservice_event_information_receive_server_message
 {
 	enum APRSERVICE_EVENTS type;
 	const char*            message;
+	int                    connection_mode;
+	int                    connection_type;
+};
+
+struct aprservice_connection_information_aprs_is
+{
+	const char* host;
+	uint16_t    port;
+	uint16_t    passcode;
+};
+struct aprservice_connection_information_kiss_tnc_tcp
+{
+	const char* host;
+	uint16_t    port;
+};
+struct aprservice_connection_information_kiss_tnc_serial
+{
+	const char* device;
+	uint32_t    speed;
+};
+struct aprservice_connection_information
+{
+	int                                                          mode;
+	int                                                          type;
+
+	union
+	{
+		struct aprservice_connection_information_aprs_is         aprs_is;
+		struct aprservice_connection_information_kiss_tnc_tcp    kiss_tnc_tcp;
+		struct aprservice_connection_information_kiss_tnc_serial kiss_tnc_serial;
+	};
 };
 
 typedef void(APRSERVICE_CALL *aprservice_task_handler)(struct aprservice* service, struct aprservice_task_information* task, void* param);
@@ -100,6 +155,7 @@ typedef void(APRSERVICE_CALL *aprservice_message_callback)(struct aprservice* se
 APRSERVICE_EXPORT struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, struct aprs_path* path, char symbol_table, char symbol_table_key);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_deinit(struct aprservice* service);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_is_read_only(struct aprservice* service);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_is_gateway(struct aprservice* service);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_is_connected(struct aprservice* service);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_is_authenticated(struct aprservice* service);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_is_authenticating(struct aprservice* service);
@@ -135,8 +191,7 @@ APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_tel
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_telemetry_float(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_telemetry_float_ex(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital, const char* comment, uint16_t sequence);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_user_defined(struct aprservice* service, char id, char type, const char* data);
-APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect_aprs_is(struct aprservice* service, const char* host, uint16_t port, uint16_t passwd);
-// APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc(struct aprservice* service, const char* device, uint32_t speed);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect(struct aprservice* service, struct aprservice_connection_information* connections, size_t count);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_disconnect(struct aprservice* service);
 
 APRSERVICE_EXPORT struct aprservice_task*    APRSERVICE_CALL aprservice_task_schedule(struct aprservice* service, uint32_t seconds, aprservice_task_handler handler, void* param);

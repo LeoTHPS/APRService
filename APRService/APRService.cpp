@@ -1395,7 +1395,7 @@ void                       APRSERVICE_CALL aprservice_deinit(struct aprservice* 
 }
 bool                       APRSERVICE_CALL aprservice_is_read_only(struct aprservice* service)
 {
-	return !aprservice_enum_connections_by_mode(service, APRSERVICE_CONNECTION_MODE_OUTPUT, [](aprservice* service, aprservice_connection* connection, void* param) {
+	return aprservice_enum_connections_by_mode(service, APRSERVICE_CONNECTION_MODE_OUTPUT, [](aprservice* service, aprservice_connection* connection, void* param) {
 		if (connection->auth.state == APRSERVICE_AUTH_STATE_RECEIVED)
 			if (connection->auth.success && connection->auth.verified)
 				return false;

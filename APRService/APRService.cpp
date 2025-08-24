@@ -740,7 +740,7 @@ read_once:
 			for (auto i = connection->rx_buffer.find("\r\n"); i != std::string::npos; i = connection->rx_buffer.find("\r\n"))
 			{
 				connection->rx_queue.push(connection->rx_buffer.substr(0, i));
-				connection->rx_buffer = connection->rx_buffer.substr(i + 2);
+				connection->rx_buffer = connection->rx_buffer.erase(0, i + 2);
 			}
 			goto read_once;
 	}

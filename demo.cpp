@@ -424,7 +424,7 @@ bool    demo_is_connected(demo* d)
 	return aprservice_is_connected(d->service);
 }
 
-#define demo_connect demo_connect_aprs_is
+#define demo_connect demo_connect_kiss_tnc_tcp
 bool    demo_connect_aprs_is(demo* d)
 {
 	aprservice_connection_information connection =
@@ -486,40 +486,6 @@ bool    demo_connect_kiss_tnc_serial(demo* d)
 	if (!aprservice_connect(d->service, &connection, 1))
 	{
 		std::cerr << "Error connecting to KISS TNC via serial" << std::endl;
-
-		return false;
-	}
-
-	return true;
-}
-bool    demo_connect_kiss_tnc_tcp_igate(demo* d)
-{
-	aprservice_connection_information connections[2] =
-	{
-		{
-			.mode         = APRSERVICE_CONNECTION_MODE_INPUT,
-			.type         = APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP,
-			.kiss_tnc_tcp =
-			{
-				.host = APRS_KISS_TNC_TCP_HOST,
-				.port = APRS_KISS_TNC_TCP_PORT
-			}
-		},
-		{
-			.mode    = APRSERVICE_CONNECTION_MODE_OUTPUT | APRSERVICE_CONNECTION_MODE_GATEWAY,
-			.type    = APRSERVICE_CONNECTION_TYPE_APRS_IS,
-			.aprs_is =
-			{
-				.host     = APRS_IS_HOST,
-				.port     = APRS_IS_PORT,
-				.passcode = APRS_IS_PASSCODE
-			}
-		}
-	};
-
-	if (!aprservice_connect(d->service, connections, 2))
-	{
-		std::cerr << "Error connecting to KISS TNC via TCP + APRS-IS" << std::endl;
 
 		return false;
 	}

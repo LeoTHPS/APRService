@@ -41,9 +41,8 @@ enum APRSERVICE_POSITION_TYPES
 
 enum APRSERVICE_CONNECTION_MODES
 {
-	APRSERVICE_CONNECTION_MODE_INPUT   = 0x1,
-	APRSERVICE_CONNECTION_MODE_OUTPUT  = 0x2,
-	APRSERVICE_CONNECTION_MODE_GATEWAY = 0x4
+	APRSERVICE_CONNECTION_MODE_INPUT  = 0x1,
+	APRSERVICE_CONNECTION_MODE_OUTPUT = 0x2
 };
 
 enum APRSERVICE_CONNECTION_TYPES
@@ -155,7 +154,6 @@ typedef void(APRSERVICE_CALL *aprservice_message_callback)(struct aprservice* se
 APRSERVICE_EXPORT struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, struct aprs_path* path, char symbol_table, char symbol_table_key);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_deinit(struct aprservice* service);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_is_read_only(struct aprservice* service);
-APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_is_gateway(struct aprservice* service);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_is_connected(struct aprservice* service);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_is_authenticated(struct aprservice* service);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_is_authenticating(struct aprservice* service);

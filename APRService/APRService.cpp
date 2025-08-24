@@ -1403,15 +1403,6 @@ bool                       APRSERVICE_CALL aprservice_is_read_only(struct aprser
 		return true;
 	}, nullptr);
 }
-bool                       APRSERVICE_CALL aprservice_is_gateway(struct aprservice* service)
-{
-	return !aprservice_enum_connections(service, [](aprservice* service, aprservice_connection* connection, void* param) {
-		if (connection->mode & APRSERVICE_CONNECTION_MODE_GATEWAY)
-			return false;
-
-		return true;
-	}, nullptr);
-}
 bool                       APRSERVICE_CALL aprservice_is_connected(struct aprservice* service)
 {
 	return service->is_connected;

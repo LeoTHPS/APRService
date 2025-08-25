@@ -656,7 +656,7 @@ bool               aprs_packet_decode_mic_e_old(aprs_packet* packet)
 }
 bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 {
-	// TODO: implement
+	// TODO: decode raw gps
 
 	return false;
 }
@@ -721,13 +721,13 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 }
 bool               aprs_packet_decode_test(aprs_packet* packet)
 {
-	// TODO: implement
+	// TODO: decode test
 
 	return false;
 }
 bool               aprs_packet_decode_query(aprs_packet* packet)
 {
-	// TODO: implement
+	// TODO: decode query
 
 	return false;
 }
@@ -884,7 +884,7 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 {
 	// packet->type = APRS_PACKET_TYPE_WEATHER;
 
-	// TODO: implement
+	// TODO: decode weather
 
 	return false;
 }
@@ -892,7 +892,7 @@ bool               aprs_packet_decode_weather_space(aprs_packet* packet)
 {
 	// packet->type = APRS_PACKET_TYPE_WEATHER;
 
-	// TODO: implement
+	// TODO: decode space weather
 
 	return false;
 }
@@ -900,7 +900,7 @@ bool               aprs_packet_decode_weather_peet_bros_uii(aprs_packet* packet)
 {
 	// packet->type = APRS_PACKET_TYPE_WEATHER;
 
-	// TODO: implement
+	// TODO: decode peet bros uii weather station
 
 	return false;
 }
@@ -1053,19 +1053,19 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 }
 bool               aprs_packet_decode_microfinder(aprs_packet* packet)
 {
-	// TODO: implement
+	// TODO: decode micro finder
 
 	return false;
 }
 bool               aprs_packet_decode_map_feature(aprs_packet* packet)
 {
-	// TODO: implement
+	// TODO: decode map feature
 
 	return false;
 }
 bool               aprs_packet_decode_third_party(aprs_packet* packet)
 {
-	// TODO: implement
+	// TODO: decode third party
 
 	return false;
 }
@@ -1083,19 +1083,19 @@ bool               aprs_packet_decode_user_defined(aprs_packet* packet)
 }
 bool               aprs_packet_decode_shelter_time(aprs_packet* packet)
 {
-	// TODO: implement
+	// TODO: decode shelter time
 
 	return false;
 }
 bool               aprs_packet_decode_station_capabilities(aprs_packet* packet)
 {
-	// TODO: implement
+	// TODO: decode station capabilities
 
 	return false;
 }
 bool               aprs_packet_decode_maidenhead_grid_beacon(aprs_packet* packet)
 {
-	// TODO: implement
+	// TODO: decode maidenhead grid beacon
 
 	return false;
 }
@@ -1112,7 +1112,7 @@ void               aprs_packet_encode_item(aprs_packet* packet, std::stringstrea
 
 	// if (packet->item_or_object.is_compressed)
 	// {
-		// TODO: implement
+		// TODO: encode compressed item position
 	// }
 	// else
 	// {
@@ -1165,7 +1165,7 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 
 	// if (packet->item_or_object.is_compressed)
 	// {
-		// TODO: implement
+		// TODO: encode compressed object position
 	// }
 	// else
 	// {
@@ -1276,7 +1276,7 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 {
 	// if (packet->position.flags & APRS_POSITION_FLAG_MIC_E)
 	// {
-	// 	// TODO: implement
+	// 	// TODO: encode mic-e position
 	// }
 	// else
 	{
@@ -1304,7 +1304,7 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 
 		// if (packet->position.flags & APRS_POSITION_FLAG_COMPRESSED)
 		// {
-			// TOOD: implement
+			// TOOD: encode compressed position
 		// }
 		// else
 		// {
@@ -2677,7 +2677,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_speed(str
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate
+	// TODO: validate wind speed
 
 	packet->weather.wind_speed = value;
 
@@ -2688,7 +2688,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_speed_gus
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate
+	// TODO: validate wind speed (gust)
 
 	packet->weather.wind_speed_gust = value;
 
@@ -2699,7 +2699,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_direction
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate
+	// TODO: validate wind direction
 
 	packet->weather.wind_direction = value;
 
@@ -2710,7 +2710,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_last_
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate
+	// TODO: validate rainfall last hour
 
 	packet->weather.rainfall_last_hour = value;
 
@@ -2721,7 +2721,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_last_
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate
+	// TODO: validate rainfall last 24 hours
 
 	packet->weather.rainfall_last_24_hours = value;
 
@@ -2732,7 +2732,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_since
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate
+	// TODO: validate rainfall since midnight
 
 	packet->weather.rainfall_since_midnight = value;
 
@@ -2743,7 +2743,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_humidity(struc
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate
+	// TODO: validate humidity
 
 	packet->weather.humidity = value;
 
@@ -2754,7 +2754,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_temperature(st
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate
+	// TODO: validate temperature
 
 	packet->weather.temperature = value;
 
@@ -2765,7 +2765,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_barometric_pre
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate
+	// TODO: validate barometric pressure
 
 	packet->weather.barometric_pressure = value;
 

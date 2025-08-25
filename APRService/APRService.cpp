@@ -1195,7 +1195,6 @@ bool                                       aprservice_connection_write_packet(ap
 									switch (*path)
 									{
 										case '-':
-											++path;
 										case '\0':
 											while (j++ < 6)
 												buffer[offset++] = 0x40;
@@ -1226,7 +1225,6 @@ bool                                       aprservice_connection_write_packet(ap
 								switch (*value)
 								{
 									case '-':
-										++value;
 									case '\0':
 										while (i++ < 6)
 											buffer[offset++] = 0x40;
@@ -1245,7 +1243,6 @@ bool                                       aprservice_connection_write_packet(ap
 								switch (*value)
 								{
 									case '-':
-										++value;
 									case '\0':
 										while (i++ < 6)
 											buffer[offset++] = 0x40;

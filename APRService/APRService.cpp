@@ -862,7 +862,7 @@ read_once:
 											string.append(1, ':');
 											string.append((const char*)&command_buffer[offset], command_buffer.size() - offset);
 
-											// TODO: why is this needed with pinpoint?
+											// TODO: is this specific to pinpoint or is there an error in this implementation?
 											if (string.ends_with('\r'))
 												string.pop_back();
 

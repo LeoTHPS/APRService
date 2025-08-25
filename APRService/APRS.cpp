@@ -641,7 +641,7 @@ bool               aprs_packet_decode_mic_e(aprs_packet* packet)
 	// packet->type           = APRS_PACKET_TYPE_POSITION;
 	// packet->position.flags = APRS_POSITION_FLAG_MIC_E;
 
-	// TODO: implement
+	// TODO: decode mic-e
 
 	return false;
 }
@@ -650,7 +650,7 @@ bool               aprs_packet_decode_mic_e_old(aprs_packet* packet)
 	// packet->type           = APRS_PACKET_TYPE_POSITION;
 	// packet->position.flags = APRS_POSITION_FLAG_MIC_E;
 
-	// TODO: implement
+	// TODO: decode mic-e (old)
 
 	return false;
 }

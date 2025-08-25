@@ -1256,6 +1256,19 @@ void               aprs_packet_encode_message(aprs_packet* packet, std::stringst
 }
 void               aprs_packet_encode_weather(aprs_packet* packet, std::stringstream& ss)
 {
+	auto humidity = packet->weather.humidity;
+
+	switch (humidity)
+	{
+		case 0:
+			humidity = 1;
+			break;
+
+		case 100:
+			humidity = 0;
+			break;
+	}
+
 	ss << '_';
 	ss << std::setfill('0') << std::setw(2) << packet->weather.time.tm_mon;
 	ss << std::setfill('0') << std::setw(2) << packet->weather.time.tm_mday;
@@ -1268,7 +1281,7 @@ void               aprs_packet_encode_weather(aprs_packet* packet, std::stringst
 	ss << 'r' << std::setfill('0') << std::setw(3) << packet->weather.rainfall_last_hour;
 	ss << 'p' << std::setfill('0') << std::setw(3) << packet->weather.rainfall_last_24_hours;
 	ss << 'P' << std::setfill('0') << std::setw(3) << packet->weather.rainfall_since_midnight;
-	ss << 'h' << std::setfill('0') << std::setw(2) << packet->weather.humidity;
+	ss << 'h' << std::setfill('0') << std::setw(2) << humidity;
 	ss << 'b' << std::setfill('0') << std::setw(4) << packet->weather.barometric_pressure;
 	ss << packet->weather.type;
 }
@@ -2677,7 +2690,8 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_speed(str
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate wind speed
+	if (value > 9999)
+		return false;
 
 	packet->weather.wind_speed = value;
 
@@ -2688,7 +2702,8 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_speed_gus
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate wind speed (gust)
+	if (value > 9999)
+		return false;
 
 	packet->weather.wind_speed_gust = value;
 
@@ -2699,7 +2714,8 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_direction
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate wind direction
+	if (value > 359)
+		return false;
 
 	packet->weather.wind_direction = value;
 
@@ -2710,7 +2726,8 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_last_
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate rainfall last hour
+	if (value > 9999)
+		return false;
 
 	packet->weather.rainfall_last_hour = value;
 
@@ -2721,7 +2738,8 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_last_
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate rainfall last 24 hours
+	if (value > 9999)
+		return false;
 
 	packet->weather.rainfall_last_24_hours = value;
 
@@ -2732,7 +2750,8 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_since
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate rainfall since midnight
+	if (value > 9999)
+		return false;
 
 	packet->weather.rainfall_since_midnight = value;
 
@@ -2743,7 +2762,8 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_humidity(struc
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate humidity
+	if (value > 100)
+		return false;
 
 	packet->weather.humidity = value;
 
@@ -2754,7 +2774,11 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_temperature(st
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate temperature
+	if ((value > 0) && (value > 9999))
+		return false;
+
+	if ((value < 0) && (value < -999))
+		return false;
 
 	packet->weather.temperature = value;
 
@@ -2765,7 +2789,8 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_barometric_pre
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	// TODO: validate barometric pressure
+	if (value > 99999)
+		return false;
 
 	packet->weather.barometric_pressure = value;
 

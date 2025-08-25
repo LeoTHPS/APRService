@@ -368,21 +368,38 @@ bool               aprs_validate_string(const char* value, size_t length, bool(*
 
 	return i == length;
 }
-auto               aprs_validate_station(const char* value, bool strict = true)
+auto               aprs_validate_name(const char* value)
 {
 	aprs_strlen_result result = { .valid = false, .length = 0 };
 
 	if (auto length = aprs_string_length(value, true); length && (length <= 9))
 	{
-		if (strict)
-		{
-			// TODO: verify format as generic
-			// TODO: verify format as callsign
-		}
-
 		result.valid  = true;
 		result.length = length.length;
 	}
+
+	return result;
+}
+auto               aprs_validate_station(const char* value)
+{
+	// TODO: this could be better..
+
+	aprs_strlen_result result     = { .valid = true, .length = 0 };
+	bool               ssid_begin = false;
+
+	for (; *value; ++value, ++result.length)
+		if ((*value == '-') && !ssid_begin)
+			ssid_begin = true;
+		else if ((*value < '0') || (*value > '9'))
+			if ((*value < 'A') || (*value > 'Z'))
+			{
+				result.valid = false;
+
+				break;
+			}
+
+	if (!result.length || (result.length > 9))
+		result.valid = false;
 
 	return result;
 }
@@ -847,7 +864,7 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 	auto content     = match[2].str();
 	auto id          = (match.size() < 4) ? "" : match[4].str();
 
-	if (!aprs_validate_station(destination.c_str(), false))
+	if (!aprs_validate_name(destination.c_str()))
 		return false;
 
 	if (!aprs_validate_comment(content.c_str(), 67))
@@ -1477,7 +1494,7 @@ struct aprs_path*         APRSERVICE_CALL aprs_path_init_from_string(const char*
 			return nullptr;
 		}
 
-		if (!(chunk_length = aprs_validate_station(chunk, false)))
+		if (!(chunk_length = aprs_validate_name(chunk)))
 		{
 			delete path;
 
@@ -1675,6 +1692,8 @@ struct aprs_packet*                       aprs_packet_init_ex(const char* sender
 }
 struct aprs_packet*       APRSERVICE_CALL aprs_packet_init_from_string(const char* string)
 {
+	// TODO: validate sender/tocall/igate in initial regex match
+
 	static const std::regex regex("^([^>]{3,9})>([^,]+),([^:]+):(.+)$");
 	static const std::regex regex_path("^((\\S+?(?=,qA\\w)),(qA\\w),(.+))|(\\S+)$");
 
@@ -1708,6 +1727,8 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_init_from_string(const cha
 
 		.reference_count = 1
 	};
+
+	// TODO: convert sender to uppercase
 
 	if (!aprs_packet_decode(packet))
 		packet->type = APRS_PACKET_TYPE_RAW;
@@ -1766,7 +1787,7 @@ bool                      APRSERVICE_CALL aprs_packet_set_path(struct aprs_packe
 }
 bool                      APRSERVICE_CALL aprs_packet_set_tocall(struct aprs_packet* packet, const char* value)
 {
-	if (auto length = aprs_validate_station(value, false))
+	if (auto length = aprs_validate_name(value))
 	{
 		packet->tocall.assign(value, length);
 
@@ -1950,7 +1971,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_name(struct aprs_
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	if (auto length = aprs_validate_station(value, false))
+	if (auto length = aprs_validate_name(value))
 	{
 		packet->item_or_object.name.assign(value, length);
 
@@ -2194,7 +2215,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_name(struct apr
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	if (auto length = aprs_validate_station(value, false))
+	if (auto length = aprs_validate_name(value))
 	{
 		packet->item_or_object.name.assign(value, length);
 
@@ -2557,7 +2578,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_destination(st
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return false;
 
-	if (auto length = aprs_validate_station(value, false))
+	if (auto length = aprs_validate_name(value))
 	{
 		packet->message.destination.assign(value, length);
 

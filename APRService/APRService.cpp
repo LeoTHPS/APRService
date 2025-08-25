@@ -1172,128 +1172,141 @@ bool                                       aprservice_connection_write_packet(ap
 
 			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
 			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
-			{
-				auto packet_to_ax25   = [](aprs_packet* value)
+				// string isn't used but aprs_packet_to_string populates packet content
+				if (auto string = aprs_packet_to_string(value))
 				{
-					auto        path         = aprs_packet_get_path(value);
-					auto        path_size    = aprs_path_get_length(path);
-					std::string content      = aprs_packet_get_content(value);
-					auto        content_size = content.length();
-
-					std::vector<uint8_t> buffer(14 + (path_size * 7) + 2 + content_size, 0);
-					auto                 buffer_encode_path = [](std::vector<uint8_t>& buffer, size_t offset, aprs_path* value)
+					auto packet_to_ax25   = [](aprs_packet* value)
 					{
-						auto size = aprs_path_get_length(value);
+						auto        path         = aprs_packet_get_path(value);
+						auto        path_size    = aprs_path_get_length(path);
+						std::string content      = aprs_packet_get_content(value);
+						auto        content_size = content.length();
 
-						for (size_t i = 0; i < size; ++i)
+						std::vector<uint8_t> buffer(14 + (path_size * 7) + 2 + content_size, 0);
+						auto                 buffer_encode_path    = [](std::vector<uint8_t>& buffer, size_t offset, aprs_path* value)
 						{
-							auto path = aprs_path_get(value, i);
+							auto size = aprs_path_get_length(value);
 
-							for (size_t j = 0; j < 6; ++j)
-								switch (*path)
+							for (size_t i = 0; i < size; )
+							{
+								auto path = aprs_path_get(value, i);
+
+								for (size_t j = 0; j < 6; ++j, ++path)
+									switch (*path)
+									{
+										case '-':
+											++path;
+										case '\0':
+											while (j++ < 6)
+												buffer[offset++] = 0x40;
+											break;
+
+										case '*':
+											buffer[offset - j] |= 0x80;
+											while (j++ < 6)
+												buffer[offset++] = 0x40;
+											break;
+
+										default:
+											buffer[offset++] = *path << 1;
+											break;
+									}
+
+								buffer[offset++] = (aprservice_parse_uint<uint8_t>(path) & 0x0F) << 1;
+
+								if (++i == size)
+									buffer[offset - 1] |= 0x01;
+							}
+
+							return offset;
+						};
+						auto                 buffer_encode_tocall  = [](std::vector<uint8_t>& buffer, size_t offset, const char* value)
+						{
+							for (size_t i = 0; i < 6; ++i, ++value)
+								switch (*value)
 								{
 									case '-':
-										while (j++ < 6)
-											buffer[offset++] = 0x40;
-										break;
-
-									case '*':
-										buffer[offset - j] |= 0x80;
-										while (j++ < 6)
+										++value;
+									case '\0':
+										while (i++ < 6)
 											buffer[offset++] = 0x40;
 										break;
 
 									default:
-										buffer[offset++] = *path << 1;
+										buffer[offset++] = *value << 1;
 										break;
 								}
 
-							buffer[offset++] = (aprservice_parse_uint<uint8_t>(path) & 0x0F) << 1;
-						}
-
-						return offset;
-					};
-					auto                 buffer_encode_tocall = [](std::vector<uint8_t>& buffer, size_t offset, const char* value)
-					{
-						for (size_t i = 0; i < 6; ++i, ++value)
-							if (*value != '-')
-								buffer[offset++] = *value << 1;
-							else
-							{
-								++value;
-
-								while (i++ < 6)
-									buffer[offset++] = 0x40;
-
-								break;
-							}
-
-						buffer[offset] = (aprservice_parse_uint<uint8_t>(value) & 0x0F) << 1;
-					};
-					auto                 buffer_encode_station = [](std::vector<uint8_t>& buffer, size_t offset, const char* value)
-					{
-						for (size_t i = 0; i < 6; ++i, ++value)
-							if (*value != '-')
-								buffer[offset++] = *value << 1;
-							else
-							{
-								++value;
-
-								while (i++ < 6)
-									buffer[offset++] = 0x40;
-							}
-
-						buffer[offset] = (aprservice_parse_uint<uint8_t>(value) & 0x0F) << 1;
-					};
-
-					// TODO: debug this
-
-					buffer_encode_tocall(buffer, 0, aprs_packet_get_tocall(value));
-					buffer_encode_station(buffer, 7, aprs_packet_get_sender(value));
-					auto offset      = buffer_encode_path(buffer, 14, path);
-					buffer[offset++] = 0x03;
-					buffer[offset++] = 0xF0;
-					memcpy(&buffer[offset], content.c_str(), content_size);
-
-					return buffer;
-				};
-				auto ax25_to_kiss_tnc = [](const uint8_t* value, size_t count)
-				{
-					std::string buffer;
-
-					buffer.reserve(1 + 1 + (count * 2) + 1);
-					buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_END);
-					buffer.append(1, (char)KISS_TNC_COMMAND_DATA);
-					for (size_t i = 0; i < count; ++i, ++value)
-					{
-						switch (*value)
+							buffer[offset] = (aprservice_parse_uint<uint8_t>(value) & 0x0F) << 1;
+						};
+						auto                 buffer_encode_station = [](std::vector<uint8_t>& buffer, size_t offset, const char* value)
 						{
-							case KISS_TNC_SPECIAL_CHARACTER_FRAME_END:
-								buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE);
-								buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_END);
-								break;
+							for (size_t i = 0; i < 6; ++i, ++value)
+								switch (*value)
+								{
+									case '-':
+										++value;
+									case '\0':
+										while (i++ < 6)
+											buffer[offset++] = 0x40;
+										break;
 
-							case KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE:
-								buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE);
-								buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_ESCAPE);
-								break;
+									default:
+										buffer[offset++] = *value << 1;
+										break;
+								}
 
-							default:
-								buffer.append(1, *value);
-								break;
+							buffer[offset] = (aprservice_parse_uint<uint8_t>(value) & 0x0F) << 1;
+						};
+
+						buffer_encode_tocall(buffer, 0, aprs_packet_get_tocall(value));
+						buffer_encode_station(buffer, 7, aprs_packet_get_sender(value));
+						auto offset      = buffer_encode_path(buffer, 14, path);
+						buffer[offset++] = 0x03;
+						buffer[offset++] = 0xF0;
+						memcpy(&buffer[offset], content.c_str(), content_size);
+
+						return buffer;
+					};
+					auto ax25_to_kiss_tnc = [](const uint8_t* value, size_t count)
+					{
+						std::string buffer;
+
+						buffer.reserve(1 + 1 + (count * 2) + 1);
+						buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_END);
+						buffer.append(1, (char)KISS_TNC_COMMAND_DATA);
+						for (size_t i = 0; i < count; ++i, ++value)
+						{
+							switch (*value)
+							{
+								case KISS_TNC_SPECIAL_CHARACTER_FRAME_END:
+									buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE);
+									buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_END);
+									break;
+
+								case KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE:
+									buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_ESCAPE);
+									buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_TRANSPOSED_FRAME_ESCAPE);
+									break;
+
+								default:
+									buffer.append(1, *value);
+									break;
+							}
 						}
-					}
-					buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_END);
+						buffer.append(1, (char)KISS_TNC_SPECIAL_CHARACTER_FRAME_END);
 
-					return buffer;
-				};
+						return buffer;
+					};
 
-				auto ax25 = packet_to_ax25(value);
-				auto kiss = ax25_to_kiss_tnc(ax25.data(), ax25.size());
+					auto ax25 = packet_to_ax25(value);
+					auto kiss = ax25_to_kiss_tnc(ax25.data(), ax25.size());
 
-				connection->tx_queue.push({ .value = std::move(kiss), .offset = 0 });
-			}
-			return true;
+					connection->tx_queue.push({ .value = std::move(kiss), .offset = 0 });
+
+					return true;
+				}
+				break;
 		}
 
 	return false;

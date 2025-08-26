@@ -1217,13 +1217,15 @@ bool                                       aprservice_connection_write_packet(ap
 											break;
 									*b = i ? ((aprservice_parse_uint<uint8_t>(value, i) & 0x0F) << 1) : 0;
 									if (value[i] == '*')
-										buffer[offset] |= 0x80;
+										*b |= 0x80;
 									break;
 
 								case '*':
-									buffer[offset] |= 0x80;
+									*b |= 0x80;
+									break;
+
 								case '\0':
-									*b              = 0;
+									*b  = 0;
 									break;
 							}
 						};
@@ -1253,7 +1255,7 @@ bool                                       aprservice_connection_write_packet(ap
 
 						return buffer;
 					};
-					auto ax25_to_kiss_tnc = [](const uint8_t* value, size_t count)
+					static auto ax25_to_kiss_tnc = [](const uint8_t* value, size_t count)
 					{
 						std::string buffer;
 

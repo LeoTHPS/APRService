@@ -1,9 +1,15 @@
 #include <iomanip>
 #include <iostream>
 
-#include <windows.h>
-
 #include <APRService.hpp>
+
+#if defined(APRSERVICE_UNIX)
+	#include <unistd.h>
+
+	#define Sleep sleep
+#elif defined(APRSERVICE_WIN32)
+	#include <windows.h>
+#endif
 
 #define APRS_IS_HOST                  "noam.aprs2.net"
 #define APRS_IS_PORT                  14580

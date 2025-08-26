@@ -91,34 +91,6 @@ struct aprservice_event_information_receive_server_message
 	const char*            message;
 };
 
-struct aprservice_connection_information_aprs_is
-{
-	const char* host;
-	uint16_t    port;
-	uint16_t    passcode;
-};
-struct aprservice_connection_information_kiss_tnc_tcp
-{
-	const char* host;
-	uint16_t    port;
-};
-struct aprservice_connection_information_kiss_tnc_serial
-{
-	const char* device;
-	uint32_t    speed;
-};
-struct aprservice_connection_information
-{
-	int                                                          type;
-
-	union
-	{
-		struct aprservice_connection_information_aprs_is         aprs_is;
-		struct aprservice_connection_information_kiss_tnc_tcp    kiss_tnc_tcp;
-		struct aprservice_connection_information_kiss_tnc_serial kiss_tnc_serial;
-	};
-};
-
 typedef void(APRSERVICE_CALL *aprservice_task_handler)(struct aprservice* service, struct aprservice_task_information* task, void* param);
 typedef void(APRSERVICE_CALL *aprservice_event_handler)(struct aprservice* service, struct aprservice_event_information* event, void* param);
 typedef void(APRSERVICE_CALL *aprservice_command_handler)(struct aprservice* service, struct aprservice_command* command, const char* name, const char* args, void* param);

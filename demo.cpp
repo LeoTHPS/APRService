@@ -6,7 +6,7 @@
 #if defined(APRSERVICE_UNIX)
 	#include <unistd.h>
 
-	#define Sleep(ms) usleep(ms / 1000)
+	#define Sleep(ms) usleep((ms) / 1000)
 #elif defined(APRSERVICE_WIN32)
 	#include <windows.h>
 #endif

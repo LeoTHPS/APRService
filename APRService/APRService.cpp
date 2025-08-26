@@ -19,6 +19,7 @@
 	#include <fcntl.h>
 	#include <netdb.h>
 	#include <unistd.h>
+	#include <termios.h>
 
 	#include <arpa/inet.h>
 
@@ -27,6 +28,10 @@
 	#include <sys/socket.h>
 
 	#include <netinet/tcp.h>
+
+	#include <strings.h>
+
+	#define stricmp strcasecmp
 #elif defined(APRSERVICE_WIN32)
 	#include <WS2tcpip.h>
 	#include <MSWSock.h>
@@ -450,7 +455,7 @@ socket_open:
 
 socket_connect:
 #if defined(APRSERVICE_UNIX)
-	if (connect(connection->socket, socket_address, socket_address_length) == -1)
+	if (connect(connection->socket, dns_result_address, dns_result_address_length) == -1)
 	{
 		aprservice_log_error(connect);
 
@@ -1045,7 +1050,7 @@ int                                        aprservice_connection_write(aprservic
 				if ((error == EAGAIN) || (error == EWOULDBLOCK))
 					return -1;
 
-				aprservice_connection_close(sn);
+				aprservice_connection_close(connection);
 
 				if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
 					return 0;

@@ -1,15 +1,8 @@
+#include <ctime>
 #include <iomanip>
 #include <iostream>
 
 #include <APRService.hpp>
-
-#if defined(APRSERVICE_UNIX)
-	#include <unistd.h>
-
-	#define Sleep(ms) usleep((ms) / 1000)
-#elif defined(APRSERVICE_WIN32)
-	#include <windows.h>
-#endif
 
 #define APRS_IS_HOST                  "noam.aprs2.net"
 #define APRS_IS_PORT                  14580
@@ -31,6 +24,8 @@
 #define APRS_STATION_SYMBOL_TABLE     '/'
 #define APRS_STATION_SYMBOL_TABLE_KEY 'l'
 #define APRS_STATION_POSITION_TYPE    APRSERVICE_POSITION_TYPE_POSITION
+
+#define DEMO_TICK_RATE                10
 
 struct demo
 {
@@ -404,13 +399,14 @@ bool    demo_is_connected(demo* d)
 	return aprservice_is_connected(d->service);
 }
 
+#define demo_connect                       demo_connect_aprs_is
 #define demo_connect_aprs_is(demo)         aprservice_connect_aprs_is(demo->service, APRS_IS_HOST, APRS_IS_PORT, APRS_IS_PASSCODE)
 #define demo_connect_kiss_tnc_tcp(demo)    aprservice_connect_kiss_tnc_tcp(demo->service, APRS_KISS_TNC_TCP_HOST, APRS_KISS_TNC_TCP_PORT)
 #define demo_connect_kiss_tnc_serial(demo) aprservice_connect_kiss_tnc_serial(demo->service, APRS_KISS_TNC_SERIAL_DEVICE, APRS_KISS_TNC_SERIAL_SPEED)
 
 bool    demo_update(demo* d)
 {
-	if (!demo_is_connected(d) && !demo_connect_aprs_is(d))
+	if (!demo_is_connected(d) && !demo_connect(d))
 		;
 
 	if (!aprservice_poll(d->service))
@@ -425,10 +421,16 @@ bool    demo_update(demo* d)
 
 int main(int argc, char* argv[])
 {
+	timespec ts =
+	{
+		.tv_sec  = (1000 / DEMO_TICK_RATE) / 1000,
+		.tv_nsec = ((1000 / DEMO_TICK_RATE) % 1000) * 1000000
+	};
+
 	if (auto demo = demo_init())
 	{
 		while (demo_update(demo))
-			Sleep(10);
+			nanosleep(&ts, nullptr);
 
 		demo_deinit(demo);
 	}

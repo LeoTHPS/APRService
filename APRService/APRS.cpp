@@ -1155,6 +1155,16 @@ void               aprs_packet_encode_item(aprs_packet* packet, std::stringstrea
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
 		ss << longitude_west_east << packet->item_or_object.symbol_table_key;
+
+		if (packet->item_or_object.altitude)
+			ss << "/A=" << std::setfill('0') << std::setw(6) << packet->item_or_object.altitude;
+
+		if (packet->item_or_object.course || packet->item_or_object.speed)
+		{
+			ss << std::setfill('0') << std::setw(3) << packet->item_or_object.course;
+			ss << '/';
+			ss << std::setfill('0') << std::setw(3) << packet->item_or_object.speed;
+		}
 	// }
 
 	ss << packet->item_or_object.comment;
@@ -1208,6 +1218,16 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
 		ss << longitude_west_east << packet->item_or_object.symbol_table_key;
+
+		if (packet->item_or_object.altitude)
+			ss << "/A=" << std::setfill('0') << std::setw(6) << packet->item_or_object.altitude;
+
+		if (packet->item_or_object.course || packet->item_or_object.speed)
+		{
+			ss << std::setfill('0') << std::setw(3) << packet->item_or_object.course;
+			ss << '/';
+			ss << std::setfill('0') << std::setw(3) << packet->item_or_object.speed;
+		}
 	// }
 
 	ss << packet->item_or_object.comment;

@@ -1362,7 +1362,7 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 			ss << longitude_west_east << packet->position.symbol_table_key;
 
 			if (packet->position.altitude)
-				ss << std::setfill('0') << std::setw(6) << packet->position.altitude;
+				ss << "/A=" << std::setfill('0') << std::setw(6) << packet->position.altitude;
 
 			if (packet->position.course || packet->position.speed)
 			{

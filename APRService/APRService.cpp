@@ -79,6 +79,13 @@ enum APRSERVICE_AUTH_STATES
 	APRSERVICE_AUTH_STATE_RECEIVED
 };
 
+enum APRSERVICE_CONNECTION_TYPES
+{
+	APRSERVICE_CONNECTION_TYPE_APRS_IS,
+	APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP,
+	APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL
+};
+
 struct aprservice_event
 {
 	aprservice_event_handler handler;
@@ -110,7 +117,6 @@ struct aprservice_connection
 	bool                                     is_open;
 
 	aprservice_connection_auth               auth;
-	int                                      mode;
 	int                                      type;
 
 #if defined(APRSERVICE_UNIX)
@@ -149,11 +155,11 @@ struct aprservice
 
 	std::string                                                                     line;
 	int64_t                                                                         time;
-	std::vector<aprservice_connection*>                                             connections;
 
 	aprs_path*                                                                      path;
 	const std::string                                                               station;
 	aprservice_position                                                             position;
+	aprservice_connection*                                                          connection;
 
 	std::list<aprservice_item*>                                                     items;
 	std::map<uint64_t, std::list<aprservice_task*>>                                 tasks;
@@ -306,7 +312,7 @@ bool                                       aprservice_connection_auth_from_strin
 	return true;
 }
 
-aprservice_connection*                     aprservice_connection_init(aprservice* service, int mode, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode);
+aprservice_connection*                     aprservice_connection_init(aprservice* service, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode);
 void                                       aprservice_connection_deinit(aprservice_connection* connection);
 bool                                       aprservice_connection_is_open(aprservice_connection* connection);
 bool                                       aprservice_connection_open(aprservice_connection* connection);
@@ -322,32 +328,14 @@ bool                                       aprservice_connection_read_string(apr
 bool                                       aprservice_connection_write_packet(aprservice_connection* connection, aprs_packet* value);
 bool                                       aprservice_connection_write_aprs_is(aprservice_connection* connection, std::string&& value);
 
-bool                                       aprservice_enum_connections(aprservice* service, bool(*callback)(aprservice* service, aprservice_connection* connection, void* param), void* param)
-{
-	for (auto connection : service->connections)
-		if (!callback(service, connection, param))
-			return false;
-
-	return true;
-}
-bool                                       aprservice_enum_connections_by_mode(aprservice* service, int mode, bool(*callback)(aprservice* service, aprservice_connection* connection, void* param), void* param)
-{
-	for (auto connection : service->connections)
-		if (!mode || (connection->mode & mode))
-			if (!callback(service, connection, param))
-				return false;
-
-	return true;
-}
-
 bool                                       aprservice_poll_tasks(struct aprservice* service);
 bool                                       aprservice_poll_messages(struct aprservice* service);
-bool                                       aprservice_poll_connections(struct aprservice* service);
+bool                                       aprservice_poll_connection(struct aprservice* service);
 
 bool                                       aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id);
 bool                                       aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id);
 
-aprservice_connection*                     aprservice_connection_init(aprservice* service, int mode, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode)
+aprservice_connection*                     aprservice_connection_init(aprservice* service, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode)
 {
 	auto connection = new aprservice_connection
 	{
@@ -355,7 +343,6 @@ aprservice_connection*                     aprservice_connection_init(aprservice
 
 		.is_open        = false,
 
-		.mode           = mode,
 		.type           = type,
 
 		.device_speed   = speed,
@@ -641,7 +628,7 @@ bool                                       aprservice_connection_open(aprservice
 			break;
 	}
 
-	aprservice_event_execute(connection->service, APRSERVICE_EVENT_CONNECT, { .connection_mode = connection->mode, .connection_type = connection->type });
+	aprservice_event_execute(connection->service, APRSERVICE_EVENT_CONNECT, { });
 
 	auto generate_auth_request = [](aprservice* service, uint16_t passcode)
 	{
@@ -675,7 +662,7 @@ bool                                       aprservice_connection_open(aprservice
 			connection->auth.success  = true;
 			connection->auth.verified = true;
 			connection->auth.message.clear();
-			aprservice_event_execute(connection->service, APRSERVICE_EVENT_AUTHENTICATE, { .message = connection->auth.message.c_str(), .success = connection->auth.success, .verified = connection->auth.verified, .connection_mode = connection->mode, .connection_type = connection->type });
+			aprservice_event_execute(connection->service, APRSERVICE_EVENT_AUTHENTICATE, { .message = connection->auth.message.c_str(), .success = connection->auth.success, .verified = connection->auth.verified });
 			break;
 	}
 
@@ -717,7 +704,7 @@ void                                       aprservice_connection_close(aprservic
 
 		connection->auth.state = APRSERVICE_AUTH_STATE_NONE;
 
-		aprservice_event_execute(connection->service, APRSERVICE_EVENT_DISCONNECT, { .connection_mode = connection->mode, .connection_type = connection->type });
+		aprservice_event_execute(connection->service, APRSERVICE_EVENT_DISCONNECT, { });
 	}
 }
 // @return false on connection closed
@@ -1405,13 +1392,11 @@ void                       APRSERVICE_CALL aprservice_deinit(struct aprservice* 
 }
 bool                       APRSERVICE_CALL aprservice_is_read_only(struct aprservice* service)
 {
-	return aprservice_enum_connections_by_mode(service, APRSERVICE_CONNECTION_MODE_OUTPUT, [](aprservice* service, aprservice_connection* connection, void* param) {
-		if (connection->auth.state == APRSERVICE_AUTH_STATE_RECEIVED)
-			if (connection->auth.success && connection->auth.verified)
-				return false;
+	if (aprservice_is_connected(service))
+		if (auto auth = &service->connection->auth; auth->state == APRSERVICE_AUTH_STATE_RECEIVED)
+			return !auth->success || !auth->verified;
 
-		return true;
-	}, nullptr);
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_is_connected(struct aprservice* service)
 {
@@ -1419,24 +1404,18 @@ bool                       APRSERVICE_CALL aprservice_is_connected(struct aprser
 }
 bool                       APRSERVICE_CALL aprservice_is_authenticated(struct aprservice* service)
 {
-	return aprservice_enum_connections(service, [](aprservice* service, aprservice_connection* connection, void* param) {
-		if (connection->auth.state != APRSERVICE_AUTH_STATE_RECEIVED)
-			return false;
+	if (aprservice_is_connected(service))
+		if (auto auth = &service->connection->auth; auth->state == APRSERVICE_AUTH_STATE_RECEIVED)
+			return auth->success && auth->verified;
 
-		if (!connection->auth.success || !connection->auth.verified)
-			return false;
-
-		return true;
-	}, nullptr);
+	return false;
 }
 bool                       APRSERVICE_CALL aprservice_is_authenticating(struct aprservice* service)
 {
-	return !aprservice_enum_connections(service, [](aprservice* service, aprservice_connection* connection, void* param) {
-		if (connection->auth.state == APRSERVICE_AUTH_STATE_SENT)
-			return false;
+	if (aprservice_is_connected(service))
+		return service->connection->auth.state == APRSERVICE_AUTH_STATE_SENT;
 
-		return true;
-	}, nullptr);
+	return false;
 }
 bool                       APRSERVICE_CALL aprservice_is_monitoring_enabled(struct aprservice* service)
 {
@@ -1633,9 +1612,9 @@ bool                       APRSERVICE_CALL aprservice_poll(struct aprservice* se
 		return false;
 	}
 
-	if (!aprservice_poll_connections(service) && aprservice_is_connected(service))
+	if (!aprservice_poll_connection(service) && aprservice_is_connected(service))
 	{
-		aprservice_log_error_ex(aprservice_poll_connections, false);
+		aprservice_log_error_ex(aprservice_poll_connection, false);
 
 		return false;
 	}
@@ -1704,132 +1683,118 @@ bool                                       aprservice_poll_messages(struct aprse
 
 	return true;
 }
-bool                                       aprservice_poll_connections(struct aprservice* service)
+bool                                       aprservice_poll_connection(struct aprservice* service)
 {
-	auto callback = [](aprservice* service, aprservice_connection* connection, void* param)
+	auto on_receive_packet = [](aprservice* service, aprs_packet* packet, aprservice_connection* connection)
 	{
-		auto on_receive_packet = [](aprservice* service, aprs_packet* packet, aprservice_connection* connection)
+		auto packet_type   = aprs_packet_get_type(packet);
+		auto packet_sender = aprs_packet_get_sender(packet);
+
+		aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_PACKET, { .packet = packet });
+
+		if (packet_type == APRS_PACKET_TYPE_MESSAGE)
 		{
-			auto packet_type   = aprs_packet_get_type(packet);
-			auto packet_sender = aprs_packet_get_sender(packet);
+			auto packet_message_id          = aprs_packet_message_get_id(packet);
+			auto packet_message_type        = aprs_packet_message_get_type(packet);
+			auto packet_message_content     = aprs_packet_message_get_content(packet);
+			auto packet_message_destination = aprs_packet_message_get_destination(packet);
 
-			aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_PACKET, { .packet = packet, .connection_mode = connection->mode, .connection_type = connection->type });
-
-			if (packet_type == APRS_PACKET_TYPE_MESSAGE)
+			switch (packet_message_type)
 			{
-				auto packet_message_id          = aprs_packet_message_get_id(packet);
-				auto packet_message_type        = aprs_packet_message_get_type(packet);
-				auto packet_message_content     = aprs_packet_message_get_content(packet);
-				auto packet_message_destination = aprs_packet_message_get_destination(packet);
+				case APRS_MESSAGE_TYPE_ACK:
+				case APRS_MESSAGE_TYPE_REJECT:
+					if (packet_message_id && !stricmp(aprservice_get_station(service), packet_message_destination))
+						if (auto it = service->message_callbacks_index.find(packet_sender); it != service->message_callbacks_index.end())
+							for (auto jt = it->second.begin(); jt != it->second.end(); ++jt)
+								if (!jt->id.compare(packet_message_id))
+								{
+									jt->callback(service, (packet_message_type == APRS_MESSAGE_TYPE_ACK) ? APRSERVICE_MESSAGE_ERROR_SUCCESS : APRSERVICE_MESSAGE_ERROR_REJECTED, jt->callback_param);
 
-				switch (packet_message_type)
-				{
-					case APRS_MESSAGE_TYPE_ACK:
-					case APRS_MESSAGE_TYPE_REJECT:
-						if (packet_message_id && !stricmp(aprservice_get_station(service), packet_message_destination))
-							if (auto it = service->message_callbacks_index.find(packet_sender); it != service->message_callbacks_index.end())
-								for (auto jt = it->second.begin(); jt != it->second.end(); ++jt)
-									if (!jt->id.compare(packet_message_id))
-									{
-										jt->callback(service, (packet_message_type == APRS_MESSAGE_TYPE_ACK) ? APRSERVICE_MESSAGE_ERROR_SUCCESS : APRSERVICE_MESSAGE_ERROR_REJECTED, jt->callback_param);
+									for (auto lt = service->message_callbacks.begin(); lt != service->message_callbacks.end(); ++lt)
+										if (*lt == &*jt)
+										{
+											service->message_callbacks.erase(lt);
 
-										for (auto lt = service->message_callbacks.begin(); lt != service->message_callbacks.end(); ++lt)
-											if (*lt == &*jt)
-											{
-												service->message_callbacks.erase(lt);
+											break;
+										}
 
-												break;
-											}
+									it->second.erase(jt);
 
-										it->second.erase(jt);
+									if (it->second.empty())
+										service->message_callbacks_index.erase(it);
 
-										if (it->second.empty())
-											service->message_callbacks_index.erase(it);
+									break;
+								}
+					break;
 
-										break;
-									}
-						break;
+				case APRS_MESSAGE_TYPE_MESSAGE:
+					if (stricmp(aprservice_get_station(service), packet_message_destination))
+					{
+						if (aprservice_is_monitoring_enabled(service))
+							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
+					}
+					else
+					{
+						if (packet_message_id)
+							aprservice_send_message_ack(service, packet_sender, packet_message_id);
 
-					case APRS_MESSAGE_TYPE_MESSAGE:
-						if (stricmp(aprservice_get_station(service), packet_message_destination))
-						{
-							if (aprservice_is_monitoring_enabled(service))
-								aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination, .connection_mode = connection->mode, .connection_type = connection->type });
-						}
-						else
-						{
-							if (packet_message_id)
-								aprservice_send_message_ack(service, packet_sender, packet_message_id);
-
-							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination, .connection_mode = connection->mode, .connection_type = connection->type });
-						}
-						break;
-				}
+						aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
+					}
+					break;
 			}
-		};
-
-		if (!aprservice_connection_poll(connection))
-		{
-			aprservice_connection_close(connection);
-
-			return false;
 		}
-
-		if (connection->mode & APRSERVICE_CONNECTION_MODE_INPUT)
-			switch (connection->type)
-			{
-				case APRSERVICE_CONNECTION_TYPE_APRS_IS:
-					if (aprservice_connection_read_string(connection, service->line))
-						if (service->line.starts_with("# "))
-						{
-							if ((connection->auth.state == APRSERVICE_AUTH_STATE_SENT) && aprservice_connection_auth_from_string(&connection->auth, &service->line[2], connection->passcode != 0))
-								aprservice_event_execute(service, APRSERVICE_EVENT_AUTHENTICATE, { .message = connection->auth.message.c_str(), .success = connection->auth.success, .verified = connection->auth.verified, .connection_mode = connection->mode, .connection_type = connection->type });
-							else
-								aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE, { .message = &service->line[2], .connection_mode = connection->mode, .connection_type = connection->type });
-						}
-						else if (auto packet = aprs_packet_init_from_string(service->line.c_str()))
-						{
-							on_receive_packet(service, packet, connection);
-
-							aprs_packet_deinit(packet);
-						}
-					break;
-
-				case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
-				case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
-					if (aprservice_connection_read_string(connection, service->line))
-						if (auto packet = aprs_packet_init_from_string(service->line.c_str()))
-						{
-							on_receive_packet(service, packet, connection);
-
-							aprs_packet_deinit(packet);
-						}
-					break;
-			}
-
-		return true;
 	};
 
-	if (!aprservice_enum_connections(service, callback, nullptr))
+	if (!aprservice_connection_poll(service->connection))
+	{
 		aprservice_disconnect(service);
+
+		return false;
+	}
+
+	switch (service->connection->type)
+	{
+		case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+			while (aprservice_connection_read_string(service->connection, service->line))
+				if (service->line.starts_with("# "))
+				{
+					if ((service->connection->auth.state == APRSERVICE_AUTH_STATE_SENT) && aprservice_connection_auth_from_string(&service->connection->auth, &service->line[2], service->connection->passcode != 0))
+						aprservice_event_execute(service, APRSERVICE_EVENT_AUTHENTICATE, { .message = service->connection->auth.message.c_str(), .success = service->connection->auth.success, .verified = service->connection->auth.verified });
+					else
+						aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE, { .message = &service->line[2] });
+				}
+				else if (auto packet = aprs_packet_init_from_string(service->line.c_str()))
+				{
+					on_receive_packet(service, packet, service->connection);
+
+					aprs_packet_deinit(packet);
+				}
+			break;
+
+		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+			while (aprservice_connection_read_string(service->connection, service->line))
+				if (auto packet = aprs_packet_init_from_string(service->line.c_str()))
+				{
+					on_receive_packet(service, packet, service->connection);
+
+					aprs_packet_deinit(packet);
+				}
+			break;
+	}
 
 	return true;
 }
 bool                                       aprservice_send(struct aprservice* service, aprs_packet* packet)
 {
-	auto callback = [](aprservice* service, aprservice_connection* connection, void* param)
+	if (!aprservice_connection_write_packet(service->connection, packet))
 	{
-		if (!aprservice_connection_write_packet(connection, (aprs_packet*)param))
-		{
-			aprservice_log_error_ex(aprservice_connection_write_packet, false);
+		aprservice_log_error_ex(aprservice_connection_write_packet, false);
 
-			return false;
-		}
+		return false;
+	}
 
-		return true;
-	};
-
-	return aprservice_enum_connections_by_mode(service, APRSERVICE_CONNECTION_MODE_OUTPUT, callback, packet);
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_raw(struct aprservice* service, const char* content)
 {
@@ -2475,54 +2440,69 @@ bool                       APRSERVICE_CALL aprservice_send_user_defined(struct a
 
 	return false;
 }
-bool                       APRSERVICE_CALL aprservice_connect(struct aprservice* service, struct aprservice_connection_information* connections, size_t count)
+bool                       APRSERVICE_CALL aprservice_connect_aprs_is(struct aprservice* service, const char* hostname, uint16_t port, uint16_t passcode)
 {
 	if (aprservice_is_connected(service))
 		return false;
 
-	service->connections.resize(count);
-
-	for (size_t i = 0; i < count; ++i)
+	if (!(service->connection = aprservice_connection_init(service, APRSERVICE_CONNECTION_TYPE_APRS_IS, hostname, port, 0, passcode)))
 	{
-		switch (connections[i].type)
-		{
-			case APRSERVICE_CONNECTION_TYPE_APRS_IS:
-				service->connections[i] = aprservice_connection_init(service, connections[i].mode, connections[i].type, connections[i].aprs_is.host, connections[i].aprs_is.port, 0, connections[i].aprs_is.passcode);
-				break;
+		aprservice_log_error_ex(aprservice_connection_init, nullptr);
 
-			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
-				service->connections[i] = aprservice_connection_init(service, connections[i].mode, connections[i].type, connections[i].kiss_tnc_tcp.host, connections[i].kiss_tnc_tcp.port, 0, 0);
-				break;
+		return false;
+	}
 
-			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
-				service->connections[i] = aprservice_connection_init(service, connections[i].mode, connections[i].type, connections[i].kiss_tnc_serial.device, 0, connections[i].kiss_tnc_serial.speed, 0);
-				break;
-		}
+	if (!aprservice_connection_open(service->connection))
+	{
+		aprservice_log_error_ex(aprservice_connection_open, false);
 
-		if (!service->connections[i])
-		{
-			aprservice_log_error_ex(aprservice_connection_init, nullptr);
+		return false;
+	}
 
-			while (i--)
-				aprservice_connection_deinit(service->connections[i]);
+	service->is_connected = true;
 
-			service->connections.clear();
+	return true;
+}
+bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc_tcp(struct aprservice* service, const char* hostname, uint16_t port)
+{
+	if (aprservice_is_connected(service))
+		return false;
 
-			return false;
-		}
+	if (!(service->connection = aprservice_connection_init(service, APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP, hostname, port, 0, 0)))
+	{
+		aprservice_log_error_ex(aprservice_connection_init, nullptr);
 
-		if (!aprservice_connection_open(service->connections[i]))
-		{
-			aprservice_log_error_ex(aprservice_connection_open, false);
+		return false;
+	}
 
-			do
-				aprservice_connection_deinit(service->connections[i]);
-			while (i--);
+	if (!aprservice_connection_open(service->connection))
+	{
+		aprservice_log_error_ex(aprservice_connection_open, false);
 
-			service->connections.clear();
+		return false;
+	}
 
-			return false;
-		}
+	service->is_connected = true;
+
+	return true;
+}
+bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc_serial(struct aprservice* service, const char* device, uint32_t speed)
+{
+	if (aprservice_is_connected(service))
+		return false;
+
+	if (!(service->connection = aprservice_connection_init(service, APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL, device, 0, speed, 0)))
+	{
+		aprservice_log_error_ex(aprservice_connection_init, nullptr);
+
+		return false;
+	}
+
+	if (!aprservice_connection_open(service->connection))
+	{
+		aprservice_log_error_ex(aprservice_connection_open, false);
+
+		return false;
 	}
 
 	service->is_connected = true;
@@ -2533,10 +2513,7 @@ void                       APRSERVICE_CALL aprservice_disconnect(struct aprservi
 {
 	if (aprservice_is_connected(service))
 	{
-		for (auto connection : service->connections)
-			aprservice_connection_deinit(connection);
-
-		service->connections.clear();
+		aprservice_connection_deinit(service->connection);
 
 		service->message_callbacks.remove_if([service](aprservice_message_callback_context* context) {
 			context->callback(service, APRSERVICE_MESSAGE_ERROR_DISCONNECTED, context->callback_param);

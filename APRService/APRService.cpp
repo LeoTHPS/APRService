@@ -263,6 +263,16 @@ T                                          aprservice_parse_uint(const char* str
 
 	return value;
 }
+template<typename T>
+T                                          aprservice_parse_uint(const char* string, size_t length)
+{
+	T value = 0;
+
+	for (size_t i = 0; *string && (i < length); ++i, ++string)
+		value = 10 * value + (*string - '0');
+
+	return value;
+}
 
 template<APRSERVICE_EVENTS EVENT>
 constexpr bool                             aprservice_event_execute(aprservice* service, typename aprservice_get_event_information<EVENT>::type&& event)
@@ -1164,10 +1174,10 @@ bool                                       aprservice_connection_write_packet(ap
 
 			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
 			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
-				// string isn't used but aprs_packet_to_string populates packet content
-				if (auto string = aprs_packet_to_string(value))
+				// aprs_packet_to_string populates packet content
+				if (aprs_packet_to_string(value))
 				{
-					auto packet_to_ax25   = [](aprs_packet* value)
+					static auto packet_to_ax25   = [](aprs_packet* value)
 					{
 						auto        path         = aprs_packet_get_path(value);
 						auto        path_size    = aprs_path_get_length(path);
@@ -1175,80 +1185,66 @@ bool                                       aprservice_connection_write_packet(ap
 						auto        content_size = content.length();
 
 						std::vector<uint8_t> buffer(14 + (path_size * 7) + 2 + content_size, 0);
-						auto                 buffer_encode_path    = [](std::vector<uint8_t>& buffer, size_t offset, aprs_path* value)
+						static auto          buffer_encode_station = [](std::vector<uint8_t>& buffer, size_t offset, const char* value)
+						{
+							size_t i = 0;
+							auto   b = &buffer[offset];
+
+						encode_call:
+							for (; i < 6; ++i)
+								switch (*value)
+								{
+									case '-':
+									case '*':
+									case '\0':
+										goto encode_ssid;
+
+									default:
+										*(b++) = *(value++) << 1;
+										break;
+								}
+
+						encode_ssid:
+							for (; i < 6; ++i)
+								*(b++) = 0x40;
+
+							switch (*value)
+							{
+								case '-':
+									++value;
+									for (i = 0; i < 2; ++i)
+										if (!value[i] || (value[i] == '*'))
+											break;
+									*b = i ? ((aprservice_parse_uint<uint8_t>(value, i) & 0x0F) << 1) : 0;
+									if (value[i] == '*')
+										buffer[offset] |= 0x80;
+									break;
+
+								case '*':
+									buffer[offset] |= 0x80;
+								case '\0':
+									*b              = 0;
+									break;
+							}
+						};
+						static auto          buffer_encode_path    = [](std::vector<uint8_t>& buffer, size_t offset, aprs_path* value)
 						{
 							auto size = aprs_path_get_length(value);
 
-							for (size_t i = 0; i < size; )
+							for (size_t i = 0; i < size; offset += 7)
 							{
 								auto path = aprs_path_get(value, i);
 
-								for (size_t j = 0; j < 6; ++j, ++path)
-									switch (*path)
-									{
-										case '-':
-										case '\0':
-											while (j++ < 6)
-												buffer[offset++] = 0x40;
-											break;
-
-										case '*':
-											buffer[offset - j] |= 0x80;
-											while (j++ < 6)
-												buffer[offset++] = 0x40;
-											break;
-
-										default:
-											buffer[offset++] = *path << 1;
-											break;
-									}
-
-								buffer[offset++] = (aprservice_parse_uint<uint8_t>(path) & 0x0F) << 1;
+								buffer_encode_station(buffer, offset, path);
 
 								if (++i == size)
-									buffer[offset - 1] |= 0x01;
+									buffer[offset + 6] |= 0x01;
 							}
 
 							return offset;
 						};
-						auto                 buffer_encode_tocall  = [](std::vector<uint8_t>& buffer, size_t offset, const char* value)
-						{
-							for (size_t i = 0; i < 6; ++i, ++value)
-								switch (*value)
-								{
-									case '-':
-									case '\0':
-										while (i++ < 6)
-											buffer[offset++] = 0x40;
-										break;
 
-									default:
-										buffer[offset++] = *value << 1;
-										break;
-								}
-
-							buffer[offset] = (aprservice_parse_uint<uint8_t>(value) & 0x0F) << 1;
-						};
-						auto                 buffer_encode_station = [](std::vector<uint8_t>& buffer, size_t offset, const char* value)
-						{
-							for (size_t i = 0; i < 6; ++i, ++value)
-								switch (*value)
-								{
-									case '-':
-									case '\0':
-										while (i++ < 6)
-											buffer[offset++] = 0x40;
-										break;
-
-									default:
-										buffer[offset++] = *value << 1;
-										break;
-								}
-
-							buffer[offset] = (aprservice_parse_uint<uint8_t>(value) & 0x0F) << 1;
-						};
-
-						buffer_encode_tocall(buffer, 0, aprs_packet_get_tocall(value));
+						buffer_encode_station(buffer, 0, aprs_packet_get_tocall(value));
 						buffer_encode_station(buffer, 7, aprs_packet_get_sender(value));
 						auto offset      = buffer_encode_path(buffer, 14, path);
 						buffer[offset++] = 0x03;

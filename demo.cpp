@@ -175,6 +175,7 @@ void    demo_event_handler(aprservice* service, aprservice_event_information* ev
 					{
 						auto weather_time                    = aprs_packet_weather_get_time(packet);
 						auto weather_type                    = aprs_packet_weather_get_type(packet);
+						auto weather_software                = aprs_packet_weather_get_software(packet);
 						auto weather_wind_speed              = aprs_packet_weather_get_wind_speed(packet);
 						auto weather_wind_speed_gust         = aprs_packet_weather_get_wind_speed_gust(packet);
 						auto weather_wind_direction          = aprs_packet_weather_get_wind_direction(packet);

@@ -2171,7 +2171,7 @@ bool                       APRSERVICE_CALL aprservice_send_message_reject(struct
 
 	return false;
 }
-bool                       APRSERVICE_CALL aprservice_send_weather(struct aprservice* service, uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const char* type)
+bool                       APRSERVICE_CALL aprservice_send_weather(struct aprservice* service, uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const char* type, char software)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2179,7 +2179,7 @@ bool                       APRSERVICE_CALL aprservice_send_weather(struct aprser
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_weather_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), type))
+	if (auto packet = aprs_packet_weather_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), type, software))
 	{
 		if (!aprs_packet_weather_set_time(packet, aprs_time_now()))
 		{

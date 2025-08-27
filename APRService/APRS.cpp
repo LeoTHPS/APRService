@@ -95,10 +95,12 @@ struct aprs_packet
 		uint16_t    rainfall_last_24_hours;
 		uint16_t    rainfall_since_midnight;
 
-		std::string type;
 		uint8_t     humidity;
 		int16_t     temperature;
 		uint32_t    barometric_pressure;
+
+		std::string type;
+		char        software;
 	} weather;
 
 	struct
@@ -518,6 +520,14 @@ bool               aprs_decode_time(aprs_time& value, const char* string, char t
 			time.tm_min  = aprs_decode_int<uint8_t>(&string[4], 2);
 			value = { time, APRS_TIME_DHM };
 			return (value.tm_mday <= 31) && (value.tm_hour < 24) && (value.tm_min < 60);
+
+		case 0: // MDHM
+			time.tm_mon  = aprs_decode_int<uint8_t>(&string[0], 2);
+			time.tm_mday = aprs_decode_int<uint8_t>(&string[2], 2);
+			time.tm_hour = aprs_decode_int<uint8_t>(&string[4], 2);
+			time.tm_min  = aprs_decode_int<uint8_t>(&string[6], 2);
+			value = { time, APRS_TIME_MDHM };
+			return (time.tm_mon <= 12) && (value.tm_mday <= 31) && (value.tm_hour < 24) && (value.tm_min < 60);
 	}
 
 	return false;
@@ -911,11 +921,71 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 }
 bool               aprs_packet_decode_weather(aprs_packet* packet)
 {
-	// packet->type = APRS_PACKET_TYPE_WEATHER;
+	if (!aprs_decode_time(packet->weather.time, &packet->content[1], 0))
+		return false;
 
-	// TODO: decode weather
+	auto decode_next_chunk = [](const char*& string, char& key, int& value)
+	{
+		if (!isalpha(*string) || (!isdigit(string[1]) && (string[1] != '.') && (string[1] != ' ')))
+			return false;
 
-	return false;
+		key   = *string++;
+		value = 0;
+
+		if (*string == '-')
+		{
+			value = 0x8000;
+			++string;
+		}
+
+		for (; *string && (isdigit(*string) || (*string == '.') || (*string == ' ')); ++string)
+			switch (*string)
+			{
+				case '.':
+				case ' ':
+					break;
+
+				default:
+					value = 10 * value + (*string - '0');
+					break;
+			}
+
+		return true;
+	};
+
+	packet->type                            = APRS_PACKET_TYPE_WEATHER;
+	packet->weather.wind_speed              = 0;
+	packet->weather.wind_speed_gust         = 0;
+	packet->weather.wind_direction          = 0;
+	packet->weather.rainfall_last_hour      = 0;
+	packet->weather.rainfall_last_24_hours  = 0;
+	packet->weather.rainfall_since_midnight = 0;
+	packet->weather.humidity                = 0;
+	packet->weather.temperature             = 0;
+	packet->weather.barometric_pressure     = 0;
+
+	char        key;
+	int         value;
+	const char* string = &packet->content[9];
+
+	while (decode_next_chunk(string, key, value))
+		switch (key)
+		{
+			case 'c': packet->weather.wind_direction          = value; break;
+			case 's': packet->weather.wind_speed              = value; break;
+			case 'g': packet->weather.wind_speed_gust         = value; break;
+			case 't': packet->weather.temperature             = value; break;
+			case 'r': packet->weather.rainfall_last_hour      = value; break;
+			case 'p': packet->weather.rainfall_last_24_hours  = value; break;
+			case 'P': packet->weather.rainfall_since_midnight = value; break;
+			case 'h': packet->weather.humidity                = value; break;
+			case 'b': packet->weather.barometric_pressure     = value; break;
+		}
+
+	packet->weather.type     = &string[1];
+	packet->weather.software = *string;
+
+	return true;
 }
 bool               aprs_packet_decode_weather_space(aprs_packet* packet)
 {
@@ -1332,6 +1402,7 @@ void               aprs_packet_encode_weather(aprs_packet* packet, std::stringst
 	ss << 'P' << std::setfill('0') << std::setw(3) << packet->weather.rainfall_since_midnight;
 	ss << 'h' << std::setfill('0') << std::setw(2) << humidity;
 	ss << 'b' << std::setfill('0') << std::setw(4) << packet->weather.barometric_pressure;
+	ss << packet->weather.software;
 	ss << packet->weather.type;
 }
 void               aprs_packet_encode_position(aprs_packet* packet, std::stringstream& ss)
@@ -2631,7 +2702,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_destination(st
 	return false;
 }
 
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_weather_init(const char* sender, const char* tocall, struct aprs_path* path, const char* type)
+struct aprs_packet*       APRSERVICE_CALL aprs_packet_weather_init(const char* sender, const char* tocall, struct aprs_path* path, const char* type, char software)
 {
 	auto type_length = aprs_string_length(type, true);
 
@@ -2647,10 +2718,11 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_weather_init(const char* s
 		packet->weather.rainfall_last_hour      = 0;
 		packet->weather.rainfall_last_24_hours  = 0;
 		packet->weather.rainfall_since_midnight = 0;
-		packet->weather.type.assign(type, type_length);
 		packet->weather.humidity                = 0;
 		packet->weather.temperature             = 0;
 		packet->weather.barometric_pressure     = 0;
+		packet->weather.type.assign(type, type_length);
+		packet->weather.software                = software;
 
 		return packet;
 	}
@@ -2670,6 +2742,13 @@ const char*               APRSERVICE_CALL aprs_packet_weather_get_type(struct ap
 		return nullptr;
 
 	return packet->weather.type.c_str();
+}
+char                      APRSERVICE_CALL aprs_packet_weather_get_software(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
+		return 0;
+
+	return packet->weather.software;
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_wind_speed(struct aprs_packet* packet)
 {

@@ -186,9 +186,10 @@ APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_message_
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_message_set_content(struct aprs_packet* packet, const char* value);
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_message_set_destination(struct aprs_packet* packet, const char* value);
 
-APRSERVICE_EXPORT struct aprs_packet*       APRSERVICE_CALL aprs_packet_weather_init(const char* sender, const char* tocall, struct aprs_path* path, const char* type);
+APRSERVICE_EXPORT struct aprs_packet*       APRSERVICE_CALL aprs_packet_weather_init(const char* sender, const char* tocall, struct aprs_path* path, const char* type, char software);
 APRSERVICE_EXPORT const struct aprs_time*   APRSERVICE_CALL aprs_packet_weather_get_time(struct aprs_packet* packet);
 APRSERVICE_EXPORT const char*               APRSERVICE_CALL aprs_packet_weather_get_type(struct aprs_packet* packet);
+APRSERVICE_EXPORT char                      APRSERVICE_CALL aprs_packet_weather_get_software(struct aprs_packet* packet);
 APRSERVICE_EXPORT uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_wind_speed(struct aprs_packet* packet);
 APRSERVICE_EXPORT uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_wind_speed_gust(struct aprs_packet* packet);
 APRSERVICE_EXPORT uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_wind_direction(struct aprs_packet* packet);

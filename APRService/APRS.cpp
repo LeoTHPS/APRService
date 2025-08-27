@@ -1869,7 +1869,9 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_init_from_string(const cha
 		.reference_count = 1
 	};
 
-	// TODO: convert sender to uppercase
+	for (auto& c : packet->sender)
+		if ((c >= 'a') && (c <= 'z'))
+			c = 'A' + (c - 'a');
 
 	if (!aprs_packet_decode(packet))
 		packet->type = APRS_PACKET_TYPE_RAW;

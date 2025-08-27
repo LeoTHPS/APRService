@@ -862,11 +862,11 @@ read_once:
 										if ((command_buffer[offset++] == 0x03) && (command_buffer[offset++] == 0xF0))
 										{
 											string.append(1, ':');
-											string.append((const char*)&command_buffer[offset], command_buffer.size() - offset);
 
-											// TODO: is this specific to direwolf or is there an error in this implementation?
-											if (string.ends_with('\r'))
-												string.pop_back();
+											if (command_buffer.back() != '\r')
+												string.append((const char*)&command_buffer[offset], command_buffer.size() - offset);
+											else
+												string.append((const char*)&command_buffer[offset], (command_buffer.size() - offset) - 1);
 
 											connection->rx_queue.push(std::move(string));
 										}

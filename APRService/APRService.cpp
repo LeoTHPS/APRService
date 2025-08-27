@@ -2694,6 +2694,10 @@ bool                       APRSERVICE_CALL aprservice_item_is_alive(struct aprse
 {
 	return aprs_packet_item_is_alive(item->packet);
 }
+bool                       APRSERVICE_CALL aprservice_item_is_compressed(struct aprservice_item* item)
+{
+	return aprs_packet_item_is_compressed(item->packet);
+}
 struct aprservice*         APRSERVICE_CALL aprservice_item_get_service(struct aprservice_item* item)
 {
 	return item->service;
@@ -2794,6 +2798,10 @@ bool                       APRSERVICE_CALL aprservice_item_set_position(struct a
 	}
 
 	return true;
+}
+bool                       APRSERVICE_CALL aprservice_item_set_compressed(struct aprservice_item* item, bool value)
+{
+	return aprs_packet_item_set_compressed(item->packet, value);
 }
 bool                       APRSERVICE_CALL aprservice_item_kill(struct aprservice_item* item)
 {
@@ -2942,6 +2950,10 @@ bool                       APRSERVICE_CALL aprservice_object_is_alive(struct apr
 {
 	return aprs_packet_object_is_alive(object->packet);
 }
+bool                       APRSERVICE_CALL aprservice_object_is_compressed(struct aprservice_object* object)
+{
+	return aprs_packet_object_is_compressed(object->packet);
+}
 struct aprservice*         APRSERVICE_CALL aprservice_object_get_service(struct aprservice_object* object)
 {
 	return object->service;
@@ -3042,6 +3054,10 @@ bool                       APRSERVICE_CALL aprservice_object_set_position(struct
 	}
 
 	return true;
+}
+bool                       APRSERVICE_CALL aprservice_object_set_compressed(struct aprservice_object* object, bool value)
+{
+	return aprs_packet_object_set_compressed(object->packet, value);
 }
 bool                       APRSERVICE_CALL aprservice_object_kill(struct aprservice_object* object)
 {

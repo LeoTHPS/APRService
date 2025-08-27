@@ -147,6 +147,7 @@ APRSERVICE_EXPORT struct aprservice*         APRSERVICE_CALL aprservice_task_get
 APRSERVICE_EXPORT struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_item_destroy(struct aprservice_item* item);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_item_is_alive(struct aprservice_item* item);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_item_is_compressed(struct aprservice_item* item);
 APRSERVICE_EXPORT struct aprservice*         APRSERVICE_CALL aprservice_item_get_service(struct aprservice_item* item);
 APRSERVICE_EXPORT const char*                APRSERVICE_CALL aprservice_item_get_name(struct aprservice_item* item);
 APRSERVICE_EXPORT const char*                APRSERVICE_CALL aprservice_item_get_comment(struct aprservice_item* item);
@@ -160,12 +161,14 @@ APRSERVICE_EXPORT char                       APRSERVICE_CALL aprservice_item_get
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_item_set_symbol(struct aprservice_item* item, char table, char key);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_item_set_comment(struct aprservice_item* item, const char* value);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_item_set_position(struct aprservice_item* item, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_item_set_compressed(struct aprservice_item* item, bool value);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_item_kill(struct aprservice_item* item);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_item_announce(struct aprservice_item* item);
 
 APRSERVICE_EXPORT struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_object_destroy(struct aprservice_object* object);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_object_is_alive(struct aprservice_object* object);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_object_is_compressed(struct aprservice_object* object);
 APRSERVICE_EXPORT struct aprservice*         APRSERVICE_CALL aprservice_object_get_service(struct aprservice_object* object);
 APRSERVICE_EXPORT const char*                APRSERVICE_CALL aprservice_object_get_name(struct aprservice_object* object);
 APRSERVICE_EXPORT const char*                APRSERVICE_CALL aprservice_object_get_comment(struct aprservice_object* object);
@@ -179,6 +182,7 @@ APRSERVICE_EXPORT char                       APRSERVICE_CALL aprservice_object_g
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_object_set_symbol(struct aprservice_object* object, char table, char key);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_object_set_comment(struct aprservice_object* object, const char* value);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_object_set_position(struct aprservice_object* object, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_object_set_compressed(struct aprservice_object* object, bool value);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_object_kill(struct aprservice_object* object);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_object_announce(struct aprservice_object* object);
 

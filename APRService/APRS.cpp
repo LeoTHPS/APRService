@@ -1502,6 +1502,8 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 			}
 		// }
 	}
+
+	ss << packet->position.comment;
 }
 void               aprs_packet_encode_telemetry(aprs_packet* packet, std::stringstream& ss)
 {

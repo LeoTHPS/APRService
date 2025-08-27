@@ -49,6 +49,12 @@ struct aprs_packet
 
 	struct
 	{
+		std::string nmea;
+		std::string comment;
+	} gps;
+
+	struct
+	{
 		bool        is_alive;
 		bool        is_compressed;
 
@@ -695,9 +701,18 @@ bool               aprs_packet_decode_mic_e_old(aprs_packet* packet)
 }
 bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 {
-	// TODO: decode raw gps
+	static std::regex regex("^((\\$[^,]+)(,[^,]*)+,(...))(.*)$");
 
-	return false;
+	std::cmatch match;
+
+	if (!aprs_regex_match(match, regex, packet->content.c_str()))
+		return false;
+
+	packet->type        = APRS_PACKET_TYPE_GPS;
+	packet->gps.nmea    = match[1].str();
+	packet->gps.comment = match[5].str();
+
+	return true;
 }
 bool               aprs_packet_decode_item(aprs_packet* packet)
 {
@@ -1206,6 +1221,11 @@ bool               aprs_packet_decode_maidenhead_grid_beacon(aprs_packet* packet
 	return false;
 }
 
+void               aprs_packet_encode_gps(aprs_packet* packet, std::stringstream& ss)
+{
+	ss << packet->gps.nmea;
+	ss << packet->gps.comment;
+}
 void               aprs_packet_encode_raw(aprs_packet* packet, std::stringstream& ss)
 {
 	ss << packet->content;
@@ -1544,7 +1564,7 @@ constexpr const aprs_packet_decoder_context aprs_packet_decoders[] =
 
 constexpr const aprs_packet_encoder_context aprs_packet_encoders[APRS_PACKET_TYPES_COUNT] =
 {
-	// { APRS_PACKET_TYPE_GPS,                    &aprs_packet_encode_gps                    },
+	{ APRS_PACKET_TYPE_GPS,                    &aprs_packet_encode_gps                    },
 	{ APRS_PACKET_TYPE_RAW,                    &aprs_packet_encode_raw                    },
 	{ APRS_PACKET_TYPE_ITEM,                   &aprs_packet_encode_item                   },
 	// { APRS_PACKET_TYPE_TEST,                   &aprs_packet_encode_test                   },
@@ -1965,6 +1985,61 @@ const char*               APRSERVICE_CALL aprs_packet_to_string(struct aprs_pack
 void                      APRSERVICE_CALL aprs_packet_add_reference(struct aprs_packet* packet)
 {
 	++packet->reference_count;
+}
+
+struct aprs_packet*       APRSERVICE_CALL aprs_packet_gps_init(const char* sender, const char* tocall, struct aprs_path* path, const char* nmea)
+{
+	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_GPS))
+	{
+		if (!aprs_packet_gps_set_nmea(packet, nmea))
+		{
+			aprs_packet_deinit(packet);
+
+			return nullptr;
+		}
+
+		return packet;
+	}
+
+	return nullptr;
+}
+const char*               APRSERVICE_CALL aprs_packet_gps_get_nmea(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_GPS)
+		return nullptr;
+
+	return packet->gps.nmea.c_str();
+}
+const char*               APRSERVICE_CALL aprs_packet_gps_get_comment(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_GPS)
+		return nullptr;
+
+	return packet->gps.comment.c_str();
+}
+bool                      APRSERVICE_CALL aprs_packet_gps_set_nmea(struct aprs_packet* packet, const char* value)
+{
+	if (!*value || (*value != '$'))
+		return false;
+
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_GPS)
+		return false;
+
+	packet->gps.nmea = value;
+
+	return true;
+}
+bool                      APRSERVICE_CALL aprs_packet_gps_set_comment(struct aprs_packet* packet, const char* value)
+{
+	if (!*value)
+		return false;
+
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_GPS)
+		return false;
+
+	packet->gps.comment = value;
+
+	return true;
 }
 
 struct aprs_packet*       APRSERVICE_CALL aprs_packet_item_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key)

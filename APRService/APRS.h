@@ -26,7 +26,7 @@ enum APRS_DISTANCES
 
 enum APRS_PACKET_TYPES
 {
-	// APRS_PACKET_TYPE_GPS,
+	APRS_PACKET_TYPE_GPS,
 	APRS_PACKET_TYPE_RAW,
 	APRS_PACKET_TYPE_ITEM,
 	// APRS_PACKET_TYPE_TEST,
@@ -114,6 +114,12 @@ APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_set_send
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_set_content(struct aprs_packet* packet, const char* value);
 APRSERVICE_EXPORT const char*               APRSERVICE_CALL aprs_packet_to_string(struct aprs_packet* packet);
 APRSERVICE_EXPORT void                      APRSERVICE_CALL aprs_packet_add_reference(struct aprs_packet* packet);
+
+APRSERVICE_EXPORT struct aprs_packet*       APRSERVICE_CALL aprs_packet_gps_init(const char* sender, const char* tocall, struct aprs_path* path, const char* nmea);
+APRSERVICE_EXPORT const char*               APRSERVICE_CALL aprs_packet_gps_get_nmea(struct aprs_packet* packet);
+APRSERVICE_EXPORT const char*               APRSERVICE_CALL aprs_packet_gps_get_comment(struct aprs_packet* packet);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_gps_set_nmea(struct aprs_packet* packet, const char* value);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_gps_set_comment(struct aprs_packet* packet, const char* value);
 
 APRSERVICE_EXPORT struct aprs_packet*       APRSERVICE_CALL aprs_packet_item_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key);
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_item_is_alive(struct aprs_packet* packet);

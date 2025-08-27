@@ -72,6 +72,15 @@ void    demo_event_handler(aprservice* service, aprservice_event_information* ev
 
 				switch (aprs_packet_get_type(packet))
 				{
+					case APRS_PACKET_TYPE_GPS:
+					{
+						auto nmea    = aprs_packet_gps_get_nmea(packet);
+						auto comment = aprs_packet_gps_get_comment(packet);
+
+						std::cout << "[Packet] [GPS] [From: " << sender << "] " << nmea << std::endl;
+					}
+					break;
+
 					case APRS_PACKET_TYPE_RAW:
 					{
 						auto content = aprs_packet_get_content(packet);
@@ -87,9 +96,7 @@ void    demo_event_handler(aprservice* service, aprservice_event_information* ev
 						auto item_latitude  = aprs_packet_item_get_latitude(packet);
 						auto item_longitude = aprs_packet_item_get_longitude(packet);
 
-						std::cout << "[Packet] [Item] ";
-
-						std::cout << "[From: " << sender << "] [Name: " << item_name << "] [Lat: " << item_latitude << "] [Long: " << item_longitude << "] " << item_comment << std::endl;
+						std::cout << "[Packet] [Item] [From: " << sender << "] [Name: " << item_name << "] [Lat: " << item_latitude << "] [Long: " << item_longitude << "] " << item_comment << std::endl;
 					}
 					break;
 

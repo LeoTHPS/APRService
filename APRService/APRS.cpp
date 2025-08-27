@@ -375,7 +375,19 @@ auto               aprs_validate_name(const char* value)
 	if (auto length = aprs_string_length(value, true); length && (length <= 9))
 	{
 		result.valid  = true;
-		result.length = length.length;
+		result.length = length;
+	}
+
+	return result;
+}
+auto               aprs_validate_path(const char* value)
+{
+	aprs_strlen_result result = { .valid = false, .length = 0 };
+
+	if (auto length = aprs_string_length(value, true); length && ((length <= 9) || ((length == 10) && (value[9] == '*'))))
+	{
+		result.valid  = true;
+		result.length = length;
 	}
 
 	return result;
@@ -420,7 +432,7 @@ auto               aprs_validate_comment(const char* value, size_t max_length)
 	if (auto length = aprs_string_length(value); length && (length <= max_length))
 	{
 		result.valid  = true;
-		result.length = length.length;
+		result.length = length;
 	}
 
 	return result;
@@ -1454,15 +1466,25 @@ constexpr const aprs_packet_decoder_context aprs_packet_decoders[] =
 
 constexpr const aprs_packet_encoder_context aprs_packet_encoders[APRS_PACKET_TYPES_COUNT] =
 {
-	{ APRS_PACKET_TYPE_RAW,          &aprs_packet_encode_raw          },
-	{ APRS_PACKET_TYPE_ITEM,         &aprs_packet_encode_item         },
-	{ APRS_PACKET_TYPE_OBJECT,       &aprs_packet_encode_object       },
-	{ APRS_PACKET_TYPE_STATUS,       &aprs_packet_encode_status       },
-	{ APRS_PACKET_TYPE_MESSAGE,      &aprs_packet_encode_message      },
-	{ APRS_PACKET_TYPE_WEATHER,      &aprs_packet_encode_weather      },
-	{ APRS_PACKET_TYPE_POSITION,     &aprs_packet_encode_position     },
-	{ APRS_PACKET_TYPE_TELEMETRY,    &aprs_packet_encode_telemetry    },
-	{ APRS_PACKET_TYPE_USER_DEFINED, &aprs_packet_encode_user_defined }
+	// { APRS_PACKET_TYPE_GPS,                    &aprs_packet_encode_gps                    },
+	{ APRS_PACKET_TYPE_RAW,                    &aprs_packet_encode_raw                    },
+	{ APRS_PACKET_TYPE_ITEM,                   &aprs_packet_encode_item                   },
+	// { APRS_PACKET_TYPE_TEST,                   &aprs_packet_encode_test                   },
+	// { APRS_PACKET_TYPE_QUERY,                  &aprs_packet_encode_query                  },
+	{ APRS_PACKET_TYPE_OBJECT,                 &aprs_packet_encode_object                 },
+	{ APRS_PACKET_TYPE_STATUS,                 &aprs_packet_encode_status                 },
+	{ APRS_PACKET_TYPE_MESSAGE,                &aprs_packet_encode_message                },
+	{ APRS_PACKET_TYPE_WEATHER,                &aprs_packet_encode_weather                },
+	{ APRS_PACKET_TYPE_POSITION,               &aprs_packet_encode_position               },
+	{ APRS_PACKET_TYPE_TELEMETRY,              &aprs_packet_encode_telemetry              },
+	// { APRS_PACKET_TYPE_MAP_FEATURE,            &aprs_packet_encode_map_feature            },
+	// { APRS_PACKET_TYPE_GRID_BEACON,            &aprs_packet_encode_grid_beacon            },
+	// { APRS_PACKET_TYPE_THIRD_PARTY,            &aprs_packet_encode_third_party            },
+	// { APRS_PACKET_TYPE_MICROFINDER,            &aprs_packet_encode_microfinder            },
+	{ APRS_PACKET_TYPE_USER_DEFINED,           &aprs_packet_encode_user_defined           },
+	// { APRS_PACKET_TYPE_SHELTER_TIME,           &aprs_packet_encode_shelter_time           },
+	// { APRS_PACKET_TYPE_STATION_CAPABILITIES,   &aprs_packet_encode_station_capabilities   },
+	// { APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON, &aprs_packet_encode_maidenhead_grid_beacon }
 };
 
 template<size_t ... I>
@@ -1514,7 +1536,7 @@ struct aprs_path*         APRSERVICE_CALL aprs_path_init_from_string(const char*
 			return nullptr;
 		}
 
-		if (!(chunk_length = aprs_validate_name(chunk)))
+		if (!(chunk_length = aprs_validate_path(chunk)))
 		{
 			delete path;
 
@@ -1548,10 +1570,10 @@ uint8_t                   APRSERVICE_CALL aprs_path_get_capacity(struct aprs_pat
 }
 bool                      APRSERVICE_CALL aprs_path_set(struct aprs_path* path, uint8_t index, const char* value)
 {
-	if (!value)
+	if (index >= path->size)
 		return false;
 
-	if (index >= path->size)
+	if (!aprs_validate_path(value))
 		return false;
 
 	path->chunks[index] = value;
@@ -1572,6 +1594,9 @@ bool                      APRSERVICE_CALL aprs_path_pop(struct aprs_path* path)
 }
 bool                      APRSERVICE_CALL aprs_path_push(struct aprs_path* path, const char* value)
 {
+	if (!aprs_validate_path(value))
+		return false;
+
 	if (path->size == path->chunks.max_size())
 		return false;
 
@@ -1712,8 +1737,6 @@ struct aprs_packet*                       aprs_packet_init_ex(const char* sender
 }
 struct aprs_packet*       APRSERVICE_CALL aprs_packet_init_from_string(const char* string)
 {
-	// TODO: validate sender/tocall/igate in initial regex match
-
 	static const std::regex regex("^([^>]{3,9})>([^,]+),([^:]+):(.+)$");
 	static const std::regex regex_path("^((\\S+?(?=,qA\\w)),(qA\\w),(.+))|(\\S+)$");
 

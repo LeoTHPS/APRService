@@ -963,6 +963,8 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 	packet->weather.humidity                = 0;
 	packet->weather.temperature             = 0;
 	packet->weather.barometric_pressure     = 0;
+	packet->weather.type                    = "";
+	packet->weather.software                = 0;
 
 	char        key;
 	int         value;
@@ -982,8 +984,13 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 			case 'b': packet->weather.barometric_pressure     = value; break;
 		}
 
-	packet->weather.type     = &string[1];
-	packet->weather.software = *string;
+	if (*string)
+	{
+		packet->weather.software = *string;
+
+		if (*(++string))
+			packet->weather.type = *string;
+	}
 
 	return true;
 }

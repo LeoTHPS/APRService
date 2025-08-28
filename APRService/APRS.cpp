@@ -15,14 +15,11 @@
 // logic depends on DHM being a subset of MDHM
 static_assert(APRS_TIME_MDHM & APRS_TIME_DHM);
 
-constexpr double   APRS_DEG2RAD                          = 3.14159265358979323846 / 180;
+constexpr double   APRS_DEG2RAD                      = 3.14159265358979323846 / 180;
 
-constexpr uint16_t APRS_DATA_EXTENSION_DFS_HEIGHT[]      = { 10, 20, 40, 80,  160, 320, 640, 1280, 2560, 5120 };
-constexpr uint16_t APRS_DATA_EXTENSION_DFS_DIRECTIVITY[] = { 0,  45, 90, 135, 180, 225, 270, 315,  360 };
-
-constexpr uint8_t  APRS_DATA_EXTENSION_PHG_POWER[]       = { 0,  1,  4,  9,   16,  25,  36,  49,   64,   81 };
-constexpr uint16_t APRS_DATA_EXTENSION_PHG_HEIGHT[]      = { 10, 20, 40, 80,  160, 320, 640, 1280, 2560, 5120 };
-constexpr uint16_t APRS_DATA_EXTENSION_PHG_DIRECTIVITY[] = { 0,  45, 90, 135, 180, 225, 270, 315,  360 };
+constexpr uint8_t  APRS_DATA_EXTENSION_POWER[]       = { 0,  1,  4,  9,   16,  25,  36,  49,   64,   81 };
+constexpr uint16_t APRS_DATA_EXTENSION_HEIGHT[]      = { 10, 20, 40, 80,  160, 320, 640, 1280, 2560, 5120 };
+constexpr uint16_t APRS_DATA_EXTENSION_DIRECTIVITY[] = { 0,  45, 90, 135, 180, 225, 270, 315,  360 };
 
 struct aprs_path
 {
@@ -743,10 +740,10 @@ void               aprs_packet_decode_data_extensions(aprs_packet* packet, std::
 
 				if ((power < 10) && (height < 10) && (directivity < 10))
 				{
-					packet->extensions.phg.power       = APRS_DATA_EXTENSION_PHG_POWER[power];
-					packet->extensions.phg.height      = APRS_DATA_EXTENSION_PHG_HEIGHT[height];
+					packet->extensions.phg.power       = APRS_DATA_EXTENSION_POWER[power];
+					packet->extensions.phg.height      = APRS_DATA_EXTENSION_HEIGHT[height];
 					packet->extensions.phg.gain        = gain;
-					packet->extensions.phg.directivity = APRS_DATA_EXTENSION_PHG_DIRECTIVITY[directivity];
+					packet->extensions.phg.directivity = APRS_DATA_EXTENSION_DIRECTIVITY[directivity];
 
 					string = string.substr(7);
 				}
@@ -767,9 +764,9 @@ void               aprs_packet_decode_data_extensions(aprs_packet* packet, std::
 				if ((height < 10) && (directivity < 10))
 				{
 					packet->extensions.dfs.strength    = strength;
-					packet->extensions.dfs.height      = APRS_DATA_EXTENSION_DFS_HEIGHT[height];
+					packet->extensions.dfs.height      = APRS_DATA_EXTENSION_HEIGHT[height];
 					packet->extensions.dfs.gain        = gain;
-					packet->extensions.dfs.directivity = APRS_DATA_EXTENSION_DFS_DIRECTIVITY[directivity];
+					packet->extensions.dfs.directivity = APRS_DATA_EXTENSION_DIRECTIVITY[directivity];
 
 					string = string.substr(7);
 				}
@@ -804,9 +801,9 @@ void               aprs_packet_encode_data_extensions(aprs_packet* packet, std::
 		{
 			ss << "DFS";
 			ss << (int)extensions.dfs.strength;
-			ss << get_table_index(extensions.dfs.height, APRS_DATA_EXTENSION_DFS_HEIGHT, 10);
+			ss << get_table_index(extensions.dfs.height, APRS_DATA_EXTENSION_HEIGHT, 10);
 			ss << (int)extensions.dfs.gain;
-			ss << get_table_index(extensions.dfs.directivity, APRS_DATA_EXTENSION_DFS_DIRECTIVITY, 9);
+			ss << get_table_index(extensions.dfs.directivity, APRS_DATA_EXTENSION_DIRECTIVITY, 9);
 
 			return true;
 		}
@@ -818,10 +815,10 @@ void               aprs_packet_encode_data_extensions(aprs_packet* packet, std::
 		if (extensions.phg.power || extensions.phg.height || extensions.phg.gain || extensions.phg.directivity)
 		{
 			ss << "PHG";
-			ss << get_table_index(extensions.phg.power, APRS_DATA_EXTENSION_PHG_POWER, 10);
-			ss << get_table_index(extensions.phg.height, APRS_DATA_EXTENSION_PHG_HEIGHT, 10);
+			ss << get_table_index(extensions.phg.power, APRS_DATA_EXTENSION_POWER, 10);
+			ss << get_table_index(extensions.phg.height, APRS_DATA_EXTENSION_HEIGHT, 10);
 			ss << (int)extensions.phg.gain;
-			ss << get_table_index(extensions.phg.directivity, APRS_DATA_EXTENSION_PHG_DIRECTIVITY, 9);
+			ss << get_table_index(extensions.phg.directivity, APRS_DATA_EXTENSION_DIRECTIVITY, 9);
 
 			return true;
 		}

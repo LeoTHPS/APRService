@@ -15,7 +15,14 @@
 // logic depends on DHM being a subset of MDHM
 static_assert(APRS_TIME_MDHM & APRS_TIME_DHM);
 
-static constexpr double APRS_DEG2RAD = 3.14159265358979323846 / 180;
+constexpr double   APRS_DEG2RAD                          = 3.14159265358979323846 / 180;
+
+constexpr uint16_t APRS_DATA_EXTENSION_DFS_HEIGHT[]      = { 10, 20, 40, 80,  160, 320, 640, 1280, 2560, 5120 };
+constexpr uint16_t APRS_DATA_EXTENSION_DFS_DIRECTIVITY[] = { 0,  45, 90, 135, 180, 225, 270, 315,  360 };
+
+constexpr uint8_t  APRS_DATA_EXTENSION_PHG_POWER[]       = { 0,  1,  4,  9,   16,  25,  36,  49,   64,   81 };
+constexpr uint16_t APRS_DATA_EXTENSION_PHG_HEIGHT[]      = { 10, 20, 40, 80,  160, 320, 640, 1280, 2560, 5120 };
+constexpr uint16_t APRS_DATA_EXTENSION_PHG_DIRECTIVITY[] = { 0,  45, 90, 135, 180, 225, 270, 315,  360 };
 
 struct aprs_path
 {
@@ -33,19 +40,48 @@ struct aprs_time
 	int type;
 };
 
+struct aprs_packet_data_extensions
+{
+	uint16_t speed;
+	uint16_t course;
+	int32_t  altitude;
+
+	struct
+	{
+		uint8_t  strength;
+		uint16_t height;
+		uint8_t  gain;
+		uint16_t directivity;
+	} dfs;
+
+	struct
+	{
+		uint8_t  power;
+		uint16_t height;
+		uint8_t  gain;
+		uint16_t directivity;
+	} phg;
+
+	struct
+	{
+		uint16_t miles;
+	} rng;
+};
+
 struct aprs_packet
 {
-	APRS_PACKET_TYPES type;
-	aprs_path*        path;
-	std::string       igate;
-	std::string       tocall;
-	std::string       sender;
-	std::string       content;
-	std::string       qconstruct;
+	APRS_PACKET_TYPES           type;
+	aprs_path*                  path;
+	std::string                 igate;
+	std::string                 tocall;
+	std::string                 sender;
+	std::string                 content;
+	std::string                 qconstruct;
+	aprs_packet_data_extensions extensions;
 
-	std::string       string;
+	std::string                 string;
 
-	size_t            reference_count;
+	size_t                      reference_count;
 
 	struct
 	{
@@ -63,9 +99,6 @@ struct aprs_packet
 		std::string name;
 		std::string comment;
 
-		uint16_t    speed;
-		uint16_t    course;
-		int32_t     altitude;
 		float       latitude;
 		float       longitude;
 
@@ -115,9 +148,6 @@ struct aprs_packet
 
 		aprs_time   time;
 
-		uint16_t    speed;
-		uint16_t    course;
-		int32_t     altitude;
 		float       latitude;
 		float       longitude;
 
@@ -500,7 +530,7 @@ T                  aprs_decode_int_ex(const char* string, size_t max_length, cha
 }
 bool               aprs_decode_time(aprs_time& value, const char* string, char type)
 {
-	auto string_is_valid = [](size_t index, char value)->bool
+	static auto string_is_valid = [](size_t index, char value)->bool
 	{
 		return isdigit(value);
 	};
@@ -540,7 +570,7 @@ bool               aprs_decode_time(aprs_time& value, const char* string, char t
 }
 bool               aprs_decode_latitude(float& value, const char* string, char hemisphere)
 {
-	auto string_is_valid = [](size_t index, char value)->bool
+	static auto string_is_valid = [](size_t index, char value)->bool
 	{
 		switch (index)
 		{
@@ -562,7 +592,7 @@ bool               aprs_decode_latitude(float& value, const char* string, char h
 	if (!aprs_validate_string(string, 7, string_is_valid))
 		return false;
 
-	auto get_char = [](size_t index, char value)
+	static auto get_char = [](size_t index, char value)
 	{
 		return (value == ' ') ? '0' : value;
 	};
@@ -580,7 +610,7 @@ bool               aprs_decode_latitude(float& value, const char* string, char h
 }
 bool               aprs_decode_longitude(float& value, const char* string, char hemisphere)
 {
-	auto string_is_valid = [](size_t index, char value)->bool
+	static auto string_is_valid = [](size_t index, char value)->bool
 	{
 		switch (index)
 		{
@@ -603,7 +633,7 @@ bool               aprs_decode_longitude(float& value, const char* string, char 
 	if (!aprs_validate_string(string, 8, string_is_valid))
 		return false;
 
-	auto get_char = [](size_t index, char value)
+	static auto get_char = [](size_t index, char value)
 	{
 		return (value == ' ') ? '0' : value;
 	};
@@ -621,7 +651,7 @@ bool               aprs_decode_longitude(float& value, const char* string, char 
 }
 bool               aprs_decode_compressed_location(aprs_compressed_location& value, const char* string)
 {
-	auto string_is_valid = [](size_t index, char value)->bool
+	static auto string_is_valid = [](size_t index, char value)->bool
 	{
 		switch (index)
 		{
@@ -681,6 +711,181 @@ bool               aprs_decode_compressed_location(aprs_compressed_location& val
 	return true;
 }
 
+void               aprs_packet_decode_data_extensions(aprs_packet* packet, std::string& string)
+{
+	static const std::regex regex_dfs("^DFS(\\d)(\\d)(\\d)(\\d)");
+	static const std::regex regex_phg("^PHG(\\d)(\\d)(\\d)(\\d)");
+	static const std::regex regex_rng("^RNG(\\d{4})");
+	static const std::regex regex_altitude("\\/A=(-?\\d{1,6})");
+	static const std::regex regex_course_speed("^((\\d{3})\\/(\\d{3}))");
+
+	switch (packet->type)
+	{
+		case APRS_PACKET_TYPE_ITEM:
+		case APRS_PACKET_TYPE_OBJECT:
+		case APRS_PACKET_TYPE_POSITION:
+		{
+			std::cmatch match;
+
+			if (aprs_regex_match(match, regex_course_speed, string.c_str()))
+			{
+				packet->extensions.speed  = aprs_decode_int<uint16_t>(match[3].first, 3);
+				packet->extensions.course = aprs_decode_int<uint16_t>(match[2].first, 3);
+
+				string = string.substr(7);
+			}
+			else if (aprs_regex_match(match, regex_phg, string.c_str()))
+			{
+				auto power       = aprs_decode_int<uint8_t>(match[1].first, 1);
+				auto height      = aprs_decode_int<uint16_t>(match[2].first, 1);
+				auto gain        = aprs_decode_int<uint8_t>(match[3].first, 1);
+				auto directivity = aprs_decode_int<uint16_t>(match[4].first, 1);
+
+				if ((power < 10) && (height < 10) && (directivity < 10))
+				{
+					packet->extensions.phg.power       = APRS_DATA_EXTENSION_PHG_POWER[power];
+					packet->extensions.phg.height      = APRS_DATA_EXTENSION_PHG_HEIGHT[height];
+					packet->extensions.phg.gain        = gain;
+					packet->extensions.phg.directivity = APRS_DATA_EXTENSION_PHG_DIRECTIVITY[directivity];
+
+					string = string.substr(7);
+				}
+			}
+			else if (aprs_regex_match(match, regex_rng, string.c_str()))
+			{
+				packet->extensions.rng.miles = aprs_decode_int<uint16_t>(match[1].first, 4);
+
+				string = string.substr(7);
+			}
+			else if (aprs_regex_match(match, regex_dfs, string.c_str()))
+			{
+				auto strength    = aprs_decode_int<uint8_t>(match[1].first, 1);
+				auto height      = aprs_decode_int<uint16_t>(match[2].first, 1);
+				auto gain        = aprs_decode_int<uint8_t>(match[3].first, 1);
+				auto directivity = aprs_decode_int<uint16_t>(match[4].first, 1);
+
+				if ((height < 10) && (directivity < 10))
+				{
+					packet->extensions.dfs.strength    = strength;
+					packet->extensions.dfs.height      = APRS_DATA_EXTENSION_DFS_HEIGHT[height];
+					packet->extensions.dfs.gain        = gain;
+					packet->extensions.dfs.directivity = APRS_DATA_EXTENSION_DFS_DIRECTIVITY[directivity];
+
+					string = string.substr(7);
+				}
+			}
+
+			if (aprs_regex_match(match, regex_altitude, string.c_str()))
+			{
+				packet->extensions.altitude = aprs_decode_int<int32_t>(match[1].first, match[1].length());
+
+				if (auto i = string.find(match[0].first, 0, match[0].length()); i != std::string::npos)
+					string = string.erase(i, match[0].length());
+			}
+		}
+		break;
+	}
+}
+void               aprs_packet_encode_data_extensions(aprs_packet* packet, std::stringstream& ss)
+{
+	static auto get_table_index     = [](auto value, const auto* values, size_t count)->size_t
+	{
+		size_t i = 0;
+
+		for (; i < count; ++i, ++values)
+			if (*values > value)
+				break;
+
+		return i - 1;
+	};
+	static auto encode_dfs          = [](const aprs_packet_data_extensions& extensions, std::stringstream& ss)
+	{
+		if (extensions.dfs.strength || extensions.dfs.height || extensions.dfs.gain || extensions.dfs.directivity)
+		{
+			ss << "DFS";
+			ss << (int)extensions.dfs.strength;
+			ss << get_table_index(extensions.dfs.height, APRS_DATA_EXTENSION_DFS_HEIGHT, 10);
+			ss << (int)extensions.dfs.gain;
+			ss << get_table_index(extensions.dfs.directivity, APRS_DATA_EXTENSION_DFS_DIRECTIVITY, 9);
+
+			return true;
+		}
+
+		return false;
+	};
+	static auto encode_phg          = [](const aprs_packet_data_extensions& extensions, std::stringstream& ss)
+	{
+		if (extensions.phg.power || extensions.phg.height || extensions.phg.gain || extensions.phg.directivity)
+		{
+			ss << "PHG";
+			ss << get_table_index(extensions.phg.power, APRS_DATA_EXTENSION_PHG_POWER, 10);
+			ss << get_table_index(extensions.phg.height, APRS_DATA_EXTENSION_PHG_HEIGHT, 10);
+			ss << (int)extensions.phg.gain;
+			ss << get_table_index(extensions.phg.directivity, APRS_DATA_EXTENSION_PHG_DIRECTIVITY, 9);
+
+			return true;
+		}
+
+		return false;
+	};
+	static auto encode_rng          = [](const aprs_packet_data_extensions& extensions, std::stringstream& ss)
+	{
+		if (extensions.rng.miles)
+		{
+			ss << "RNG";
+			ss << std::setfill('0') << std::setw(4) << extensions.rng.miles;
+
+			return true;
+		}
+
+		return false;
+	};
+	static auto encode_altitude     = [](const aprs_packet_data_extensions& extensions, std::stringstream& ss)
+	{
+		if (extensions.altitude)
+		{
+			ss << "/A=" << std::setfill('0') << std::setw(6) << extensions.altitude;
+
+			return true;
+		}
+
+		return false;
+	};
+	static auto encode_course_speed = [](const aprs_packet_data_extensions& extensions, std::stringstream& ss)
+	{
+		if (extensions.course || extensions.speed)
+		{
+			ss << std::setfill('0') << std::setw(3) << extensions.course;
+			ss << '/';
+			ss << std::setfill('0') << std::setw(3) << extensions.speed;
+
+			return true;
+		}
+
+		return false;
+	};
+
+	switch (packet->type)
+	{
+		case APRS_PACKET_TYPE_ITEM:
+		case APRS_PACKET_TYPE_OBJECT:
+			if (!packet->item_or_object.is_compressed)
+			{
+				encode_course_speed(packet->extensions, ss) || encode_phg(packet->extensions, ss) || encode_rng(packet->extensions, ss) || encode_dfs(packet->extensions, ss);
+				encode_altitude(packet->extensions, ss);
+			}
+			break;
+
+		case APRS_PACKET_TYPE_POSITION:
+			if (!(packet->position.flags & APRS_POSITION_FLAG_MIC_E) && !(packet->position.flags & APRS_POSITION_FLAG_COMPRESSED))
+			{
+				encode_course_speed(packet->extensions, ss) || encode_phg(packet->extensions, ss) || encode_rng(packet->extensions, ss) || encode_dfs(packet->extensions, ss);
+				encode_altitude(packet->extensions, ss);
+			}
+			break;
+	}
+}
+
 bool               aprs_packet_decode_mic_e(aprs_packet* packet)
 {
 	// packet->type           = APRS_PACKET_TYPE_POSITION;
@@ -701,7 +906,7 @@ bool               aprs_packet_decode_mic_e_old(aprs_packet* packet)
 }
 bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 {
-	static std::regex regex("^((\\$[^,]+)(,[^,]*)+,(...))(.*)$");
+	static const std::regex regex("^((\\$[^,]+)(,[^,]*)+,(...))(.*)$");
 
 	std::cmatch match;
 
@@ -716,8 +921,8 @@ bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 }
 bool               aprs_packet_decode_item(aprs_packet* packet)
 {
-	static std::regex regex("^\\)([^ !_]{3,9}) *([!_])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static std::regex regex_compressed("^\\)([^ !_]{3,9}) *([!_])(.{13})(.*)$");
+	static const std::regex regex("^\\)([^ !_]{3,9}) *([!_])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const std::regex regex_compressed("^\\)([^ !_]{3,9}) *([!_])(.{13})(.*)$");
 
 	std::cmatch match;
 
@@ -733,17 +938,17 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 			return false;
 
 		packet->type                            = APRS_PACKET_TYPE_OBJECT;
+		packet->extensions                      = {};
 		packet->item_or_object.is_alive         = *match[2].first == '!';
 		packet->item_or_object.is_compressed    = false;
 		packet->item_or_object.name             = match[1].str();
 		packet->item_or_object.comment          = match[9].str();
-		packet->item_or_object.speed            = 0;
-		packet->item_or_object.course           = 0;
-		packet->item_or_object.altitude         = 0;
 		packet->item_or_object.latitude         = latitude;
 		packet->item_or_object.longitude        = longitude;
 		packet->item_or_object.symbol_table     = *match[5].first;
 		packet->item_or_object.symbol_table_key = *match[8].first;
+
+		aprs_packet_decode_data_extensions(packet, packet->item_or_object.comment);
 
 		return true;
 	}
@@ -756,17 +961,17 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 			return false;
 
 		packet->type                            = APRS_PACKET_TYPE_OBJECT;
+		packet->extensions                      = {};
 		packet->item_or_object.is_alive         = *match[2].first == '!';
 		packet->item_or_object.is_compressed    = true;
 		packet->item_or_object.name             = match[1].str();
 		packet->item_or_object.comment          = match[4].str();
-		packet->item_or_object.speed            = location.speed;
-		packet->item_or_object.course           = location.course;
-		packet->item_or_object.altitude         = location.altitude;
 		packet->item_or_object.latitude         = location.latitude;
 		packet->item_or_object.longitude        = location.longitude;
 		packet->item_or_object.symbol_table     = location.symbol_table;
 		packet->item_or_object.symbol_table_key = location.symbol_table_key;
+
+		aprs_packet_decode_data_extensions(packet, packet->item_or_object.comment);
 
 		return true;
 	}
@@ -787,8 +992,8 @@ bool               aprs_packet_decode_query(aprs_packet* packet)
 }
 bool               aprs_packet_decode_object(aprs_packet* packet)
 {
-	static std::regex regex("^;([^ *_]{3,9}) *([*_])(\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static std::regex regex_compressed("^;([^ *_]{3,9}) *([*_])(\\d{6})([z\\/h])(.{13})(.*)$");
+	static const std::regex regex("^;([^ *_]{3,9}) *([*_])(\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const std::regex regex_compressed("^;([^ *_]{3,9}) *([*_])(\\d{6})([z\\/h])(.{13})(.*)$");
 
 	aprs_time   time;
 	std::cmatch match;
@@ -808,18 +1013,18 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 			return false;
 
 		packet->type                            = APRS_PACKET_TYPE_OBJECT;
+		packet->extensions                      = {};
 		packet->item_or_object.is_alive         = *match[2].first == '*';
 		packet->item_or_object.is_compressed    = false;
 		packet->item_or_object.time             = time;
 		packet->item_or_object.name             = match[1].str();
 		packet->item_or_object.comment          = match[11].str();
-		packet->item_or_object.speed            = 0;
-		packet->item_or_object.course           = 0;
-		packet->item_or_object.altitude         = 0;
 		packet->item_or_object.latitude         = latitude;
 		packet->item_or_object.longitude        = longitude;
 		packet->item_or_object.symbol_table     = *match[7].first;
 		packet->item_or_object.symbol_table_key = *match[10].first;
+
+		aprs_packet_decode_data_extensions(packet, packet->item_or_object.comment);
 
 		return true;
 	}
@@ -835,18 +1040,18 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 			return false;
 
 		packet->type                            = APRS_PACKET_TYPE_OBJECT;
+		packet->extensions                      = {};
 		packet->item_or_object.is_alive         = *match[2].first == '*';
 		packet->item_or_object.is_compressed    = true;
 		packet->item_or_object.time             = time;
 		packet->item_or_object.name             = match[1].str();
 		packet->item_or_object.comment          = match[6].str();
-		packet->item_or_object.speed            = location.speed;
-		packet->item_or_object.course           = location.course;
-		packet->item_or_object.altitude         = location.altitude;
 		packet->item_or_object.latitude         = location.latitude;
 		packet->item_or_object.longitude        = location.longitude;
 		packet->item_or_object.symbol_table     = location.symbol_table;
 		packet->item_or_object.symbol_table_key = location.symbol_table_key;
+
+		aprs_packet_decode_data_extensions(packet, packet->item_or_object.comment);
 
 		return true;
 	}
@@ -855,8 +1060,8 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 }
 bool               aprs_packet_decode_status(aprs_packet* packet)
 {
-	static std::regex regex("^>(.*)$");
-	static std::regex regex_time("^>(\\d{6})([z\\/h])(.*)$");
+	static const std::regex regex("^>(.*)$");
+	static const std::regex regex_time("^>(\\d{6})([z\\/h])(.*)$");
 
 	aprs_time   time;
 	std::cmatch match;
@@ -939,7 +1144,7 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 	if (!aprs_decode_time(packet->weather.time, &packet->content[1], 0))
 		return false;
 
-	auto decode_next_chunk = [](const char*& string, char& key, int& value)
+	static auto decode_next_chunk = [](const char*& string, char& key, int& value)
 	{
 		if (!isalpha(*string) || (!isdigit(string[1]) && (string[1] != '.') && (string[1] != ' ')))
 			return false;
@@ -1027,9 +1232,9 @@ bool               aprs_packet_decode_weather_peet_bros_uii(aprs_packet* packet)
 }
 bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 {
-	static std::regex regex("^[!=]([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static std::regex regex_time("^[\\/@](\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static std::regex regex_compressed("^[!=\\/@](.{13})(.*)$");
+	static const std::regex regex("^[!=]([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const std::regex regex_time("^[\\/@](\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const std::regex regex_compressed("^[!=\\/@](.{13})(.*)$");
 
 	std::cmatch match;
 
@@ -1045,15 +1250,15 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 			return false;
 
 		packet->type                      = APRS_PACKET_TYPE_POSITION;
+		packet->extensions                = {};
 		packet->position.flags            = flags;
-		packet->position.speed            = 0;
-		packet->position.course           = 0;
 		packet->position.comment          = match[7].str();
-		packet->position.altitude         = 0;
 		packet->position.latitude         = latitude;
 		packet->position.longitude        = longitude;
 		packet->position.symbol_table     = *match[3].first;
 		packet->position.symbol_table_key = *match[6].first;
+
+		aprs_packet_decode_data_extensions(packet, packet->position.comment);
 
 		return true;
 	}
@@ -1074,16 +1279,16 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 			return false;
 
 		packet->type                      = APRS_PACKET_TYPE_POSITION;
+		packet->extensions                = {};
 		packet->position.flags            = flags | APRS_POSITION_FLAG_TIME;
 		packet->position.time             = time;
-		packet->position.speed            = 0;
-		packet->position.course           = 0;
 		packet->position.comment          = match[9].str();
-		packet->position.altitude         = 0;
 		packet->position.latitude         = latitude;
 		packet->position.longitude        = longitude;
 		packet->position.symbol_table     = *match[5].first;
 		packet->position.symbol_table_key = *match[8].first;
+
+		aprs_packet_decode_data_extensions(packet, packet->position.comment);
 
 		return true;
 	}
@@ -1096,15 +1301,15 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 			return false;
 
 		packet->type                      = APRS_PACKET_TYPE_POSITION;
+		packet->extensions                = {};
 		packet->position.flags            = flags | APRS_POSITION_FLAG_COMPRESSED;
-		packet->position.speed            = location.speed;
-		packet->position.course           = location.course;
 		packet->position.comment          = match[2].str();
-		packet->position.altitude         = location.altitude;
 		packet->position.latitude         = location.latitude;
 		packet->position.longitude        = location.longitude;
 		packet->position.symbol_table     = location.symbol_table;
 		packet->position.symbol_table_key = location.symbol_table_key;
+
+		aprs_packet_decode_data_extensions(packet, packet->position.comment);
 
 		return true;
 	}
@@ -1264,17 +1469,9 @@ void               aprs_packet_encode_item(aprs_packet* packet, std::stringstrea
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
 		ss << longitude_west_east << packet->item_or_object.symbol_table_key;
-
-		if (packet->item_or_object.altitude)
-			ss << "/A=" << std::setfill('0') << std::setw(6) << packet->item_or_object.altitude;
-
-		if (packet->item_or_object.course || packet->item_or_object.speed)
-		{
-			ss << std::setfill('0') << std::setw(3) << packet->item_or_object.course;
-			ss << '/';
-			ss << std::setfill('0') << std::setw(3) << packet->item_or_object.speed;
-		}
 	// }
+
+	aprs_packet_encode_data_extensions(packet, ss);
 
 	ss << packet->item_or_object.comment;
 }
@@ -1327,17 +1524,9 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
 		ss << longitude_west_east << packet->item_or_object.symbol_table_key;
-
-		if (packet->item_or_object.altitude)
-			ss << "/A=" << std::setfill('0') << std::setw(6) << packet->item_or_object.altitude;
-
-		if (packet->item_or_object.course || packet->item_or_object.speed)
-		{
-			ss << std::setfill('0') << std::setw(3) << packet->item_or_object.course;
-			ss << '/';
-			ss << std::setfill('0') << std::setw(3) << packet->item_or_object.speed;
-		}
 	// }
+
+	aprs_packet_encode_data_extensions(packet, ss);
 
 	ss << packet->item_or_object.comment;
 }
@@ -1490,18 +1679,10 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 			ss << '.';
 			ss << std::setfill('0') << std::setw(2) << longitude_seconds;
 			ss << longitude_west_east << packet->position.symbol_table_key;
-
-			if (packet->position.altitude)
-				ss << "/A=" << std::setfill('0') << std::setw(6) << packet->position.altitude;
-
-			if (packet->position.course || packet->position.speed)
-			{
-				ss << std::setfill('0') << std::setw(3) << packet->position.course;
-				ss << '/';
-				ss << std::setfill('0') << std::setw(3) << packet->position.speed;
-			}
 		// }
 	}
+
+	aprs_packet_encode_data_extensions(packet, ss);
 
 	ss << packet->position.comment;
 }
@@ -1817,6 +1998,7 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_init(const char* sender, c
 		.path            = path,
 		.tocall          = tocall,
 		.sender          = sender,
+		.extensions      = {},
 		.reference_count = 1
 	};
 
@@ -1867,6 +2049,7 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_init_from_string(const cha
 		.sender          = match[1].str(),
 		.content         = match[4].str(),
 		.qconstruct      = path_match[3].str(),
+		.extensions      = {},
 
 		.reference_count = 1
 	};
@@ -2052,9 +2235,6 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_item_init(const char* send
 	{
 		packet->item_or_object.is_alive      = true;
 		packet->item_or_object.is_compressed = false;
-		packet->item_or_object.speed         = 0;
-		packet->item_or_object.course        = 0;
-		packet->item_or_object.altitude      = 0;
 		packet->item_or_object.latitude      = 0;
 		packet->item_or_object.longitude     = 0;
 
@@ -2104,21 +2284,21 @@ uint16_t                  APRSERVICE_CALL aprs_packet_item_get_speed(struct aprs
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return 0;
 
-	return packet->item_or_object.speed;
+	return packet->extensions.speed;
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_item_get_course(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return 0;
 
-	return packet->item_or_object.course;
+	return packet->extensions.course;
 }
 int32_t                   APRSERVICE_CALL aprs_packet_item_get_altitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return 0;
 
-	return packet->item_or_object.altitude;
+	return packet->extensions.altitude;
 }
 float                     APRSERVICE_CALL aprs_packet_item_get_latitude(struct aprs_packet* packet)
 {
@@ -2205,7 +2385,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_speed(struct aprs
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	packet->item_or_object.speed = value;
+	packet->extensions.speed = value;
 
 	return true;
 }
@@ -2217,7 +2397,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_course(struct apr
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	packet->item_or_object.course = value;
+	packet->extensions.course = value;
 
 	return true;
 }
@@ -2226,7 +2406,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_altitude(struct a
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	packet->item_or_object.altitude = value;
+	packet->extensions.altitude = value;
 
 	return true;
 }
@@ -2277,9 +2457,6 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_object_init(const char* se
 		packet->item_or_object.is_alive      = true;
 		packet->item_or_object.is_compressed = false;
 		packet->item_or_object.time          = *aprs_time_now();
-		packet->item_or_object.speed         = 0;
-		packet->item_or_object.course        = 0;
-		packet->item_or_object.altitude      = 0;
 		packet->item_or_object.latitude      = 0;
 		packet->item_or_object.longitude     = 0;
 
@@ -2336,21 +2513,21 @@ uint16_t                  APRSERVICE_CALL aprs_packet_object_get_speed(struct ap
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
-	return packet->item_or_object.speed;
+	return packet->extensions.speed;
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_object_get_course(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
-	return packet->item_or_object.course;
+	return packet->extensions.course;
 }
 int32_t                   APRSERVICE_CALL aprs_packet_object_get_altitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
-	return packet->item_or_object.altitude;
+	return packet->extensions.altitude;
 }
 float                     APRSERVICE_CALL aprs_packet_object_get_latitude(struct aprs_packet* packet)
 {
@@ -2449,7 +2626,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_speed(struct ap
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->item_or_object.speed = value;
+	packet->extensions.speed = value;
 
 	return true;
 }
@@ -2461,7 +2638,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_course(struct a
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->item_or_object.course = value;
+	packet->extensions.course = value;
 
 	return true;
 }
@@ -2470,7 +2647,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_altitude(struct
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->item_or_object.altitude = value;
+	packet->extensions.altitude = value;
 
 	return true;
 }
@@ -2704,7 +2881,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_id(struct aprs
 	}
 	else if (auto length = aprs_string_length(value, true); length && (length >= 1) && (length <= 5))
 	{
-		auto is_string_valid = [](size_t index, char value)->bool
+		static auto is_string_valid = [](size_t index, char value)->bool
 		{
 			return value && (value != ' ');
 		};
@@ -3119,21 +3296,21 @@ uint16_t                  APRSERVICE_CALL aprs_packet_position_get_speed(struct 
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return 0;
 
-	return packet->position.speed;
+	return packet->extensions.speed;
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_position_get_course(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return 0;
 
-	return packet->position.course;
+	return packet->extensions.course;
 }
 int32_t                   APRSERVICE_CALL aprs_packet_position_get_altitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return 0;
 
-	return packet->position.altitude;
+	return packet->extensions.altitude;
 }
 float                     APRSERVICE_CALL aprs_packet_position_get_latitude(struct aprs_packet* packet)
 {
@@ -3210,7 +3387,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_speed(struct 
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
-	packet->position.speed = value;
+	packet->extensions.speed = value;
 
 	return true;
 }
@@ -3222,7 +3399,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_course(struct
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
-	packet->position.course = value;
+	packet->extensions.course = value;
 
 	return true;
 }
@@ -3231,7 +3408,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_altitude(stru
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
-	packet->position.altitude = value;
+	packet->extensions.altitude = value;
 
 	return true;
 }

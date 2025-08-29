@@ -346,9 +346,9 @@ bool                                       aprservice_connection_write_aprs_is(a
 bool                                       aprservice_poll_tasks(struct aprservice* service);
 bool                                       aprservice_poll_messages(struct aprservice* service);
 bool                                       aprservice_poll_connection(struct aprservice* service);
-
 bool                                       aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id);
 bool                                       aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id);
+bool                                       aprservice_execute_command(struct aprservice* service, const std::string& name, const char* args);
 
 aprservice_connection*                     aprservice_connection_init(aprservice* service, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode)
 {
@@ -645,7 +645,7 @@ bool                                       aprservice_connection_open(aprservice
 
 	aprservice_event_execute(connection->service, APRSERVICE_EVENT_CONNECT, { });
 
-	auto generate_auth_request = [](aprservice* service, uint16_t passcode)
+	static auto generate_auth_request = [](aprservice* service, uint16_t passcode)
 	{
 		std::stringstream ss;
 		ss << "user " << service->station << " pass " << (passcode ? passcode : -1);
@@ -791,7 +791,7 @@ read_once:
 
 										string.reserve(command_buffer.size());
 
-										auto command_decode_path = [](std::string& string, const std::vector<uint8_t>& buffer, size_t offset)
+										static auto command_decode_path    = [](std::string& string, const std::vector<uint8_t>& buffer, size_t offset)
 										{
 											bool is_last;
 
@@ -822,7 +822,7 @@ read_once:
 
 											return offset;
 										};
-										auto command_decode_tocall = [](std::string& string, const std::vector<uint8_t>& buffer, size_t offset)
+										static auto command_decode_tocall  = [](std::string& string, const std::vector<uint8_t>& buffer, size_t offset)
 										{
 											for (size_t i = 0; i < 6; ++i, ++offset)
 												if (buffer[offset] != 0x40)
@@ -837,7 +837,7 @@ read_once:
 												while (ssid /= 10);
 											}
 										};
-										auto command_decode_station = [](std::string& string, const std::vector<uint8_t>& buffer, size_t offset)
+										static auto command_decode_station = [](std::string& string, const std::vector<uint8_t>& buffer, size_t offset)
 										{
 											for (size_t i = 0; i < 6; ++i, ++offset)
 												if (buffer[offset] != 0x40)
@@ -1688,7 +1688,7 @@ bool                                       aprservice_poll_messages(struct aprse
 }
 bool                                       aprservice_poll_connection(struct aprservice* service)
 {
-	auto on_receive_packet = [](aprservice* service, aprs_packet* packet, aprservice_connection* connection)
+	static auto on_receive_packet = [](aprservice* service, aprs_packet* packet, aprservice_connection* connection)
 	{
 		auto packet_type   = aprs_packet_get_type(packet);
 		auto packet_sender = aprs_packet_get_sender(packet);
@@ -1741,7 +1741,26 @@ bool                                       aprservice_poll_connection(struct apr
 						if (packet_message_id)
 							aprservice_send_message_ack(service, packet_sender, packet_message_id);
 
-						aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
+						static auto execute_command = [](aprservice* service, const char* content)
+						{
+							for (size_t i = 0; content[i]; ++i)
+								if (content[i] == ' ')
+								{
+									if (i == 0)
+										break;
+
+									std::string command(content, i);
+
+									aprservice_execute_command(service, command, &content[i + 1]);
+
+									return true;
+								}
+
+							return false;
+						};
+
+						if (!execute_command(service, packet_message_content))
+							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
 					}
 					break;
 			}
@@ -2529,6 +2548,17 @@ void                       APRSERVICE_CALL aprservice_disconnect(struct aprservi
 		service->is_connected = false;
 	}
 }
+bool                                       aprservice_execute_command(struct aprservice* service, const std::string& name, const char* args)
+{
+	if (auto it = service->commands.find(name); it != service->commands.end())
+	{
+		aprservice_command_execute(it->second, args);
+
+		return true;
+	}
+
+	return false;
+}
 
 struct aprservice_task*    APRSERVICE_CALL aprservice_task_schedule(struct aprservice* service, uint32_t seconds, aprservice_task_handler handler, void* param)
 {
@@ -3129,7 +3159,15 @@ void                       APRSERVICE_CALL aprservice_command_unregister(struct 
 		delete command;
 	}
 }
+const char*                APRSERVICE_CALL aprservice_command_get_help(struct aprservice_command* command)
+{
+	return command->help.c_str();
+}
 struct aprservice*         APRSERVICE_CALL aprservice_command_get_service(struct aprservice_command* command)
 {
 	return command->service;
+}
+void                       APRSERVICE_CALL aprservice_command_execute(struct aprservice_command* command, const char* args)
+{
+	command->handler(command->service, command, command->name.c_str(), args, command->handler_param);
 }

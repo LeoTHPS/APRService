@@ -188,6 +188,8 @@ APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_object_a
 
 APRSERVICE_EXPORT struct aprservice_command* APRSERVICE_CALL aprservice_command_register(struct aprservice* service, const char* name, const char* help, aprservice_command_handler handler, void* param);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_command_unregister(struct aprservice_command* command);
+APRSERVICE_EXPORT const char*                APRSERVICE_CALL aprservice_command_get_help(struct aprservice_command* command);
 APRSERVICE_EXPORT struct aprservice*         APRSERVICE_CALL aprservice_command_get_service(struct aprservice_command* command);
+APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_command_execute(struct aprservice_command* command, const char* args);
 
 #endif

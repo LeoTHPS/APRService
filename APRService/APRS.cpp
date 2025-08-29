@@ -3446,7 +3446,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_comment(struc
 
 		return true;
 	}
-	else if (auto length = aprs_validate_comment(value, 43))
+	else if (auto length = aprs_validate_comment(value, 36))
 	{
 		packet->position.comment.assign(value, length);
 

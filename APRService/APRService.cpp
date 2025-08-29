@@ -204,12 +204,16 @@ struct aprservice_object
 
 struct aprservice_command
 {
-	aprservice*                service;
+	aprservice*                       service;
 
-	std::string                name;
-	std::string                help;
-	aprservice_command_handler handler;
-	void*                      handler_param;
+	std::string                       name;
+	std::string                       help;
+
+	aprservice_command_filter_handler filter;
+	void*                             filter_param;
+
+	aprservice_command_handler        handler;
+	void*                             handler_param;
 };
 
 template<APRSERVICE_EVENTS EVENT>
@@ -342,13 +346,6 @@ int                                        aprservice_connection_write(aprservic
 bool                                       aprservice_connection_read_string(aprservice_connection* connection, std::string& value);
 bool                                       aprservice_connection_write_packet(aprservice_connection* connection, aprs_packet* value);
 bool                                       aprservice_connection_write_aprs_is(aprservice_connection* connection, std::string&& value);
-
-bool                                       aprservice_poll_tasks(struct aprservice* service);
-bool                                       aprservice_poll_messages(struct aprservice* service);
-bool                                       aprservice_poll_connection(struct aprservice* service);
-bool                                       aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id);
-bool                                       aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id);
-bool                                       aprservice_execute_command(struct aprservice* service, const std::string& name, const char* args);
 
 aprservice_connection*                     aprservice_connection_init(aprservice* service, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode)
 {
@@ -1309,6 +1306,13 @@ bool                                       aprservice_connection_write_aprs_is(a
 	return true;
 }
 
+bool                                       aprservice_poll_tasks(struct aprservice* service);
+bool                                       aprservice_poll_messages(struct aprservice* service);
+bool                                       aprservice_poll_connection(struct aprservice* service);
+bool                                       aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id);
+bool                                       aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id);
+bool                                       aprservice_execute_command(struct aprservice* service, const char* sender, const std::string& name, const char* args);
+
 struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, struct aprs_path* path, char symbol_table, char symbol_table_key)
 {
 	if (!station || !path)
@@ -1741,7 +1745,7 @@ bool                                       aprservice_poll_connection(struct apr
 						if (packet_message_id)
 							aprservice_send_message_ack(service, packet_sender, packet_message_id);
 
-						static auto execute_command = [](aprservice* service, const char* content)
+						static auto execute_command = [](aprservice* service, const char* sender, const char* content)
 						{
 							for (size_t i = 0; content[i]; ++i)
 								if (content[i] == ' ')
@@ -1751,7 +1755,7 @@ bool                                       aprservice_poll_connection(struct apr
 
 									std::string command(content, i);
 
-									aprservice_execute_command(service, command, &content[i + 1]);
+									aprservice_execute_command(service, sender, command, &content[i + 1]);
 
 									return true;
 								}
@@ -1759,7 +1763,7 @@ bool                                       aprservice_poll_connection(struct apr
 							return false;
 						};
 
-						if (!execute_command(service, packet_message_content))
+						if (!execute_command(service, packet_sender, packet_message_content))
 							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
 					}
 					break;
@@ -2548,14 +2552,10 @@ void                       APRSERVICE_CALL aprservice_disconnect(struct aprservi
 		service->is_connected = false;
 	}
 }
-bool                                       aprservice_execute_command(struct aprservice* service, const std::string& name, const char* args)
+bool                                       aprservice_execute_command(struct aprservice* service, const char* sender, const std::string& name, const char* args)
 {
 	if (auto it = service->commands.find(name); it != service->commands.end())
-	{
-		aprservice_command_execute(it->second, args);
-
-		return true;
-	}
+		return aprservice_command_execute(it->second, sender, args);
 
 	return false;
 }
@@ -3130,6 +3130,7 @@ struct aprservice_command* APRSERVICE_CALL aprservice_command_register(struct ap
 
 		command->name          = name;
 		command->help          = help;
+		command->filter        = nullptr;
 		command->handler       = handler;
 		command->handler_param = param;
 
@@ -3142,6 +3143,7 @@ struct aprservice_command* APRSERVICE_CALL aprservice_command_register(struct ap
 
 		.name          = name,
 		.help          = help,
+
 		.handler       = handler,
 		.handler_param = param
 	};
@@ -3167,7 +3169,23 @@ struct aprservice*         APRSERVICE_CALL aprservice_command_get_service(struct
 {
 	return command->service;
 }
-void                       APRSERVICE_CALL aprservice_command_execute(struct aprservice_command* command, const char* args)
+void                       APRSERVICE_CALL aprservice_command_set_help(struct aprservice_command* command, const char* value)
 {
-	command->handler(command->service, command, command->name.c_str(), args, command->handler_param);
+	command->help = value;
+}
+void                       APRSERVICE_CALL aprservice_command_set_filter(struct aprservice_command* command, aprservice_command_filter_handler handler, void* param)
+{
+	command->filter       = handler;
+	command->filter_param = param;
+}
+bool                       APRSERVICE_CALL aprservice_command_execute(struct aprservice_command* command, const char* sender, const char* args)
+{
+	if (!command->filter || command->filter(command->service, command, sender, command->name.c_str(), args, command->filter_param))
+	{
+		command->handler(command->service, command, command->name.c_str(), sender, args, command->handler_param);
+
+		return true;
+	}
+
+	return false;
 }

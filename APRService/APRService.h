@@ -93,7 +93,8 @@ struct aprservice_event_information_receive_server_message
 
 typedef void(APRSERVICE_CALL *aprservice_task_handler)(struct aprservice* service, struct aprservice_task_information* task, void* param);
 typedef void(APRSERVICE_CALL *aprservice_event_handler)(struct aprservice* service, struct aprservice_event_information* event, void* param);
-typedef void(APRSERVICE_CALL *aprservice_command_handler)(struct aprservice* service, struct aprservice_command* command, const char* name, const char* args, void* param);
+typedef void(APRSERVICE_CALL *aprservice_command_handler)(struct aprservice* service, struct aprservice_command* command, const char* sender, const char* name, const char* args, void* param);
+typedef bool(APRSERVICE_CALL *aprservice_command_filter_handler)(struct aprservice* service, struct aprservice_command* command, const char* sender, const char* name, const char* args, void* param);
 
 typedef void(APRSERVICE_CALL *aprservice_message_callback)(struct aprservice* service, enum APRSERVICE_MESSAGE_ERRORS error, void* param);
 
@@ -190,6 +191,8 @@ APRSERVICE_EXPORT struct aprservice_command* APRSERVICE_CALL aprservice_command_
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_command_unregister(struct aprservice_command* command);
 APRSERVICE_EXPORT const char*                APRSERVICE_CALL aprservice_command_get_help(struct aprservice_command* command);
 APRSERVICE_EXPORT struct aprservice*         APRSERVICE_CALL aprservice_command_get_service(struct aprservice_command* command);
-APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_command_execute(struct aprservice_command* command, const char* args);
+APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_command_set_help(struct aprservice_command* command, const char* value);
+APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_command_set_filter(struct aprservice_command* command, aprservice_command_filter_handler handler, void* param);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_command_execute(struct aprservice_command* command, const char* sender, const char* args);
 
 #endif

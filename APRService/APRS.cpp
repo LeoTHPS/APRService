@@ -646,6 +646,7 @@ bool               aprs_decode_longitude(float& value, const char* string, char 
 
 	return true;
 }
+
 bool               aprs_decode_compressed_location(aprs_compressed_location& value, const char* string)
 {
 	static auto string_is_valid = [](size_t index, char value)->bool
@@ -706,6 +707,33 @@ bool               aprs_decode_compressed_location(aprs_compressed_location& val
 	}
 
 	return true;
+}
+void               aprs_encode_compressed_location(const aprs_compressed_location& value, std::stringstream& ss)
+{
+	static constexpr uint32_t divs[4]      = { 753571, 8281, 91, 1 };
+	int32_t                   latlong[]    = { (int32_t)(380926 * (90 - value.latitude)), (int32_t)(190463 * (180 + value.longitude)) };
+	char                      altitude[2]  = { (char)((value.altitude / 91) + 33), (char)((value.altitude % 91) + 33) };
+	char                      latitude[4]  = {};
+	char                      longitude[4] = {};
+
+	for (int i = 0; i < 4; ++i)
+	{
+		latitude[i] = (latlong[0] / divs[i]) + 33;
+		latlong[0] %= divs[i];
+	}
+
+	for (int i = 0; i < 4; ++i)
+	{
+		longitude[i] = (latlong[1] / divs[i]) + 33;
+		latlong[1]  %= divs[i];
+	}
+
+	ss << value.symbol_table;
+	ss << latitude[0] << latitude[1] << latitude[2] << latitude[3];
+	ss << longitude[0] << longitude[1] << longitude[2] << longitude[3];
+	ss << value.symbol_table_key;
+	ss << altitude[0] << altitude[1];
+	ss << (uint8_t)0x51;
 }
 
 void               aprs_packet_decode_data_extensions(aprs_packet* packet, std::string& string)
@@ -866,18 +894,27 @@ void               aprs_packet_encode_data_extensions(aprs_packet* packet, std::
 	{
 		case APRS_PACKET_TYPE_ITEM:
 		case APRS_PACKET_TYPE_OBJECT:
+		{
+			encode_course_speed(packet->extensions, ss) ||
+				encode_phg(packet->extensions, ss) ||
+				encode_rng(packet->extensions, ss) ||
+				encode_dfs(packet->extensions, ss);
+
 			if (!packet->item_or_object.is_compressed)
-			{
-				encode_course_speed(packet->extensions, ss) || encode_phg(packet->extensions, ss) || encode_rng(packet->extensions, ss) || encode_dfs(packet->extensions, ss);
 				encode_altitude(packet->extensions, ss);
-			}
-			break;
+		}
+		break;
 
 		case APRS_PACKET_TYPE_POSITION:
-			if (!(packet->position.flags & APRS_POSITION_FLAG_MIC_E) && !(packet->position.flags & APRS_POSITION_FLAG_COMPRESSED))
+			if (!(packet->position.flags & APRS_POSITION_FLAG_MIC_E))
 			{
-				encode_course_speed(packet->extensions, ss) || encode_phg(packet->extensions, ss) || encode_rng(packet->extensions, ss) || encode_dfs(packet->extensions, ss);
-				encode_altitude(packet->extensions, ss);
+				encode_course_speed(packet->extensions, ss) ||
+					encode_phg(packet->extensions, ss) ||
+					encode_rng(packet->extensions, ss) ||
+					encode_dfs(packet->extensions, ss);
+
+				if (!(packet->position.flags & APRS_POSITION_FLAG_COMPRESSED))
+					encode_altitude(packet->extensions, ss);
 			}
 			break;
 	}
@@ -1438,12 +1475,25 @@ void               aprs_packet_encode_item(aprs_packet* packet, std::stringstrea
 	ss << std::setfill(' ') << std::setw(9) << std::left << packet->item_or_object.name;
 	ss << (packet->item_or_object.is_alive ? '!' : '_');
 
-	// if (packet->item_or_object.is_compressed)
-	// {
-		// TODO: encode compressed item position
-	// }
-	// else
-	// {
+	if (packet->item_or_object.is_compressed)
+	{
+		aprs_compressed_location location =
+		{
+			.speed            = packet->extensions.speed,
+			.course           = packet->extensions.course,
+			.altitude         = packet->extensions.altitude,
+
+			.latitude         = packet->item_or_object.latitude,
+			.longitude        = packet->item_or_object.longitude,
+
+			.symbol_table     = packet->item_or_object.symbol_table,
+			.symbol_table_key = packet->item_or_object.symbol_table_key
+		};
+
+		aprs_encode_compressed_location(location, ss);
+	}
+	else
+	{
 		auto latitude             = packet->item_or_object.latitude;
 		auto longitude            = packet->item_or_object.longitude;
 		char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
@@ -1466,7 +1516,7 @@ void               aprs_packet_encode_item(aprs_packet* packet, std::stringstrea
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
 		ss << longitude_west_east << packet->item_or_object.symbol_table_key;
-	// }
+	}
 
 	aprs_packet_encode_data_extensions(packet, ss);
 
@@ -1493,12 +1543,25 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 		ss << 'h';
 	}
 
-	// if (packet->item_or_object.is_compressed)
-	// {
-		// TODO: encode compressed object position
-	// }
-	// else
-	// {
+	if (packet->item_or_object.is_compressed)
+	{
+		aprs_compressed_location location =
+		{
+			.speed            = packet->extensions.speed,
+			.course           = packet->extensions.course,
+			.altitude         = packet->extensions.altitude,
+
+			.latitude         = packet->item_or_object.latitude,
+			.longitude        = packet->item_or_object.longitude,
+
+			.symbol_table     = packet->item_or_object.symbol_table,
+			.symbol_table_key = packet->item_or_object.symbol_table_key
+		};
+
+		aprs_encode_compressed_location(location, ss);
+	}
+	else
+	{
 		auto latitude             = packet->item_or_object.latitude;
 		auto longitude            = packet->item_or_object.longitude;
 		char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
@@ -1521,7 +1584,7 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
 		ss << longitude_west_east << packet->item_or_object.symbol_table_key;
-	// }
+	}
 
 	aprs_packet_encode_data_extensions(packet, ss);
 
@@ -1648,12 +1711,25 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 		else
 			ss << ((packet->position.flags & APRS_POSITION_FLAG_MESSAGING_ENABLED) ? '=' : '!');
 
-		// if (packet->position.flags & APRS_POSITION_FLAG_COMPRESSED)
-		// {
-			// TOOD: encode compressed position
-		// }
-		// else
-		// {
+		if (packet->position.flags & APRS_POSITION_FLAG_COMPRESSED)
+		{
+			aprs_compressed_location location =
+			{
+				.speed            = packet->extensions.speed,
+				.course           = packet->extensions.course,
+				.altitude         = packet->extensions.altitude,
+
+				.latitude         = packet->position.latitude,
+				.longitude        = packet->position.longitude,
+
+				.symbol_table     = packet->position.symbol_table,
+				.symbol_table_key = packet->position.symbol_table_key
+			};
+
+			aprs_encode_compressed_location(location, ss);
+		}
+		else
+		{
 			auto latitude             = packet->position.latitude;
 			auto longitude            = packet->position.longitude;
 			char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
@@ -1676,7 +1752,7 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 			ss << '.';
 			ss << std::setfill('0') << std::setw(2) << longitude_seconds;
 			ss << longitude_west_east << packet->position.symbol_table_key;
-		// }
+		}
 	}
 
 	aprs_packet_encode_data_extensions(packet, ss);

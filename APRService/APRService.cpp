@@ -1320,20 +1320,20 @@ struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, 
 
 	auto service = new aprservice
 	{
-		.is_connected     = false,
-		.is_monitoring    = false,
+		.is_connected    = false,
+		.is_monitoring   = false,
 
-		.time             = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
+		.time            = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
 
-		.path             = path,
-		.station          = station,
-		.position         = { .type = APRSERVICE_POSITION_TYPE_POSITION },
+		.path            = path,
+		.station         = station,
+		.position        = { .type = APRSERVICE_POSITION_TYPE_POSITION },
 
-		.events           = {},
+		.events          = {},
 
-		.message_count    = 0,
+		.message_count   = 0,
 
-		.telemetry_count  = 0
+		.telemetry_count = 0
 	};
 
 	if (!(service->position.packet = aprs_packet_position_init(station, APRSERVICE_TOCALL, path, 0, 0, 0, 0, 0, "", symbol_table, symbol_table_key)))

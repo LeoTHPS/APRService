@@ -1619,7 +1619,7 @@ bool                       APRSERVICE_CALL aprservice_poll(struct aprservice* se
 		return false;
 	}
 
-	if (!aprservice_poll_connection(service) && aprservice_is_connected(service))
+	if (aprservice_is_connected(service) && !aprservice_poll_connection(service) && aprservice_is_connected(service))
 	{
 		aprservice_log_error_ex(aprservice_poll_connection, false);
 

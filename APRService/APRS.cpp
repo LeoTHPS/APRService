@@ -65,6 +65,95 @@ struct aprs_packet_data_extensions
 	} rng;
 };
 
+struct aprs_packet_gps
+{
+	std::string nmea;
+	std::string comment;
+};
+struct aprs_packet_item
+{
+	bool        is_alive;
+	bool        is_compressed;
+
+	aprs_time   time;
+
+	std::string name;
+	std::string comment;
+
+	float       latitude;
+	float       longitude;
+
+	char        symbol_table;
+	char        symbol_table_key;
+};
+typedef aprs_packet_item aprs_packet_object;
+struct aprs_packet_status
+{
+	bool        is_time_set;
+
+	aprs_time   time;
+	std::string message;
+};
+struct aprs_packet_message
+{
+	std::string        id;
+	APRS_MESSAGE_TYPES type;
+	std::string        content;
+	std::string        destination;
+};
+struct aprs_packet_weather
+{
+	aprs_time   time;
+
+	uint16_t    wind_speed;
+	uint16_t    wind_speed_gust;
+	uint16_t    wind_direction;
+
+	uint16_t    rainfall_last_hour;
+	uint16_t    rainfall_last_24_hours;
+	uint16_t    rainfall_since_midnight;
+
+	uint8_t     humidity;
+	int16_t     temperature;
+	uint32_t    barometric_pressure;
+
+	std::string type;
+	char        software;
+};
+struct aprs_packet_position
+{
+	int         flags;
+
+	aprs_time   time;
+
+	float       latitude;
+	float       longitude;
+
+	std::string comment;
+
+	char        symbol_table;
+	char        symbol_table_key;
+};
+struct aprs_packet_telemetry
+{
+	APRS_TELEMETRY_TYPES   type;
+
+	std::array<uint8_t, 5> analog_u8;
+	std::array<float, 5>   analog_float;
+	uint8_t                digital;
+	uint16_t               sequence;
+	std::string            comment;
+};
+struct aprs_packet_user_defined
+{
+	char        id;
+	char        type;
+	std::string data;
+};
+struct aprs_packet_third_party
+{
+	std::string content;
+};
 struct aprs_packet
 {
 	APRS_PACKET_TYPES           type;
@@ -80,102 +169,19 @@ struct aprs_packet
 
 	size_t                      reference_count;
 
-	struct
+	union
 	{
-		std::string nmea;
-		std::string comment;
-	} gps;
-
-	struct
-	{
-		bool        is_alive;
-		bool        is_compressed;
-
-		aprs_time   time;
-
-		std::string name;
-		std::string comment;
-
-		float       latitude;
-		float       longitude;
-
-		char        symbol_table;
-		char        symbol_table_key;
-	} item_or_object;
-
-	struct
-	{
-		bool        is_time_set;
-
-		aprs_time   time;
-		std::string message;
-	} status;
-
-	struct
-	{
-		std::string        id;
-		APRS_MESSAGE_TYPES type;
-		std::string        content;
-		std::string        destination;
-	} message;
-
-	struct
-	{
-		aprs_time   time;
-
-		uint16_t    wind_speed;
-		uint16_t    wind_speed_gust;
-		uint16_t    wind_direction;
-
-		uint16_t    rainfall_last_hour;
-		uint16_t    rainfall_last_24_hours;
-		uint16_t    rainfall_since_midnight;
-
-		uint8_t     humidity;
-		int16_t     temperature;
-		uint32_t    barometric_pressure;
-
-		std::string type;
-		char        software;
-	} weather;
-
-	struct
-	{
-		int         flags;
-
-		aprs_time   time;
-
-		float       latitude;
-		float       longitude;
-
-		std::string comment;
-
-		char        symbol_table;
-		char        symbol_table_key;
-	} position;
-
-	struct
-	{
-		APRS_TELEMETRY_TYPES   type;
-
-		std::array<uint8_t, 5> analog_u8;
-		std::array<float, 5>   analog_float;
-		uint8_t                digital;
-		uint16_t               sequence;
-		std::string            comment;
-	} telemetry;
-
-	struct
-	{
-		char        id;
-		char        type;
-		std::string data;
-	} user_defined;
-
-	struct
-	{
-		std::string content;
-	} third_party;
+		aprs_packet_gps*          gps;
+		aprs_packet_item*         item;
+		aprs_packet_object*       object;
+		aprs_packet_status*       status;
+		aprs_packet_message*      message;
+		aprs_packet_weather*      weather;
+		aprs_packet_position*     position;
+		aprs_packet_telemetry*    telemetry;
+		aprs_packet_user_defined* user_defined;
+		aprs_packet_third_party*  third_party;
+	};
 };
 
 struct aprs_strlen_result
@@ -905,20 +911,20 @@ void               aprs_packet_encode_data_extensions(aprs_packet* packet, std::
 				encode_rng(packet->extensions, ss) ||
 				encode_dfs(packet->extensions, ss);
 
-			if (!packet->item_or_object.is_compressed)
+			if (!packet->object->is_compressed)
 				encode_altitude(packet->extensions, ss);
 		}
 		break;
 
 		case APRS_PACKET_TYPE_POSITION:
-			if (!(packet->position.flags & APRS_POSITION_FLAG_MIC_E))
+			if (!(packet->position->flags & APRS_POSITION_FLAG_MIC_E))
 			{
 				encode_course_speed(packet->extensions, ss) ||
 					encode_phg(packet->extensions, ss) ||
 					encode_rng(packet->extensions, ss) ||
 					encode_dfs(packet->extensions, ss);
 
-				if (!(packet->position.flags & APRS_POSITION_FLAG_COMPRESSED))
+				if (!(packet->position->flags & APRS_POSITION_FLAG_COMPRESSED))
 					encode_altitude(packet->extensions, ss);
 			}
 			break;
@@ -927,8 +933,8 @@ void               aprs_packet_encode_data_extensions(aprs_packet* packet, std::
 
 bool               aprs_packet_decode_mic_e(aprs_packet* packet)
 {
-	// packet->type           = APRS_PACKET_TYPE_POSITION;
-	// packet->position.flags = APRS_POSITION_FLAG_MIC_E;
+	// packet->type     = APRS_PACKET_TYPE_POSITION;
+	// packet->position = new aprs_packet_position { .flags = APRS_POSITION_FLAG_MIC_E };
 
 	// TODO: decode mic-e
 
@@ -936,8 +942,8 @@ bool               aprs_packet_decode_mic_e(aprs_packet* packet)
 }
 bool               aprs_packet_decode_mic_e_old(aprs_packet* packet)
 {
-	// packet->type           = APRS_PACKET_TYPE_POSITION;
-	// packet->position.flags = APRS_POSITION_FLAG_MIC_E;
+	// packet->type     = APRS_PACKET_TYPE_POSITION;
+	// packet->position = new aprs_packet_position { .flags = APRS_POSITION_FLAG_MIC_E };
 
 	// TODO: decode mic-e (old)
 
@@ -952,9 +958,8 @@ bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 	if (!aprs_regex_match(match, regex, packet->content.c_str()))
 		return false;
 
-	packet->type        = APRS_PACKET_TYPE_GPS;
-	packet->gps.nmea    = match[1].str();
-	packet->gps.comment = match[5].str();
+	packet->type = APRS_PACKET_TYPE_GPS;
+	packet->gps  = new aprs_packet_gps { .nmea = match[1].str(), .comment = match[5].str() };
 
 	return true;
 }
@@ -976,18 +981,21 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 		if (!aprs_decode_longitude(longitude, match[6].first, *match[7].first))
 			return false;
 
-		packet->type                            = APRS_PACKET_TYPE_OBJECT;
-		packet->extensions                      = {};
-		packet->item_or_object.is_alive         = *match[2].first == '!';
-		packet->item_or_object.is_compressed    = false;
-		packet->item_or_object.name             = match[1].str();
-		packet->item_or_object.comment          = match[9].str();
-		packet->item_or_object.latitude         = latitude;
-		packet->item_or_object.longitude        = longitude;
-		packet->item_or_object.symbol_table     = *match[5].first;
-		packet->item_or_object.symbol_table_key = *match[8].first;
+		packet->type       = APRS_PACKET_TYPE_ITEM;
+		packet->extensions = {};
+		packet->item       = new aprs_packet_item
+		{
+			.is_alive         = *match[2].first == '!',
+			.is_compressed    = false,
+			.name             = match[1].str(),
+			.comment          = match[9].str(),
+			.latitude         = latitude,
+			.longitude        = longitude,
+			.symbol_table     = *match[5].first,
+			.symbol_table_key = *match[8].first
+		};
 
-		aprs_packet_decode_data_extensions(packet, packet->item_or_object.comment);
+		aprs_packet_decode_data_extensions(packet, packet->item->comment);
 
 		return true;
 	}
@@ -999,18 +1007,21 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 		if (!aprs_decode_compressed_location(location, match[3].first))
 			return false;
 
-		packet->type                            = APRS_PACKET_TYPE_OBJECT;
-		packet->extensions                      = {};
-		packet->item_or_object.is_alive         = *match[2].first == '!';
-		packet->item_or_object.is_compressed    = true;
-		packet->item_or_object.name             = match[1].str();
-		packet->item_or_object.comment          = match[4].str();
-		packet->item_or_object.latitude         = location.latitude;
-		packet->item_or_object.longitude        = location.longitude;
-		packet->item_or_object.symbol_table     = location.symbol_table;
-		packet->item_or_object.symbol_table_key = location.symbol_table_key;
+		packet->type       = APRS_PACKET_TYPE_ITEM;
+		packet->extensions = {};
+		packet->item       = new aprs_packet_item
+		{
+			.is_alive         = *match[2].first == '!',
+			.is_compressed    = true,
+			.name             = match[1].str(),
+			.comment          = match[4].str(),
+			.latitude         = location.latitude,
+			.longitude        = location.longitude,
+			.symbol_table     = location.symbol_table,
+			.symbol_table_key = location.symbol_table_key
+		};
 
-		aprs_packet_decode_data_extensions(packet, packet->item_or_object.comment);
+		aprs_packet_decode_data_extensions(packet, packet->item->comment);
 
 		return true;
 	}
@@ -1019,12 +1030,16 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 }
 bool               aprs_packet_decode_test(aprs_packet* packet)
 {
+	// packet->type = APRS_PACKET_TYPE_TEST;
+
 	// TODO: decode test
 
 	return false;
 }
 bool               aprs_packet_decode_query(aprs_packet* packet)
 {
+	// packet->type = APRS_PACKET_TYPE_QUERY;
+
 	// TODO: decode query
 
 	return false;
@@ -1051,19 +1066,22 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 		if (!aprs_decode_longitude(longitude, match[8].first, *match[9].first))
 			return false;
 
-		packet->type                            = APRS_PACKET_TYPE_OBJECT;
-		packet->extensions                      = {};
-		packet->item_or_object.is_alive         = *match[2].first == '*';
-		packet->item_or_object.is_compressed    = false;
-		packet->item_or_object.time             = time;
-		packet->item_or_object.name             = match[1].str();
-		packet->item_or_object.comment          = match[11].str();
-		packet->item_or_object.latitude         = latitude;
-		packet->item_or_object.longitude        = longitude;
-		packet->item_or_object.symbol_table     = *match[7].first;
-		packet->item_or_object.symbol_table_key = *match[10].first;
+		packet->type       = APRS_PACKET_TYPE_OBJECT;
+		packet->extensions = {};
+		packet->object     = new aprs_packet_object
+		{
+			.is_alive         = *match[2].first == '*',
+			.is_compressed    = false,
+			.time             = time,
+			.name             = match[1].str(),
+			.comment          = match[11].str(),
+			.latitude         = latitude,
+			.longitude        = longitude,
+			.symbol_table     = *match[7].first,
+			.symbol_table_key = *match[10].first
+		};
 
-		aprs_packet_decode_data_extensions(packet, packet->item_or_object.comment);
+		aprs_packet_decode_data_extensions(packet, packet->object->comment);
 
 		return true;
 	}
@@ -1078,19 +1096,22 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 		if (!aprs_decode_compressed_location(location, match[5].first))
 			return false;
 
-		packet->type                            = APRS_PACKET_TYPE_OBJECT;
-		packet->extensions                      = {};
-		packet->item_or_object.is_alive         = *match[2].first == '*';
-		packet->item_or_object.is_compressed    = true;
-		packet->item_or_object.time             = time;
-		packet->item_or_object.name             = match[1].str();
-		packet->item_or_object.comment          = match[6].str();
-		packet->item_or_object.latitude         = location.latitude;
-		packet->item_or_object.longitude        = location.longitude;
-		packet->item_or_object.symbol_table     = location.symbol_table;
-		packet->item_or_object.symbol_table_key = location.symbol_table_key;
+		packet->type       = APRS_PACKET_TYPE_OBJECT;
+		packet->extensions = {};
+		packet->object     = new aprs_packet_object
+		{
+			.is_alive         = *match[2].first == '*',
+			.is_compressed    = true,
+			.time             = time,
+			.name             = match[1].str(),
+			.comment          = match[6].str(),
+			.latitude         = location.latitude,
+			.longitude        = location.longitude,
+			.symbol_table     = location.symbol_table,
+			.symbol_table_key = location.symbol_table_key
+		};
 
-		aprs_packet_decode_data_extensions(packet, packet->item_or_object.comment);
+		aprs_packet_decode_data_extensions(packet, packet->object->comment);
 
 		return true;
 	}
@@ -1107,9 +1128,12 @@ bool               aprs_packet_decode_status(aprs_packet* packet)
 
 	if (aprs_regex_match(match, regex, packet->content.c_str()))
 	{
-		packet->type               = APRS_PACKET_TYPE_STATUS;
-		packet->status.is_time_set = false;
-		packet->status.message     = match[1].str();
+		packet->type   = APRS_PACKET_TYPE_STATUS;
+		packet->status = new aprs_packet_status
+		{
+			.is_time_set = false,
+			.message     = match[1].str()
+		};
 
 		return true;
 	}
@@ -1119,10 +1143,13 @@ bool               aprs_packet_decode_status(aprs_packet* packet)
 		if (!aprs_decode_time(time, match[1].first, *match[2].first))
 			return false;
 
-		packet->type               = APRS_PACKET_TYPE_STATUS;
-		packet->status.is_time_set = true;
-		packet->status.time        = time;
-		packet->status.message     = match[3].str();
+		packet->type   = APRS_PACKET_TYPE_STATUS;
+		packet->status = new aprs_packet_status
+		{
+			.is_time_set = true,
+			.time        = time,
+			.message     = match[3].str()
+		};
 
 		return true;
 	}
@@ -1154,33 +1181,38 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 	if (id.length() > 5)
 		return false;
 
-	packet->type                = APRS_PACKET_TYPE_MESSAGE;
-	packet->message.id          = std::move(id);
-	packet->message.type        = APRS_MESSAGE_TYPE_MESSAGE;
-	packet->message.content     = std::move(content);
-	packet->message.destination = std::move(destination);
+	packet->type    = APRS_PACKET_TYPE_MESSAGE;
+	packet->message = new aprs_packet_message
+	{
+		.id          = std::move(id),
+		.type        = APRS_MESSAGE_TYPE_MESSAGE,
+		.content     = std::move(content),
+		.destination = std::move(destination)
+	};
 
-	if (aprs_regex_match(match, regex_ack, packet->message.content.c_str()))
+	if (aprs_regex_match(match, regex_ack, packet->message->content.c_str()))
 	{
-		packet->message.type = APRS_MESSAGE_TYPE_ACK;
-		packet->message.content.clear();
+		packet->message->type = APRS_MESSAGE_TYPE_ACK;
+		packet->message->content.clear();
 	}
-	else if (aprs_regex_match(match, regex_rej, packet->message.content.c_str()))
+	else if (aprs_regex_match(match, regex_rej, packet->message->content.c_str()))
 	{
-		packet->message.type = APRS_MESSAGE_TYPE_REJECT;
-		packet->message.content.clear();
+		packet->message->type = APRS_MESSAGE_TYPE_REJECT;
+		packet->message->content.clear();
 	}
-	else if (aprs_regex_match(match, regex_bln, packet->message.destination.c_str()))
+	else if (aprs_regex_match(match, regex_bln, packet->message->destination.c_str()))
 	{
-		packet->message.type        = APRS_MESSAGE_TYPE_BULLETIN;
-		packet->message.destination = match[1].str();
+		packet->message->type        = APRS_MESSAGE_TYPE_BULLETIN;
+		packet->message->destination = match[1].str();
 	}
 
 	return true;
 }
 bool               aprs_packet_decode_weather(aprs_packet* packet)
 {
-	if (!aprs_decode_time(packet->weather.time, &packet->content[1], 0))
+	aprs_time time;
+
+	if (!aprs_decode_time(time, &packet->content[1], 0))
 		return false;
 
 	static auto decode_next_chunk = [](const char*& string, char& key, int& value)
@@ -1212,18 +1244,8 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 		return true;
 	};
 
-	packet->type                            = APRS_PACKET_TYPE_WEATHER;
-	packet->weather.wind_speed              = 0;
-	packet->weather.wind_speed_gust         = 0;
-	packet->weather.wind_direction          = 0;
-	packet->weather.rainfall_last_hour      = 0;
-	packet->weather.rainfall_last_24_hours  = 0;
-	packet->weather.rainfall_since_midnight = 0;
-	packet->weather.humidity                = 0;
-	packet->weather.temperature             = 0;
-	packet->weather.barometric_pressure     = 0;
-	packet->weather.type                    = "";
-	packet->weather.software                = 0;
+	packet->type    = APRS_PACKET_TYPE_WEATHER;
+	packet->weather = new aprs_packet_weather { .time = time };
 
 	char        key;
 	int         value;
@@ -1232,23 +1254,23 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 	while (decode_next_chunk(string, key, value))
 		switch (key)
 		{
-			case 'c': packet->weather.wind_direction          = value; break;
-			case 's': packet->weather.wind_speed              = value; break;
-			case 'g': packet->weather.wind_speed_gust         = value; break;
-			case 't': packet->weather.temperature             = value; break;
-			case 'r': packet->weather.rainfall_last_hour      = value; break;
-			case 'p': packet->weather.rainfall_last_24_hours  = value; break;
-			case 'P': packet->weather.rainfall_since_midnight = value; break;
-			case 'h': packet->weather.humidity                = value; break;
-			case 'b': packet->weather.barometric_pressure     = value; break;
+			case 'c': packet->weather->wind_direction          = value; break;
+			case 's': packet->weather->wind_speed              = value; break;
+			case 'g': packet->weather->wind_speed_gust         = value; break;
+			case 't': packet->weather->temperature             = value; break;
+			case 'r': packet->weather->rainfall_last_hour      = value; break;
+			case 'p': packet->weather->rainfall_last_24_hours  = value; break;
+			case 'P': packet->weather->rainfall_since_midnight = value; break;
+			case 'h': packet->weather->humidity                = value; break;
+			case 'b': packet->weather->barometric_pressure     = value; break;
 		}
 
 	if (*string)
 	{
-		packet->weather.software = *string;
+		packet->weather->software = *string;
 
 		if (*(++string))
-			packet->weather.type = *string;
+			packet->weather->type = *string;
 	}
 
 	return true;
@@ -1288,16 +1310,19 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 		if (!aprs_decode_longitude(longitude, match[4].str().c_str(), *match[5].first))
 			return false;
 
-		packet->type                      = APRS_PACKET_TYPE_POSITION;
-		packet->extensions                = {};
-		packet->position.flags            = flags;
-		packet->position.comment          = match[7].str();
-		packet->position.latitude         = latitude;
-		packet->position.longitude        = longitude;
-		packet->position.symbol_table     = *match[3].first;
-		packet->position.symbol_table_key = *match[6].first;
+		packet->type       = APRS_PACKET_TYPE_POSITION;
+		packet->extensions = {};
+		packet->position   = new aprs_packet_position
+		{
+			.flags            = flags,
+			.latitude         = latitude,
+			.longitude        = longitude,
+			.comment          = match[7].str(),
+			.symbol_table     = *match[3].first,
+			.symbol_table_key = *match[6].first
+		};
 
-		aprs_packet_decode_data_extensions(packet, packet->position.comment);
+		aprs_packet_decode_data_extensions(packet, packet->position->comment);
 
 		return true;
 	}
@@ -1317,17 +1342,20 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 		if (!aprs_decode_longitude(longitude, match[6].str().c_str(), *match[7].first))
 			return false;
 
-		packet->type                      = APRS_PACKET_TYPE_POSITION;
-		packet->extensions                = {};
-		packet->position.flags            = flags | APRS_POSITION_FLAG_TIME;
-		packet->position.time             = time;
-		packet->position.comment          = match[9].str();
-		packet->position.latitude         = latitude;
-		packet->position.longitude        = longitude;
-		packet->position.symbol_table     = *match[5].first;
-		packet->position.symbol_table_key = *match[8].first;
+		packet->type       = APRS_PACKET_TYPE_POSITION;
+		packet->extensions = {};
+		packet->position   = new aprs_packet_position
+		{
+			.flags            = flags | APRS_POSITION_FLAG_TIME,
+			.time             = time,
+			.latitude         = latitude,
+			.longitude        = longitude,
+			.comment          = match[9].str(),
+			.symbol_table     = *match[5].first,
+			.symbol_table_key = *match[8].first,
+		};
 
-		aprs_packet_decode_data_extensions(packet, packet->position.comment);
+		aprs_packet_decode_data_extensions(packet, packet->position->comment);
 
 		return true;
 	}
@@ -1339,16 +1367,19 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 		if (!aprs_decode_compressed_location(location, match[1].str().c_str()))
 			return false;
 
-		packet->type                      = APRS_PACKET_TYPE_POSITION;
-		packet->extensions                = {};
-		packet->position.flags            = flags | APRS_POSITION_FLAG_COMPRESSED;
-		packet->position.comment          = match[2].str();
-		packet->position.latitude         = location.latitude;
-		packet->position.longitude        = location.longitude;
-		packet->position.symbol_table     = location.symbol_table;
-		packet->position.symbol_table_key = location.symbol_table_key;
+		packet->type       = APRS_PACKET_TYPE_POSITION;
+		packet->extensions = {};
+		packet->position   = new aprs_packet_position
+		{
+			.flags            = flags | APRS_POSITION_FLAG_COMPRESSED,
+			.latitude         = location.latitude,
+			.longitude        = location.longitude,
+			.comment          = match[2].str(),
+			.symbol_table     = location.symbol_table,
+			.symbol_table_key = location.symbol_table_key
+		};
 
-		aprs_packet_decode_data_extensions(packet, packet->position.comment);
+		aprs_packet_decode_data_extensions(packet, packet->position->comment);
 
 		return true;
 	}
@@ -1386,10 +1417,13 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 	auto& analog_4 = match[9];
 	auto& analog_5 = match[11];
 
-	packet->type               = APRS_PACKET_TYPE_TELEMETRY;
-	packet->telemetry.comment  = match[14].str();
-	packet->telemetry.digital  = strtoul(match[13].str().c_str(), nullptr, 10);
-	packet->telemetry.sequence = strtoul(match[1].str().c_str(), nullptr, 10);
+	packet->type      = APRS_PACKET_TYPE_TELEMETRY;
+	packet->telemetry = new aprs_packet_telemetry
+	{
+		.digital  = (uint8_t)strtoul(match[13].str().c_str(), nullptr, 10),
+		.sequence = (uint16_t)strtoul(match[1].str().c_str(), nullptr, 10),
+		.comment  = match[14].str()
+	};
 
 	if (!aprs_string_contains(analog_1.first, analog_1.length(), '.') &&
 		!aprs_string_contains(analog_2.first, analog_1.length(), '.') &&
@@ -1397,41 +1431,48 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 		!aprs_string_contains(analog_4.first, analog_1.length(), '.') &&
 		!aprs_string_contains(analog_5.first, analog_1.length(), '.'))
 	{
-		packet->telemetry.type         = APRS_TELEMETRY_TYPE_U8;
-		packet->telemetry.analog_u8[0] = aprs_decode_int<uint8_t>(analog_1.first, analog_1.length());
-		packet->telemetry.analog_u8[1] = aprs_decode_int<uint8_t>(analog_2.first, analog_2.length());
-		packet->telemetry.analog_u8[2] = aprs_decode_int<uint8_t>(analog_3.first, analog_3.length());
-		packet->telemetry.analog_u8[3] = aprs_decode_int<uint8_t>(analog_4.first, analog_4.length());
-		packet->telemetry.analog_u8[4] = aprs_decode_int<uint8_t>(analog_5.first, analog_5.length());
+		packet->telemetry->type         = APRS_TELEMETRY_TYPE_U8;
+		packet->telemetry->analog_u8[0] = aprs_decode_int<uint8_t>(analog_1.first, analog_1.length());
+		packet->telemetry->analog_u8[1] = aprs_decode_int<uint8_t>(analog_2.first, analog_2.length());
+		packet->telemetry->analog_u8[2] = aprs_decode_int<uint8_t>(analog_3.first, analog_3.length());
+		packet->telemetry->analog_u8[3] = aprs_decode_int<uint8_t>(analog_4.first, analog_4.length());
+		packet->telemetry->analog_u8[4] = aprs_decode_int<uint8_t>(analog_5.first, analog_5.length());
 	}
 	else
 	{
-		packet->telemetry.type            = APRS_TELEMETRY_TYPE_FLOAT;
-		packet->telemetry.analog_float[0] = strtof(analog_1.str().c_str(), nullptr);
-		packet->telemetry.analog_float[1] = strtof(analog_2.str().c_str(), nullptr);
-		packet->telemetry.analog_float[2] = strtof(analog_3.str().c_str(), nullptr);
-		packet->telemetry.analog_float[3] = strtof(analog_4.str().c_str(), nullptr);
-		packet->telemetry.analog_float[4] = strtof(analog_5.str().c_str(), nullptr);
+		packet->telemetry->type            = APRS_TELEMETRY_TYPE_FLOAT;
+		packet->telemetry->analog_float[0] = strtof(analog_1.str().c_str(), nullptr);
+		packet->telemetry->analog_float[1] = strtof(analog_2.str().c_str(), nullptr);
+		packet->telemetry->analog_float[2] = strtof(analog_3.str().c_str(), nullptr);
+		packet->telemetry->analog_float[3] = strtof(analog_4.str().c_str(), nullptr);
+		packet->telemetry->analog_float[4] = strtof(analog_5.str().c_str(), nullptr);
 	}
 
 	return true;
 }
 bool               aprs_packet_decode_microfinder(aprs_packet* packet)
 {
+	// packet->type = APRS_PACKET_TYPE_MICROFINDER;
+
 	// TODO: decode micro finder
 
 	return false;
 }
 bool               aprs_packet_decode_map_feature(aprs_packet* packet)
 {
+	// packet->type = APRS_PACKET_TYPE_MAP_FEATURE;
+
 	// TODO: decode map feature
 
 	return false;
 }
 bool               aprs_packet_decode_third_party(aprs_packet* packet)
 {
-	packet->type = APRS_PACKET_TYPE_THIRD_PARTY;
-	packet->third_party.content.assign(packet->content, 1);
+	packet->type        = APRS_PACKET_TYPE_THIRD_PARTY;
+	packet->third_party = new aprs_packet_third_party
+	{
+		.content = packet->content.substr(1)
+	};
 
 	return true;
 }
@@ -1440,27 +1481,36 @@ bool               aprs_packet_decode_user_defined(aprs_packet* packet)
 	if (packet->content.length() < 3)
 		return false;
 
-	packet->type              = APRS_PACKET_TYPE_USER_DEFINED;
-	packet->user_defined.id   = packet->content[1];
-	packet->user_defined.type = packet->content[2];
-	packet->user_defined.data.assign(packet->content, 3);
+	packet->type         = APRS_PACKET_TYPE_USER_DEFINED;
+	packet->user_defined = new aprs_packet_user_defined
+	{
+		.id   = packet->content[1],
+		.type = packet->content[2],
+		.data = packet->content.substr(3)
+	};
 
 	return true;
 }
 bool               aprs_packet_decode_shelter_time(aprs_packet* packet)
 {
+	// packet->type = APRS_PACKET_TYPE_SHELTER_TIME;
+
 	// TODO: decode shelter time
 
 	return false;
 }
 bool               aprs_packet_decode_station_capabilities(aprs_packet* packet)
 {
+	// packet->type = APRS_PACKET_TYPE_STATION_CAPABILITIES;
+
 	// TODO: decode station capabilities
 
 	return false;
 }
 bool               aprs_packet_decode_maidenhead_grid_beacon(aprs_packet* packet)
 {
+	// packet->type = APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON;
+
 	// TODO: decode maidenhead grid beacon
 
 	return false;
@@ -1468,8 +1518,8 @@ bool               aprs_packet_decode_maidenhead_grid_beacon(aprs_packet* packet
 
 void               aprs_packet_encode_gps(aprs_packet* packet, std::stringstream& ss)
 {
-	ss << packet->gps.nmea;
-	ss << packet->gps.comment;
+	ss << packet->gps->nmea;
+	ss << packet->gps->comment;
 }
 void               aprs_packet_encode_raw(aprs_packet* packet, std::stringstream& ss)
 {
@@ -1478,10 +1528,10 @@ void               aprs_packet_encode_raw(aprs_packet* packet, std::stringstream
 void               aprs_packet_encode_item(aprs_packet* packet, std::stringstream& ss)
 {
 	ss << ')';
-	ss << std::setfill(' ') << std::setw(9) << std::left << packet->item_or_object.name;
-	ss << (packet->item_or_object.is_alive ? '!' : '_');
+	ss << std::setfill(' ') << std::setw(9) << std::left << packet->item->name;
+	ss << (packet->item->is_alive ? '!' : '_');
 
-	if (packet->item_or_object.is_compressed)
+	if (packet->item->is_compressed)
 	{
 		aprs_compressed_location location =
 		{
@@ -1489,19 +1539,19 @@ void               aprs_packet_encode_item(aprs_packet* packet, std::stringstrea
 			.course           = packet->extensions.course,
 			.altitude         = packet->extensions.altitude,
 
-			.latitude         = packet->item_or_object.latitude,
-			.longitude        = packet->item_or_object.longitude,
+			.latitude         = packet->item->latitude,
+			.longitude        = packet->item->longitude,
 
-			.symbol_table     = packet->item_or_object.symbol_table,
-			.symbol_table_key = packet->item_or_object.symbol_table_key
+			.symbol_table     = packet->item->symbol_table,
+			.symbol_table_key = packet->item->symbol_table_key
 		};
 
 		aprs_encode_compressed_location(location, ss);
 	}
 	else
 	{
-		auto latitude             = packet->item_or_object.latitude;
-		auto longitude            = packet->item_or_object.longitude;
+		auto latitude             = packet->item->latitude;
+		auto longitude            = packet->item->longitude;
 		char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
 		char longitude_west_east  = (longitude >= 0) ? 'E' : 'W';
 		auto latitude_hours       = aprs_from_float<int16_t>(latitude, latitude);
@@ -1515,41 +1565,41 @@ void               aprs_packet_encode_item(aprs_packet* packet, std::stringstrea
 		ss << std::setfill('0') << std::setw(2) << latitude_minutes;
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << latitude_seconds;
-		ss << latitude_north_south << packet->item_or_object.symbol_table;
+		ss << latitude_north_south << packet->item->symbol_table;
 
 		ss << std::setfill('0') << std::setw(2) << ((longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1));
 		ss << std::setfill('0') << std::setw(2) << longitude_minutes;
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
-		ss << longitude_west_east << packet->item_or_object.symbol_table_key;
+		ss << longitude_west_east << packet->item->symbol_table_key;
 	}
 
 	aprs_packet_encode_data_extensions(packet, ss);
 
-	ss << packet->item_or_object.comment;
+	ss << packet->item->comment;
 }
 void               aprs_packet_encode_object(aprs_packet* packet, std::stringstream& ss)
 {
 	ss << ';';
-	ss << std::setfill(' ') << std::setw(9) << std::left << packet->item_or_object.name;
-	ss << (packet->item_or_object.is_alive ? '*' : '_');
+	ss << std::setfill(' ') << std::setw(9) << std::left << packet->object->name;
+	ss << (packet->object->is_alive ? '*' : '_');
 
-	if (packet->item_or_object.time.type & APRS_TIME_DHM)
+	if (packet->object->time.type & APRS_TIME_DHM)
 	{
-		ss << std::setfill('0') << std::setw(2) << packet->item_or_object.time.tm_mday;
-		ss << std::setfill('0') << std::setw(2) << packet->item_or_object.time.tm_hour;
-		ss << std::setfill('0') << std::setw(2) << packet->item_or_object.time.tm_min;
+		ss << std::setfill('0') << std::setw(2) << packet->object->time.tm_mday;
+		ss << std::setfill('0') << std::setw(2) << packet->object->time.tm_hour;
+		ss << std::setfill('0') << std::setw(2) << packet->object->time.tm_min;
 		ss << 'z';
 	}
-	else if (packet->item_or_object.time.type & APRS_TIME_HMS)
+	else if (packet->object->time.type & APRS_TIME_HMS)
 	{
-		ss << std::setfill('0') << std::setw(2) << packet->item_or_object.time.tm_hour;
-		ss << std::setfill('0') << std::setw(2) << packet->item_or_object.time.tm_min;
-		ss << std::setfill('0') << std::setw(2) << packet->item_or_object.time.tm_sec;
+		ss << std::setfill('0') << std::setw(2) << packet->object->time.tm_hour;
+		ss << std::setfill('0') << std::setw(2) << packet->object->time.tm_min;
+		ss << std::setfill('0') << std::setw(2) << packet->object->time.tm_sec;
 		ss << 'h';
 	}
 
-	if (packet->item_or_object.is_compressed)
+	if (packet->object->is_compressed)
 	{
 		aprs_compressed_location location =
 		{
@@ -1557,19 +1607,19 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 			.course           = packet->extensions.course,
 			.altitude         = packet->extensions.altitude,
 
-			.latitude         = packet->item_or_object.latitude,
-			.longitude        = packet->item_or_object.longitude,
+			.latitude         = packet->object->latitude,
+			.longitude        = packet->object->longitude,
 
-			.symbol_table     = packet->item_or_object.symbol_table,
-			.symbol_table_key = packet->item_or_object.symbol_table_key
+			.symbol_table     = packet->object->symbol_table,
+			.symbol_table_key = packet->object->symbol_table_key
 		};
 
 		aprs_encode_compressed_location(location, ss);
 	}
 	else
 	{
-		auto latitude             = packet->item_or_object.latitude;
-		auto longitude            = packet->item_or_object.longitude;
+		auto latitude             = packet->object->latitude;
+		auto longitude            = packet->object->longitude;
 		char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
 		char longitude_west_east  = (longitude >= 0) ? 'E' : 'W';
 		auto latitude_hours       = aprs_from_float<int16_t>(latitude, latitude);
@@ -1583,81 +1633,81 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 		ss << std::setfill('0') << std::setw(2) << latitude_minutes;
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << latitude_seconds;
-		ss << latitude_north_south << packet->item_or_object.symbol_table;
+		ss << latitude_north_south << packet->object->symbol_table;
 
 		ss << std::setfill('0') << std::setw(2) << ((longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1));
 		ss << std::setfill('0') << std::setw(2) << longitude_minutes;
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
-		ss << longitude_west_east << packet->item_or_object.symbol_table_key;
+		ss << longitude_west_east << packet->object->symbol_table_key;
 	}
 
 	aprs_packet_encode_data_extensions(packet, ss);
 
-	ss << packet->item_or_object.comment;
+	ss << packet->object->comment;
 }
 void               aprs_packet_encode_status(aprs_packet* packet, std::stringstream& ss)
 {
 	ss << '>';
 
-	if (packet->status.is_time_set)
-		if (packet->status.time.type & APRS_TIME_DHM)
+	if (packet->status->is_time_set)
+		if (packet->status->time.type & APRS_TIME_DHM)
 		{
-			ss << std::setfill('0') << std::setw(2) << packet->status.time.tm_mday;
-			ss << std::setfill('0') << std::setw(2) << packet->status.time.tm_hour;
-			ss << std::setfill('0') << std::setw(2) << packet->status.time.tm_min;
+			ss << std::setfill('0') << std::setw(2) << packet->status->time.tm_mday;
+			ss << std::setfill('0') << std::setw(2) << packet->status->time.tm_hour;
+			ss << std::setfill('0') << std::setw(2) << packet->status->time.tm_min;
 			ss << 'z';
 		}
-		else if (packet->status.time.type & APRS_TIME_HMS)
+		else if (packet->status->time.type & APRS_TIME_HMS)
 		{
-			ss << std::setfill('0') << std::setw(2) << packet->status.time.tm_hour;
-			ss << std::setfill('0') << std::setw(2) << packet->status.time.tm_min;
-			ss << std::setfill('0') << std::setw(2) << packet->status.time.tm_sec;
+			ss << std::setfill('0') << std::setw(2) << packet->status->time.tm_hour;
+			ss << std::setfill('0') << std::setw(2) << packet->status->time.tm_min;
+			ss << std::setfill('0') << std::setw(2) << packet->status->time.tm_sec;
 			ss << 'h';
 		}
 
-	ss << packet->status.message;
+	ss << packet->status->message;
 }
 void               aprs_packet_encode_message(aprs_packet* packet, std::stringstream& ss)
 {
-	switch (packet->message.type)
+	switch (packet->message->type)
 	{
 		case APRS_MESSAGE_TYPE_ACK:
 		case APRS_MESSAGE_TYPE_REJECT:
 		case APRS_MESSAGE_TYPE_MESSAGE:
-			ss << ':' << std::setfill(' ') << std::setw(9) << std::left << packet->message.destination << ':';
+			ss << ':' << std::setfill(' ') << std::setw(9) << std::left << packet->message->destination << ':';
 			break;
 
 		case APRS_MESSAGE_TYPE_BULLETIN:
-			ss << ":BLN" << std::setfill(' ') << std::setw(6) << std::left << packet->message.destination << ':';
+			ss << ":BLN" << std::setfill(' ') << std::setw(6) << std::left << packet->message->destination << ':';
 			break;
 	}
 
-	switch (packet->message.type)
+	switch (packet->message->type)
 	{
 		case APRS_MESSAGE_TYPE_ACK:
-			ss << "ack" << packet->message.id;
+			ss << "ack" << packet->message->id;
 			break;
 
 		case APRS_MESSAGE_TYPE_REJECT:
-			ss << "rej" << packet->message.id;
+			ss << "rej" << packet->message->id;
 			break;
 
 		case APRS_MESSAGE_TYPE_MESSAGE:
-			ss << packet->message.content;
+			ss << packet->message->content;
 
-			if (auto& id = packet->message.id; id.length())
+			if (auto& id = packet->message->id; id.length())
 				ss << '{' << id;
 			break;
 
 		case APRS_MESSAGE_TYPE_BULLETIN:
-			ss << packet->message.content;
+			ss << packet->message->content;
 			break;
 	}
 }
 void               aprs_packet_encode_weather(aprs_packet* packet, std::stringstream& ss)
 {
-	auto humidity = packet->weather.humidity;
+	auto humidity = packet->weather->humidity;
 
 	switch (humidity)
 	{
@@ -1671,53 +1721,53 @@ void               aprs_packet_encode_weather(aprs_packet* packet, std::stringst
 	}
 
 	ss << '_';
-	ss << std::setfill('0') << std::setw(2) << packet->weather.time.tm_mon;
-	ss << std::setfill('0') << std::setw(2) << packet->weather.time.tm_mday;
-	ss << std::setfill('0') << std::setw(2) << packet->weather.time.tm_hour;
-	ss << std::setfill('0') << std::setw(2) << packet->weather.time.tm_min;
-	ss << 'c' << std::setfill('0') << std::setw(3) << packet->weather.wind_direction;
-	ss << 's' << std::setfill('0') << std::setw(3) << packet->weather.wind_speed;
-	ss << 'g' << std::setfill('0') << std::setw(3) << packet->weather.wind_speed_gust;
-	ss << 't' << std::setfill('0') << std::setw(3) << packet->weather.temperature;
-	ss << 'r' << std::setfill('0') << std::setw(3) << packet->weather.rainfall_last_hour;
-	ss << 'p' << std::setfill('0') << std::setw(3) << packet->weather.rainfall_last_24_hours;
-	ss << 'P' << std::setfill('0') << std::setw(3) << packet->weather.rainfall_since_midnight;
+	ss << std::setfill('0') << std::setw(2) << packet->weather->time.tm_mon;
+	ss << std::setfill('0') << std::setw(2) << packet->weather->time.tm_mday;
+	ss << std::setfill('0') << std::setw(2) << packet->weather->time.tm_hour;
+	ss << std::setfill('0') << std::setw(2) << packet->weather->time.tm_min;
+	ss << 'c' << std::setfill('0') << std::setw(3) << packet->weather->wind_direction;
+	ss << 's' << std::setfill('0') << std::setw(3) << packet->weather->wind_speed;
+	ss << 'g' << std::setfill('0') << std::setw(3) << packet->weather->wind_speed_gust;
+	ss << 't' << std::setfill('0') << std::setw(3) << packet->weather->temperature;
+	ss << 'r' << std::setfill('0') << std::setw(3) << packet->weather->rainfall_last_hour;
+	ss << 'p' << std::setfill('0') << std::setw(3) << packet->weather->rainfall_last_24_hours;
+	ss << 'P' << std::setfill('0') << std::setw(3) << packet->weather->rainfall_since_midnight;
 	ss << 'h' << std::setfill('0') << std::setw(2) << humidity;
-	ss << 'b' << std::setfill('0') << std::setw(4) << packet->weather.barometric_pressure;
-	ss << packet->weather.software;
-	ss << packet->weather.type;
+	ss << 'b' << std::setfill('0') << std::setw(4) << packet->weather->barometric_pressure;
+	ss << packet->weather->software;
+	ss << packet->weather->type;
 }
 void               aprs_packet_encode_position(aprs_packet* packet, std::stringstream& ss)
 {
-	// if (packet->position.flags & APRS_POSITION_FLAG_MIC_E)
+	// if (packet->position->flags & APRS_POSITION_FLAG_MIC_E)
 	// {
 	// 	// TODO: encode mic-e position
 	// }
 	// else
 	{
-		if (packet->position.flags & APRS_POSITION_FLAG_TIME)
+		if (packet->position->flags & APRS_POSITION_FLAG_TIME)
 		{
-			ss << ((packet->position.flags & APRS_POSITION_FLAG_MESSAGING_ENABLED) ? '@' : '/');
+			ss << ((packet->position->flags & APRS_POSITION_FLAG_MESSAGING_ENABLED) ? '@' : '/');
 
-			if (packet->position.time.type & APRS_TIME_DHM)
+			if (packet->position->time.type & APRS_TIME_DHM)
 			{
-				ss << std::setfill('0') << std::setw(2) << packet->position.time.tm_mday;
-				ss << std::setfill('0') << std::setw(2) << packet->position.time.tm_hour;
-				ss << std::setfill('0') << std::setw(2) << packet->position.time.tm_min;
+				ss << std::setfill('0') << std::setw(2) << packet->position->time.tm_mday;
+				ss << std::setfill('0') << std::setw(2) << packet->position->time.tm_hour;
+				ss << std::setfill('0') << std::setw(2) << packet->position->time.tm_min;
 				ss << 'z';
 			}
-			else if (packet->position.time.type & APRS_TIME_HMS)
+			else if (packet->position->time.type & APRS_TIME_HMS)
 			{
-				ss << std::setfill('0') << std::setw(2) << packet->position.time.tm_hour;
-				ss << std::setfill('0') << std::setw(2) << packet->position.time.tm_min;
-				ss << std::setfill('0') << std::setw(2) << packet->position.time.tm_sec;
+				ss << std::setfill('0') << std::setw(2) << packet->position->time.tm_hour;
+				ss << std::setfill('0') << std::setw(2) << packet->position->time.tm_min;
+				ss << std::setfill('0') << std::setw(2) << packet->position->time.tm_sec;
 				ss << 'h';
 			}
 		}
 		else
-			ss << ((packet->position.flags & APRS_POSITION_FLAG_MESSAGING_ENABLED) ? '=' : '!');
+			ss << ((packet->position->flags & APRS_POSITION_FLAG_MESSAGING_ENABLED) ? '=' : '!');
 
-		if (packet->position.flags & APRS_POSITION_FLAG_COMPRESSED)
+		if (packet->position->flags & APRS_POSITION_FLAG_COMPRESSED)
 		{
 			aprs_compressed_location location =
 			{
@@ -1725,19 +1775,19 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 				.course           = packet->extensions.course,
 				.altitude         = packet->extensions.altitude,
 
-				.latitude         = packet->position.latitude,
-				.longitude        = packet->position.longitude,
+				.latitude         = packet->position->latitude,
+				.longitude        = packet->position->longitude,
 
-				.symbol_table     = packet->position.symbol_table,
-				.symbol_table_key = packet->position.symbol_table_key
+				.symbol_table     = packet->position->symbol_table,
+				.symbol_table_key = packet->position->symbol_table_key
 			};
 
 			aprs_encode_compressed_location(location, ss);
 		}
 		else
 		{
-			auto latitude             = packet->position.latitude;
-			auto longitude            = packet->position.longitude;
+			auto latitude             = packet->position->latitude;
+			auto longitude            = packet->position->longitude;
 			char latitude_north_south = (latitude >= 0)  ? 'N' : 'S';
 			char longitude_west_east  = (longitude >= 0) ? 'E' : 'W';
 			auto latitude_hours       = aprs_from_float<int16_t>(latitude, latitude);
@@ -1751,50 +1801,50 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 			ss << std::setfill('0') << std::setw(2) << latitude_minutes;
 			ss << '.';
 			ss << std::setfill('0') << std::setw(2) << latitude_seconds;
-			ss << latitude_north_south << packet->position.symbol_table;
+			ss << latitude_north_south << packet->position->symbol_table;
 
 			ss << std::setfill('0') << std::setw(2) << ((longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1));
 			ss << std::setfill('0') << std::setw(2) << longitude_minutes;
 			ss << '.';
 			ss << std::setfill('0') << std::setw(2) << longitude_seconds;
-			ss << longitude_west_east << packet->position.symbol_table_key;
+			ss << longitude_west_east << packet->position->symbol_table_key;
 		}
 	}
 
 	aprs_packet_encode_data_extensions(packet, ss);
 
-	ss << packet->position.comment;
+	ss << packet->position->comment;
 }
 void               aprs_packet_encode_telemetry(aprs_packet* packet, std::stringstream& ss)
 {
-	switch (packet->telemetry.type)
+	switch (packet->telemetry->type)
 	{
 		case APRS_TELEMETRY_TYPE_U8:
-			ss << "T#" << std::setfill('0') << std::setw(3) << packet->telemetry.sequence << ',';
-			for (auto analog : packet->telemetry.analog_u8)
+			ss << "T#" << std::setfill('0') << std::setw(3) << packet->telemetry->sequence << ',';
+			for (auto analog : packet->telemetry->analog_u8)
 				ss << (int)analog << ',';
 			for (uint8_t i = 0; i < 8; ++i)
-				ss << (((packet->telemetry.digital & (1 << i)) == (1 << i)) ? 1 : 0);
+				ss << (((packet->telemetry->digital & (1 << i)) == (1 << i)) ? 1 : 0);
 			break;
 
 		case APRS_TELEMETRY_TYPE_FLOAT:
-			ss << "T#" << std::setfill('0') << std::setw(3) << packet->telemetry.sequence << ',';
-			for (auto analog : packet->telemetry.analog_float)
+			ss << "T#" << std::setfill('0') << std::setw(3) << packet->telemetry->sequence << ',';
+			for (auto analog : packet->telemetry->analog_float)
 				ss << analog << ',';
 			for (uint8_t i = 0; i < 8; ++i)
-				ss << (((packet->telemetry.digital & (1 << i)) == (1 << i)) ? 1 : 0);
+				ss << (((packet->telemetry->digital & (1 << i)) == (1 << i)) ? 1 : 0);
 			break;
 	}
 
-	ss << packet->telemetry.comment;
+	ss << packet->telemetry->comment;
 }
 void               aprs_packet_encode_third_party(aprs_packet* packet, std::stringstream& ss)
 {
-	ss << '}' << packet->third_party.content;
+	ss << '}' << packet->third_party->content;
 }
 void               aprs_packet_encode_user_defined(aprs_packet* packet, std::stringstream& ss)
 {
-	ss << '{' << packet->user_defined.id << packet->user_defined.type << packet->user_defined.data;
+	ss << '{' << packet->user_defined->id << packet->user_defined->type << packet->user_defined->data;
 }
 
 constexpr const aprs_packet_decoder_context aprs_packet_decoders[] =
@@ -2081,7 +2131,6 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_init(const char* sender, c
 		.path            = path,
 		.tocall          = tocall,
 		.sender          = sender,
-		.extensions      = {},
 		.reference_count = 1
 	};
 
@@ -2091,14 +2140,18 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_init(const char* sender, c
 }
 struct aprs_packet*                       aprs_packet_init_ex(const char* sender, const char* tocall, struct aprs_path* path, enum APRS_PACKET_TYPES type)
 {
-	if (auto packet = aprs_packet_init(sender, tocall, path))
+	auto packet = new aprs_packet
 	{
-		packet->type = type;
+		.type            = type,
+		.path            = path,
+		.tocall          = tocall,
+		.sender          = sender,
+		.reference_count = 1
+	};
 
-		return packet;
-	}
+	aprs_path_add_reference(path);
 
-	return nullptr;
+	return packet;
 }
 struct aprs_packet*       APRSERVICE_CALL aprs_packet_init_from_string(const char* string)
 {
@@ -2132,14 +2185,8 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_init_from_string(const cha
 		.sender          = match[1].str(),
 		.content         = match[4].str(),
 		.qconstruct      = path_match[3].str(),
-		.extensions      = {},
-
 		.reference_count = 1
 	};
-
-	for (auto& c : packet->sender)
-		if ((c >= 'a') && (c <= 'z'))
-			c = 'A' + (c - 'a');
 
 	if (!aprs_packet_decode(packet))
 		packet->type = APRS_PACKET_TYPE_RAW;
@@ -2151,6 +2198,76 @@ void                      APRSERVICE_CALL aprs_packet_deinit(struct aprs_packet*
 	if (!--packet->reference_count)
 	{
 		aprs_path_deinit(packet->path);
+
+		switch (packet->type)
+		{
+			case APRS_PACKET_TYPE_GPS:
+				delete packet->gps;
+				break;
+
+			case APRS_PACKET_TYPE_RAW:
+				break;
+
+			case APRS_PACKET_TYPE_ITEM:
+				delete packet->item;
+				break;
+
+			// case APRS_PACKET_TYPE_TEST:
+				// break;
+
+			// case APRS_PACKET_TYPE_QUERY:
+				// break;
+
+			case APRS_PACKET_TYPE_OBJECT:
+				delete packet->object;
+				break;
+
+			case APRS_PACKET_TYPE_STATUS:
+				delete packet->status;
+				break;
+
+			case APRS_PACKET_TYPE_MESSAGE:
+				delete packet->message;
+				break;
+
+			case APRS_PACKET_TYPE_WEATHER:
+				delete packet->weather;
+				break;
+
+			case APRS_PACKET_TYPE_POSITION:
+				delete packet->position;
+			break;
+
+			case APRS_PACKET_TYPE_TELEMETRY:
+				delete packet->telemetry;
+				break;
+
+			// case APRS_PACKET_TYPE_MAP_FEATURE:
+				// break;
+
+			// case APRS_PACKET_TYPE_GRID_BEACON:
+				// break;
+
+			case APRS_PACKET_TYPE_THIRD_PARTY:
+				delete packet->third_party;
+				break;
+
+			// case APRS_PACKET_TYPE_MICROFINDER:
+				// break;
+
+			case APRS_PACKET_TYPE_USER_DEFINED:
+				delete packet->user_defined;
+				break;
+
+			// case APRS_PACKET_TYPE_SHELTER_TIME:
+				// break;
+
+			// case APRS_PACKET_TYPE_STATION_CAPABILITIES:
+				// break;
+
+			// case APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON:
+				// break;
+		}
 
 		delete packet;
 	}
@@ -2261,6 +2378,8 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_gps_init(const char* sende
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_GPS))
 	{
+		packet->gps = new aprs_packet_gps {};
+
 		if (!aprs_packet_gps_set_nmea(packet, nmea))
 		{
 			aprs_packet_deinit(packet);
@@ -2278,14 +2397,14 @@ const char*               APRSERVICE_CALL aprs_packet_gps_get_nmea(struct aprs_p
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_GPS)
 		return nullptr;
 
-	return packet->gps.nmea.c_str();
+	return packet->gps->nmea.c_str();
 }
 const char*               APRSERVICE_CALL aprs_packet_gps_get_comment(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_GPS)
 		return nullptr;
 
-	return packet->gps.comment.c_str();
+	return packet->gps->comment.c_str();
 }
 bool                      APRSERVICE_CALL aprs_packet_gps_set_nmea(struct aprs_packet* packet, const char* value)
 {
@@ -2295,7 +2414,7 @@ bool                      APRSERVICE_CALL aprs_packet_gps_set_nmea(struct aprs_p
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_GPS)
 		return false;
 
-	packet->gps.nmea = value;
+	packet->gps->nmea = value;
 
 	return true;
 }
@@ -2307,7 +2426,7 @@ bool                      APRSERVICE_CALL aprs_packet_gps_set_comment(struct apr
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_GPS)
 		return false;
 
-	packet->gps.comment = value;
+	packet->gps->comment = value;
 
 	return true;
 }
@@ -2316,10 +2435,13 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_item_init(const char* send
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_ITEM))
 	{
-		packet->item_or_object.is_alive      = true;
-		packet->item_or_object.is_compressed = false;
-		packet->item_or_object.latitude      = 0;
-		packet->item_or_object.longitude     = 0;
+		packet->item = new aprs_packet_item
+		{
+			.is_alive      = true,
+			.is_compressed = false,
+			.latitude      = 0,
+			.longitude     = 0
+		};
 
 		if (!aprs_packet_object_set_name(packet, name) ||
 			!aprs_packet_object_set_symbol(packet, symbol_table, symbol_table_key))
@@ -2339,28 +2461,28 @@ bool                      APRSERVICE_CALL aprs_packet_item_is_alive(struct aprs_
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	return packet->item_or_object.is_alive;
+	return packet->item->is_alive;
 }
 bool                      APRSERVICE_CALL aprs_packet_item_is_compressed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	return packet->item_or_object.is_compressed;
+	return packet->item->is_compressed;
 }
 const char*               APRSERVICE_CALL aprs_packet_item_get_name(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return nullptr;
 
-	return packet->item_or_object.name.c_str();
+	return packet->item->name.c_str();
 }
 const char*               APRSERVICE_CALL aprs_packet_item_get_comment(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return nullptr;
 
-	return packet->item_or_object.comment.c_str();
+	return packet->item->comment.c_str();
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_item_get_speed(struct aprs_packet* packet)
 {
@@ -2388,35 +2510,35 @@ float                     APRSERVICE_CALL aprs_packet_item_get_latitude(struct a
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return 0;
 
-	return packet->item_or_object.latitude;
+	return packet->item->latitude;
 }
 float                     APRSERVICE_CALL aprs_packet_item_get_longitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return 0;
 
-	return packet->item_or_object.longitude;
+	return packet->item->longitude;
 }
 char                      APRSERVICE_CALL aprs_packet_item_get_symbol_table(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return '\0';
 
-	return packet->item_or_object.symbol_table;
+	return packet->item->symbol_table;
 }
 char                      APRSERVICE_CALL aprs_packet_item_get_symbol_table_key(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return '\0';
 
-	return packet->item_or_object.symbol_table_key;
+	return packet->item->symbol_table_key;
 }
 bool                      APRSERVICE_CALL aprs_packet_item_set_alive(struct aprs_packet* packet, bool value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	packet->item_or_object.is_alive = value;
+	packet->item->is_alive = value;
 
 	return true;
 }
@@ -2425,7 +2547,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_compressed(struct
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	packet->item_or_object.is_compressed = value;
+	packet->item->is_compressed = value;
 
 	return true;
 }
@@ -2436,7 +2558,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_name(struct aprs_
 
 	if (auto length = aprs_validate_name(value))
 	{
-		packet->item_or_object.name.assign(value, length);
+		packet->item->name.assign(value, length);
 
 		return true;
 	}
@@ -2450,13 +2572,13 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_comment(struct ap
 
 	if (!value)
 	{
-		packet->item_or_object.comment.clear();
+		packet->item->comment.clear();
 
 		return true;
 	}
 	else if (auto length = aprs_validate_comment(value, 36))
 	{
-		packet->item_or_object.comment.assign(value, length);
+		packet->item->comment.assign(value, length);
 
 		return true;
 	}
@@ -2498,7 +2620,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_latitude(struct a
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	packet->item_or_object.latitude = value;
+	packet->item->latitude = value;
 
 	return true;
 }
@@ -2507,7 +2629,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_longitude(struct 
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	packet->item_or_object.longitude = value;
+	packet->item->longitude = value;
 
 	return true;
 }
@@ -2519,8 +2641,8 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_symbol(struct apr
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	packet->item_or_object.symbol_table     = table;
-	packet->item_or_object.symbol_table_key = key;
+	packet->item->symbol_table     = table;
+	packet->item->symbol_table_key = key;
 
 	return true;
 }
@@ -2537,11 +2659,14 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_object_init(const char* se
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_OBJECT))
 	{
-		packet->item_or_object.is_alive      = true;
-		packet->item_or_object.is_compressed = false;
-		packet->item_or_object.time          = *aprs_time_now();
-		packet->item_or_object.latitude      = 0;
-		packet->item_or_object.longitude     = 0;
+		packet->object = new aprs_packet_object
+		{
+			.is_alive      = true,
+			.is_compressed = false,
+			.time          = *aprs_time_now(),
+			.latitude      = 0,
+			.longitude     = 0
+		};
 
 		if (!aprs_packet_object_set_name(packet, name) ||
 			!aprs_packet_object_set_symbol(packet, symbol_table, symbol_table_key))
@@ -2561,35 +2686,35 @@ bool                      APRSERVICE_CALL aprs_packet_object_is_alive(struct apr
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	return packet->item_or_object.is_alive;
+	return packet->object->is_alive;
 }
 bool                      APRSERVICE_CALL aprs_packet_object_is_compressed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	return packet->item_or_object.is_compressed;
+	return packet->object->is_compressed;
 }
 const struct aprs_time*   APRSERVICE_CALL aprs_packet_object_get_time(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return nullptr;
 
-	return &packet->item_or_object.time;
+	return &packet->object->time;
 }
 const char*               APRSERVICE_CALL aprs_packet_object_get_name(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return nullptr;
 
-	return packet->item_or_object.name.c_str();
+	return packet->object->name.c_str();
 }
 const char*               APRSERVICE_CALL aprs_packet_object_get_comment(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return nullptr;
 
-	return packet->item_or_object.comment.c_str();
+	return packet->object->comment.c_str();
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_object_get_speed(struct aprs_packet* packet)
 {
@@ -2617,28 +2742,28 @@ float                     APRSERVICE_CALL aprs_packet_object_get_latitude(struct
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
-	return packet->item_or_object.latitude;
+	return packet->object->latitude;
 }
 float                     APRSERVICE_CALL aprs_packet_object_get_longitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
-	return packet->item_or_object.longitude;
+	return packet->object->longitude;
 }
 char                      APRSERVICE_CALL aprs_packet_object_get_symbol_table(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return '\0';
 
-	return packet->item_or_object.symbol_table;
+	return packet->object->symbol_table;
 }
 char                      APRSERVICE_CALL aprs_packet_object_get_symbol_table_key(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return '\0';
 
-	return packet->item_or_object.symbol_table_key;
+	return packet->object->symbol_table_key;
 }
 bool                      APRSERVICE_CALL aprs_packet_object_set_time(struct aprs_packet* packet, const struct aprs_time* value)
 {
@@ -2648,7 +2773,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_time(struct apr
 	if (!aprs_validate_time(value))
 		return false;
 
-	packet->item_or_object.time = *value;
+	packet->object->time = *value;
 
 	return true;
 }
@@ -2657,7 +2782,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_alive(struct ap
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->item_or_object.is_alive = value;
+	packet->object->is_alive = value;
 
 	return true;
 }
@@ -2666,7 +2791,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_compressed(stru
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->item_or_object.is_compressed = value;
+	packet->object->is_compressed = value;
 
 	return true;
 }
@@ -2677,7 +2802,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_name(struct apr
 
 	if (auto length = aprs_validate_name(value))
 	{
-		packet->item_or_object.name.assign(value, length);
+		packet->object->name.assign(value, length);
 
 		return true;
 	}
@@ -2691,13 +2816,13 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_comment(struct 
 
 	if (!value)
 	{
-		packet->item_or_object.comment.clear();
+		packet->object->comment.clear();
 
 		return true;
 	}
 	else if (auto length = aprs_validate_comment(value, 36))
 	{
-		packet->item_or_object.comment.assign(value, length);
+		packet->object->comment.assign(value, length);
 
 		return true;
 	}
@@ -2739,7 +2864,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_latitude(struct
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->item_or_object.latitude = value;
+	packet->object->latitude = value;
 
 	return true;
 }
@@ -2748,7 +2873,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_longitude(struc
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->item_or_object.longitude = value;
+	packet->object->longitude = value;
 
 	return true;
 }
@@ -2760,8 +2885,8 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_symbol(struct a
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	packet->item_or_object.symbol_table     = table;
-	packet->item_or_object.symbol_table_key = key;
+	packet->object->symbol_table     = table;
+	packet->object->symbol_table_key = key;
 
 	return true;
 }
@@ -2778,6 +2903,8 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_status_init(const char* se
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_STATUS))
 	{
+		packet->status = new aprs_packet_status {};
+
 		if (!aprs_packet_status_set_time(packet, nullptr) ||
 			!aprs_packet_status_set_message(packet, message))
 		{
@@ -2796,17 +2923,17 @@ struct aprs_time*         APRSERVICE_CALL aprs_packet_status_get_time(struct apr
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_STATUS)
 		return nullptr;
 
-	if (!packet->status.is_time_set)
+	if (!packet->status->is_time_set)
 		return nullptr;
 
-	return &packet->status.time;
+	return &packet->status->time;
 }
 const char*               APRSERVICE_CALL aprs_packet_status_get_message(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_STATUS)
 		return nullptr;
 
-	return packet->status.message.c_str();
+	return packet->status->message.c_str();
 }
 bool                      APRSERVICE_CALL aprs_packet_status_set_time(struct aprs_packet* packet, struct aprs_time* value)
 {
@@ -2815,15 +2942,15 @@ bool                      APRSERVICE_CALL aprs_packet_status_set_time(struct apr
 
 	if (!value)
 	{
-		packet->status.is_time_set = false;
+		packet->status->is_time_set = false;
 
 		return true;
 	}
 
 	if (aprs_validate_time(value))
 	{
-		packet->status.is_time_set = true;
-		packet->status.time        = *value;
+		packet->status->is_time_set = true;
+		packet->status->time        = *value;
 
 		return true;
 	}
@@ -2835,10 +2962,10 @@ bool                      APRSERVICE_CALL aprs_packet_status_set_message(struct 
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_STATUS)
 		return false;
 
-	if (!aprs_validate_status(value, packet->status.is_time_set ? 55 : 62))
+	if (!aprs_validate_status(value, packet->status->is_time_set ? 55 : 62))
 		return false;
 
-	packet->status.message = value;
+	packet->status->message = value;
 
 	return true;
 }
@@ -2847,6 +2974,8 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init(const char* s
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_MESSAGE))
 	{
+		packet->message = new aprs_packet_message {};
+
 		if (!aprs_packet_message_set_type(packet, APRS_MESSAGE_TYPE_MESSAGE) ||
 			!aprs_packet_message_set_content(packet, content) ||
 			!aprs_packet_message_set_destination(packet, destination))
@@ -2865,6 +2994,8 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init_ack(const cha
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_MESSAGE))
 	{
+		packet->message = new aprs_packet_message {};
+
 		if (!aprs_packet_message_set_type(packet, APRS_MESSAGE_TYPE_ACK) ||
 			!aprs_packet_message_set_id(packet, id) ||
 			!aprs_packet_message_set_destination(packet, destination))
@@ -2883,6 +3014,8 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init_reject(const 
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_MESSAGE))
 	{
+		packet->message = new aprs_packet_message {};
+
 		if (!aprs_packet_message_set_type(packet, APRS_MESSAGE_TYPE_REJECT) ||
 			!aprs_packet_message_set_id(packet, id) ||
 			!aprs_packet_message_set_destination(packet, destination))
@@ -2901,6 +3034,8 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init_bulletin(cons
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_MESSAGE))
 	{
+		packet->message = new aprs_packet_message {};
+
 		if (!aprs_packet_message_set_type(packet, APRS_MESSAGE_TYPE_BULLETIN) ||
 			!aprs_packet_message_set_destination(packet, destination))
 		{
@@ -2919,31 +3054,31 @@ const char*               APRSERVICE_CALL aprs_packet_message_get_id(struct aprs
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return nullptr;
 
-	if (!packet->message.id.length())
+	if (!packet->message->id.length())
 		return nullptr;
 
-	return packet->message.id.c_str();
+	return packet->message->id.c_str();
 }
 enum APRS_MESSAGE_TYPES   APRSERVICE_CALL aprs_packet_message_get_type(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return APRS_MESSAGE_TYPES_COUNT;
 
-	return packet->message.type;
+	return packet->message->type;
 }
 const char*               APRSERVICE_CALL aprs_packet_message_get_content(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return nullptr;
 
-	return packet->message.content.c_str();
+	return packet->message->content.c_str();
 }
 const char*               APRSERVICE_CALL aprs_packet_message_get_destination(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return nullptr;
 
-	return packet->message.destination.c_str();
+	return packet->message->destination.c_str();
 }
 bool                      APRSERVICE_CALL aprs_packet_message_set_id(struct aprs_packet* packet, const char* value)
 {
@@ -2958,7 +3093,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_id(struct aprs
 		if (aprs_packet_message_get_type(packet) != APRS_MESSAGE_TYPE_MESSAGE)
 			return false;
 
-		packet->message.id.clear();
+		packet->message->id.clear();
 
 		return true;
 	}
@@ -2972,7 +3107,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_id(struct aprs
 		if (!aprs_validate_string(value, length, is_string_valid))
 			return false;
 
-		packet->message.id.assign(value, length);
+		packet->message->id.assign(value, length);
 
 		return true;
 	}
@@ -2991,12 +3126,12 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_type(struct ap
 			if (!aprs_packet_message_get_id(packet))
 				aprs_packet_message_set_id(packet, "0");
 		case APRS_MESSAGE_TYPE_MESSAGE:
-			packet->message.type = value;
+			packet->message->type = value;
 			return true;
 
 		case APRS_MESSAGE_TYPE_BULLETIN:
-			packet->message.id.clear();
-			packet->message.type = value;
+			packet->message->id.clear();
+			packet->message->type = value;
 			return true;
 	}
 
@@ -3019,14 +3154,14 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_content(struct
 
 	if (!value)
 	{
-		packet->message.content.clear();
+		packet->message->content.clear();
 
 		return true;
 	}
 	else if (auto length = aprs_string_length(value); length && (length <= 67))
 	{
-		packet->message.type = APRS_MESSAGE_TYPE_MESSAGE;
-		packet->message.content.assign(value, length);
+		packet->message->type = APRS_MESSAGE_TYPE_MESSAGE;
+		packet->message->content.assign(value, length);
 
 		return true;
 	}
@@ -3040,7 +3175,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_destination(st
 
 	if (auto length = aprs_validate_name(value))
 	{
-		packet->message.destination.assign(value, length);
+		packet->message->destination.assign(value, length);
 
 		return true;
 	}
@@ -3057,18 +3192,12 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_weather_init(const char* s
 
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_WEATHER))
 	{
-		packet->weather.time                    = *aprs_time_now();
-		packet->weather.wind_speed              = 0;
-		packet->weather.wind_speed_gust         = 0;
-		packet->weather.wind_direction          = 0;
-		packet->weather.rainfall_last_hour      = 0;
-		packet->weather.rainfall_last_24_hours  = 0;
-		packet->weather.rainfall_since_midnight = 0;
-		packet->weather.humidity                = 0;
-		packet->weather.temperature             = 0;
-		packet->weather.barometric_pressure     = 0;
-		packet->weather.type.assign(type, type_length);
-		packet->weather.software                = software;
+		packet->weather = new aprs_packet_weather
+		{
+			.time     = *aprs_time_now(),
+			.type     = std::string(type, type_length),
+			.software = software
+		};
 
 		return packet;
 	}
@@ -3080,84 +3209,84 @@ const struct aprs_time*   APRSERVICE_CALL aprs_packet_weather_get_time(struct ap
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return nullptr;
 
-	return &packet->weather.time;
+	return &packet->weather->time;
 }
 const char*               APRSERVICE_CALL aprs_packet_weather_get_type(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return nullptr;
 
-	return packet->weather.type.c_str();
+	return packet->weather->type.c_str();
 }
 char                      APRSERVICE_CALL aprs_packet_weather_get_software(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
-	return packet->weather.software;
+	return packet->weather->software;
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_wind_speed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
-	return packet->weather.wind_speed;
+	return packet->weather->wind_speed;
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_wind_speed_gust(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
-	return packet->weather.wind_speed_gust;
+	return packet->weather->wind_speed_gust;
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_wind_direction(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
-	return packet->weather.wind_direction;
+	return packet->weather->wind_direction;
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_rainfall_last_hour(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
-	return packet->weather.rainfall_last_hour;
+	return packet->weather->rainfall_last_hour;
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_rainfall_last_24_hours(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
-	return packet->weather.rainfall_last_24_hours;
+	return packet->weather->rainfall_last_24_hours;
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_rainfall_since_midnight(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
-	return packet->weather.rainfall_since_midnight;
+	return packet->weather->rainfall_since_midnight;
 }
 uint8_t                   APRSERVICE_CALL aprs_packet_weather_get_humidity(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
-	return packet->weather.humidity;
+	return packet->weather->humidity;
 }
 int16_t                   APRSERVICE_CALL aprs_packet_weather_get_temperature(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
-	return packet->weather.temperature;
+	return packet->weather->temperature;
 }
 uint32_t                  APRSERVICE_CALL aprs_packet_weather_get_barometric_pressure(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
-	return packet->weather.barometric_pressure;
+	return packet->weather->barometric_pressure;
 }
 bool                      APRSERVICE_CALL aprs_packet_weather_set_time(struct aprs_packet* packet, const struct aprs_time* value)
 {
@@ -3170,7 +3299,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_time(struct ap
 	if (!(value->type & APRS_TIME_MDHM))
 		return false;
 
-	packet->weather.time = *value;
+	packet->weather->time = *value;
 
 	return true;
 }
@@ -3182,7 +3311,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_speed(str
 	if (value > 9999)
 		return false;
 
-	packet->weather.wind_speed = value;
+	packet->weather->wind_speed = value;
 
 	return true;
 }
@@ -3194,7 +3323,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_speed_gus
 	if (value > 9999)
 		return false;
 
-	packet->weather.wind_speed_gust = value;
+	packet->weather->wind_speed_gust = value;
 
 	return true;
 }
@@ -3206,7 +3335,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_direction
 	if (value > 359)
 		return false;
 
-	packet->weather.wind_direction = value;
+	packet->weather->wind_direction = value;
 
 	return true;
 }
@@ -3218,7 +3347,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_last_
 	if (value > 9999)
 		return false;
 
-	packet->weather.rainfall_last_hour = value;
+	packet->weather->rainfall_last_hour = value;
 
 	return true;
 }
@@ -3230,7 +3359,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_last_
 	if (value > 9999)
 		return false;
 
-	packet->weather.rainfall_last_24_hours = value;
+	packet->weather->rainfall_last_24_hours = value;
 
 	return true;
 }
@@ -3242,7 +3371,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_since
 	if (value > 9999)
 		return false;
 
-	packet->weather.rainfall_since_midnight = value;
+	packet->weather->rainfall_since_midnight = value;
 
 	return true;
 }
@@ -3254,7 +3383,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_humidity(struc
 	if (value > 100)
 		return false;
 
-	packet->weather.humidity = value;
+	packet->weather->humidity = value;
 
 	return true;
 }
@@ -3269,7 +3398,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_temperature(st
 	if ((value < 0) && (value < -999))
 		return false;
 
-	packet->weather.temperature = value;
+	packet->weather->temperature = value;
 
 	return true;
 }
@@ -3281,7 +3410,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_barometric_pre
 	if (value > 99999)
 		return false;
 
-	packet->weather.barometric_pressure = value;
+	packet->weather->barometric_pressure = value;
 
 	return true;
 }
@@ -3296,8 +3425,11 @@ aprs_packet*                              aprs_packet_position_init(const char* 
 
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_POSITION))
 	{
-		packet->position.time  = *aprs_time_now();
-		packet->position.flags = flags;
+		packet->position = new aprs_packet_position
+		{
+			.flags = flags,
+			.time  = *aprs_time_now()
+		};
 
 		if (!aprs_packet_position_set_speed(packet, speed) ||
 			!aprs_packet_position_set_course(packet, course) ||
@@ -3334,45 +3466,45 @@ bool                      APRSERVICE_CALL aprs_packet_position_is_mic_e(struct a
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
-	return packet->position.flags & APRS_POSITION_FLAG_MIC_E;
+	return packet->position->flags & APRS_POSITION_FLAG_MIC_E;
 }
 bool                      APRSERVICE_CALL aprs_packet_position_is_compressed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
-	return packet->position.flags & APRS_POSITION_FLAG_COMPRESSED;
+	return packet->position->flags & APRS_POSITION_FLAG_COMPRESSED;
 }
 bool                      APRSERVICE_CALL aprs_packet_position_is_messaging_enabled(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
-	return packet->position.flags & APRS_POSITION_FLAG_MESSAGING_ENABLED;
+	return packet->position->flags & APRS_POSITION_FLAG_MESSAGING_ENABLED;
 }
 const struct aprs_time*   APRSERVICE_CALL aprs_packet_position_get_time(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return nullptr;
 
-	if (!(packet->position.flags & APRS_POSITION_FLAG_TIME))
+	if (!(packet->position->flags & APRS_POSITION_FLAG_TIME))
 		return nullptr;
 
-	return &packet->position.time;
+	return &packet->position->time;
 }
 int                       APRSERVICE_CALL aprs_packet_position_get_flags(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return 0;
 
-	return packet->position.flags;
+	return packet->position->flags;
 }
 const char*               APRSERVICE_CALL aprs_packet_position_get_comment(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return nullptr;
 
-	return packet->position.comment.c_str();
+	return packet->position->comment.c_str();
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_position_get_speed(struct aprs_packet* packet)
 {
@@ -3400,28 +3532,28 @@ float                     APRSERVICE_CALL aprs_packet_position_get_latitude(stru
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return 0;
 
-	return packet->position.latitude;
+	return packet->position->latitude;
 }
 float                     APRSERVICE_CALL aprs_packet_position_get_longitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return 0;
 
-	return packet->position.longitude;
+	return packet->position->longitude;
 }
 char                      APRSERVICE_CALL aprs_packet_position_get_symbol_table(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return '\0';
 
-	return packet->position.symbol_table;
+	return packet->position->symbol_table;
 }
 char                      APRSERVICE_CALL aprs_packet_position_get_symbol_table_key(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return '\0';
 
-	return packet->position.symbol_table_key;
+	return packet->position->symbol_table_key;
 }
 bool                      APRSERVICE_CALL aprs_packet_position_set_time(struct aprs_packet* packet, const struct aprs_time* value)
 {
@@ -3430,15 +3562,15 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_time(struct a
 
 	if (!value)
 	{
-		packet->position.flags &= ~APRS_POSITION_FLAG_TIME;
+		packet->position->flags &= ~APRS_POSITION_FLAG_TIME;
 
 		return true;
 	}
 
 	if (aprs_validate_time(value))
 	{
-		packet->position.time   = *value;
-		packet->position.flags |= APRS_POSITION_FLAG_TIME;
+		packet->position->time   = *value;
+		packet->position->flags |= APRS_POSITION_FLAG_TIME;
 
 		return true;
 	}
@@ -3452,13 +3584,13 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_comment(struc
 
 	if (!value)
 	{
-		packet->position.comment.clear();
+		packet->position->comment.clear();
 
 		return true;
 	}
 	else if (auto length = aprs_validate_comment(value, 36))
 	{
-		packet->position.comment.assign(value, length);
+		packet->position->comment.assign(value, length);
 
 		return true;
 	}
@@ -3500,7 +3632,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_latitude(stru
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
-	packet->position.latitude = value;
+	packet->position->latitude = value;
 
 	return true;
 }
@@ -3509,7 +3641,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_longitude(str
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
-	packet->position.longitude = value;
+	packet->position->longitude = value;
 
 	return true;
 }
@@ -3521,8 +3653,8 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_symbol(struct
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
-	packet->position.symbol_table     = table;
-	packet->position.symbol_table_key = key;
+	packet->position->symbol_table     = table;
+	packet->position->symbol_table_key = key;
 
 	return true;
 }
@@ -3541,11 +3673,11 @@ bool                      APRSERVICE_CALL aprs_packet_position_enable_mic_e(stru
 
 	if (value)
 	{
-		packet->position.flags |= APRS_POSITION_FLAG_MIC_E;
-		packet->position.flags &= ~APRS_POSITION_FLAG_COMPRESSED;
+		packet->position->flags |= APRS_POSITION_FLAG_MIC_E;
+		packet->position->flags &= ~APRS_POSITION_FLAG_COMPRESSED;
 	}
 	else
-		packet->position.flags &= ~APRS_POSITION_FLAG_MIC_E;
+		packet->position->flags &= ~APRS_POSITION_FLAG_MIC_E;
 
 	return true;
 }
@@ -3555,9 +3687,9 @@ bool                      APRSERVICE_CALL aprs_packet_position_enable_messaging(
 		return false;
 
 	if (value)
-		packet->position.flags |= APRS_POSITION_FLAG_MESSAGING_ENABLED;
+		packet->position->flags |= APRS_POSITION_FLAG_MESSAGING_ENABLED;
 	else
-		packet->position.flags &= ~APRS_POSITION_FLAG_MESSAGING_ENABLED;
+		packet->position->flags &= ~APRS_POSITION_FLAG_MESSAGING_ENABLED;
 
 	return true;
 }
@@ -3570,9 +3702,9 @@ bool                      APRSERVICE_CALL aprs_packet_position_enable_compressio
 		return false;
 
 	if (value)
-		packet->position.flags |= APRS_POSITION_FLAG_COMPRESSED;
+		packet->position->flags |= APRS_POSITION_FLAG_COMPRESSED;
 	else
-		packet->position.flags &= ~APRS_POSITION_FLAG_COMPRESSED;
+		packet->position->flags &= ~APRS_POSITION_FLAG_COMPRESSED;
 
 	return true;
 }
@@ -3581,9 +3713,12 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_telemetry_init(const char*
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_TELEMETRY))
 	{
-		packet->telemetry.type      = APRS_TELEMETRY_TYPE_U8;
-		packet->telemetry.analog_u8 = { a1, a2, a3, a4, a5 };
-		packet->telemetry.digital   = digital;
+		packet->telemetry = new aprs_packet_telemetry
+		{
+			.type      = APRS_TELEMETRY_TYPE_U8,
+			.analog_u8 = { a1, a2, a3, a4, a5 },
+			.digital   = digital
+		};
 
 		if (!aprs_packet_telemetry_set_sequence(packet, sequence))
 		{
@@ -3601,9 +3736,12 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_telemetry_init_float(const
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_TELEMETRY))
 	{
-		packet->telemetry.type         = APRS_TELEMETRY_TYPE_FLOAT;
-		packet->telemetry.analog_float = { a1, a2, a3, a4, a5 };
-		packet->telemetry.digital      = digital;
+		packet->telemetry = new aprs_packet_telemetry
+		{
+			.type         = APRS_TELEMETRY_TYPE_FLOAT,
+			.analog_float = { a1, a2, a3, a4, a5 },
+			.digital      = digital
+		};
 
 		if (!aprs_packet_telemetry_set_sequence(packet, sequence))
 		{
@@ -3622,7 +3760,7 @@ enum APRS_TELEMETRY_TYPES APRSERVICE_CALL aprs_packet_telemetry_get_type(struct 
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
 		return APRS_TELEMETRY_TYPES_COUNT;
 
-	return packet->telemetry.type;
+	return packet->telemetry->type;
 }
 uint8_t                   APRSERVICE_CALL aprs_packet_telemetry_get_analog(struct aprs_packet* packet, uint8_t index)
 {
@@ -3635,7 +3773,7 @@ uint8_t                   APRSERVICE_CALL aprs_packet_telemetry_get_analog(struc
 	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_U8)
 		return 0;
 
-	return packet->telemetry.analog_u8[index];
+	return packet->telemetry->analog_u8[index];
 }
 float                     APRSERVICE_CALL aprs_packet_telemetry_get_analog_float(struct aprs_packet* packet, uint8_t index)
 {
@@ -3648,28 +3786,28 @@ float                     APRSERVICE_CALL aprs_packet_telemetry_get_analog_float
 	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_FLOAT)
 		return 0;
 
-	return packet->telemetry.analog_float[index];
+	return packet->telemetry->analog_float[index];
 }
 uint8_t                   APRSERVICE_CALL aprs_packet_telemetry_get_digital(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
 		return 0;
 
-	return packet->telemetry.digital;
+	return packet->telemetry->digital;
 }
 uint16_t                  APRSERVICE_CALL aprs_packet_telemetry_get_sequence(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
 		return 0;
 
-	return packet->telemetry.sequence;
+	return packet->telemetry->sequence;
 }
 const char*               APRSERVICE_CALL aprs_packet_telemetry_get_comment(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
 		return nullptr;
 
-	return packet->telemetry.comment.c_str();
+	return packet->telemetry->comment.c_str();
 }
 bool                      APRSERVICE_CALL aprs_packet_telemetry_set_analog(struct aprs_packet* packet, uint8_t value, uint8_t index)
 {
@@ -3682,7 +3820,7 @@ bool                      APRSERVICE_CALL aprs_packet_telemetry_set_analog(struc
 	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_U8)
 		return false;
 
-	packet->telemetry.analog_u8[index] = value;
+	packet->telemetry->analog_u8[index] = value;
 
 	return true;
 }
@@ -3697,7 +3835,7 @@ bool                      APRSERVICE_CALL aprs_packet_telemetry_set_analog_float
 	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_FLOAT)
 		return false;
 
-	packet->telemetry.analog_float[index] = value;
+	packet->telemetry->analog_float[index] = value;
 
 	return true;
 }
@@ -3706,7 +3844,7 @@ bool                      APRSERVICE_CALL aprs_packet_telemetry_set_digital(stru
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
 		return false;
 
-	packet->telemetry.digital = value;
+	packet->telemetry->digital = value;
 
 	return true;
 }
@@ -3718,7 +3856,7 @@ bool                      APRSERVICE_CALL aprs_packet_telemetry_set_sequence(str
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
 		return false;
 
-	packet->telemetry.sequence = value;
+	packet->telemetry->sequence = value;
 
 	return true;
 }
@@ -3729,7 +3867,7 @@ bool                      APRSERVICE_CALL aprs_packet_telemetry_set_comment(stru
 
 	if (auto length = aprs_validate_comment(value, 67))
 	{
-		packet->telemetry.comment.assign(value, length);
+		packet->telemetry->comment.assign(value, length);
 
 		return true;
 	}
@@ -3741,6 +3879,8 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_user_defined_init(const ch
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_USER_DEFINED))
 	{
+		packet->user_defined = new aprs_packet_user_defined {};
+
 		if (!aprs_packet_user_defined_set_id(packet, id) ||
 			!aprs_packet_user_defined_set_type(packet, type) ||
 			!aprs_packet_user_defined_set_data(packet, data))
@@ -3760,21 +3900,21 @@ char                      APRSERVICE_CALL aprs_packet_user_defined_get_id(struct
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
 		return 0;
 
-	return packet->user_defined.id;
+	return packet->user_defined->id;
 }
 char                      APRSERVICE_CALL aprs_packet_user_defined_get_type(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
 		return 0;
 
-	return packet->user_defined.type;
+	return packet->user_defined->type;
 }
 const char*               APRSERVICE_CALL aprs_packet_user_defined_get_data(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
 		return nullptr;
 
-	return packet->user_defined.data.c_str();
+	return packet->user_defined->data.c_str();
 }
 bool                      APRSERVICE_CALL aprs_packet_user_defined_set_id(struct aprs_packet* packet, char value)
 {
@@ -3784,7 +3924,7 @@ bool                      APRSERVICE_CALL aprs_packet_user_defined_set_id(struct
 	if (!isprint(value))
 		return false;
 
-	packet->user_defined.id = value;
+	packet->user_defined->id = value;
 
 	return true;
 }
@@ -3796,7 +3936,7 @@ bool                      APRSERVICE_CALL aprs_packet_user_defined_set_type(stru
 	if (!isprint(value))
 		return false;
 
-	packet->user_defined.type = value;
+	packet->user_defined->type = value;
 
 	return true;
 }
@@ -3807,7 +3947,7 @@ bool                      APRSERVICE_CALL aprs_packet_user_defined_set_data(stru
 
 	if (auto length = aprs_validate_user_defined_data(value))
 	{
-		packet->user_defined.data.assign(value, length);
+		packet->user_defined->data.assign(value, length);
 
 		return true;
 	}
@@ -3818,7 +3958,11 @@ bool                      APRSERVICE_CALL aprs_packet_user_defined_set_data(stru
 struct aprs_packet*       APRSERVICE_CALL aprs_packet_third_party_init(const char* sender, const char* tocall, struct aprs_path* path)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_THIRD_PARTY))
+	{
+		packet->third_party = new aprs_packet_third_party {};
+
 		return packet;
+	}
 
 	return nullptr;
 }
@@ -3827,14 +3971,14 @@ const char*               APRSERVICE_CALL aprs_packet_third_party_get_content(st
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_THIRD_PARTY)
 		return nullptr;
 
-	return packet->third_party.content.c_str();
+	return packet->third_party->content.c_str();
 }
 bool                      APRSERVICE_CALL aprs_packet_third_party_set_content(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_THIRD_PARTY)
 		return false;
 
-	packet->third_party.content = value;
+	packet->third_party->content = value;
 
 	return true;
 }

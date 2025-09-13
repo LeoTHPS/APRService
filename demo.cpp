@@ -306,6 +306,14 @@ void    demo_event_handler(aprservice* service, aprservice_event_information* ev
 						std::cout << "[Packet] [User Defined] [From: " << sender << "] [ID: " << user_defined_id << "] [Type: " << user_defined_type << "] " << user_defined_data << std::endl;
 					}
 					break;
+
+					case APRS_PACKET_TYPE_THIRD_PARTY:
+					{
+						auto third_party_content = aprs_packet_third_party_get_content(packet);
+
+						std::cout << "[Packet] [Third Party] [From: " << sender << "] " << third_party_content << std::endl;
+					}
+					break;
 				}
 			}
 			break;

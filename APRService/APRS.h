@@ -39,7 +39,7 @@ enum APRS_PACKET_TYPES
 	APRS_PACKET_TYPE_TELEMETRY,
 	// APRS_PACKET_TYPE_MAP_FEATURE,
 	// APRS_PACKET_TYPE_GRID_BEACON,
-	// APRS_PACKET_TYPE_THIRD_PARTY,
+	APRS_PACKET_TYPE_THIRD_PARTY,
 	// APRS_PACKET_TYPE_MICROFINDER,
 	APRS_PACKET_TYPE_USER_DEFINED,
 	// APRS_PACKET_TYPE_SHELTER_TIME,
@@ -267,6 +267,10 @@ APRSERVICE_EXPORT const char*               APRSERVICE_CALL aprs_packet_user_def
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_user_defined_set_id(struct aprs_packet* packet, char value);
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_user_defined_set_type(struct aprs_packet* packet, char value);
 APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_user_defined_set_data(struct aprs_packet* packet, const char* value);
+
+APRSERVICE_EXPORT struct aprs_packet*       APRSERVICE_CALL aprs_packet_third_party_init(const char* sender, const char* tocall, struct aprs_path* path);
+APRSERVICE_EXPORT const char*               APRSERVICE_CALL aprs_packet_third_party_get_content(struct aprs_packet* packet);
+APRSERVICE_EXPORT bool                      APRSERVICE_CALL aprs_packet_third_party_set_content(struct aprs_packet* packet, const char* value);
 
 APRSERVICE_EXPORT float                     APRSERVICE_CALL aprs_distance(float latitude1, float longitude1, float latitude2, float longitude2, enum APRS_DISTANCES type);
 APRSERVICE_EXPORT float                     APRSERVICE_CALL aprs_distance_3d(float latitude1, float longitude1, int32_t altitude1, float latitude2, float longitude2, int32_t altitude2, enum APRS_DISTANCES type);

@@ -2466,6 +2466,41 @@ bool                       APRSERVICE_CALL aprservice_send_user_defined(struct a
 
 	return false;
 }
+bool                       APRSERVICE_CALL aprservice_send_third_party(struct aprservice* service, const char* content)
+{
+	if (!aprservice_is_connected(service))
+		return false;
+
+	if (aprservice_is_read_only(service))
+		return false;
+
+	if (auto packet = aprs_packet_third_party_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service)))
+	{
+		if (!aprs_packet_third_party_set_content(packet, content))
+		{
+			aprservice_log_error_ex(aprs_packet_third_party_set_content, false);
+
+			aprs_packet_deinit(packet);
+
+			return false;
+		}
+
+		if (!aprservice_send(service, packet))
+		{
+			aprservice_log_error_ex(aprservice_send, false);
+
+			aprs_packet_deinit(packet);
+
+			return false;
+		}
+
+		aprs_packet_deinit(packet);
+
+		return true;
+	}
+
+	return false;
+}
 bool                       APRSERVICE_CALL aprservice_connect_aprs_is(struct aprservice* service, const char* hostname, uint16_t port, uint16_t passcode)
 {
 	if (aprservice_is_connected(service))

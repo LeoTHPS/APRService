@@ -136,6 +136,7 @@ APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_tel
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_telemetry_float(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_telemetry_float_ex(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital, const char* comment, uint16_t sequence);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_user_defined(struct aprservice* service, char id, char type, const char* data);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_send_third_party(struct aprservice* service, const char* content);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect_aprs_is(struct aprservice* service, const char* hostname, uint16_t port, uint16_t passcode);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc_tcp(struct aprservice* service, const char* hostname, uint16_t port);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc_serial(struct aprservice* service, const char* device, uint32_t speed);

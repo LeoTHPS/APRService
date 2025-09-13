@@ -171,6 +171,11 @@ struct aprs_packet
 		char        type;
 		std::string data;
 	} user_defined;
+
+	struct
+	{
+		std::string content;
+	} third_party;
 };
 
 struct aprs_strlen_result
@@ -1425,9 +1430,10 @@ bool               aprs_packet_decode_map_feature(aprs_packet* packet)
 }
 bool               aprs_packet_decode_third_party(aprs_packet* packet)
 {
-	// TODO: decode third party
+	packet->type = APRS_PACKET_TYPE_THIRD_PARTY;
+	packet->third_party.content.assign(packet->content, 1);
 
-	return false;
+	return true;
 }
 bool               aprs_packet_decode_user_defined(aprs_packet* packet)
 {
@@ -1782,6 +1788,10 @@ void               aprs_packet_encode_telemetry(aprs_packet* packet, std::string
 
 	ss << packet->telemetry.comment;
 }
+void               aprs_packet_encode_third_party(aprs_packet* packet, std::stringstream& ss)
+{
+	ss << '}' << packet->third_party.content;
+}
 void               aprs_packet_encode_user_defined(aprs_packet* packet, std::stringstream& ss)
 {
 	ss << '{' << packet->user_defined.id << packet->user_defined.type << packet->user_defined.data;
@@ -1833,7 +1843,7 @@ constexpr const aprs_packet_encoder_context aprs_packet_encoders[APRS_PACKET_TYP
 	{ APRS_PACKET_TYPE_TELEMETRY,              &aprs_packet_encode_telemetry              },
 	// { APRS_PACKET_TYPE_MAP_FEATURE,            &aprs_packet_encode_map_feature            },
 	// { APRS_PACKET_TYPE_GRID_BEACON,            &aprs_packet_encode_grid_beacon            },
-	// { APRS_PACKET_TYPE_THIRD_PARTY,            &aprs_packet_encode_third_party            },
+	{ APRS_PACKET_TYPE_THIRD_PARTY,            &aprs_packet_encode_third_party            },
 	// { APRS_PACKET_TYPE_MICROFINDER,            &aprs_packet_encode_microfinder            },
 	{ APRS_PACKET_TYPE_USER_DEFINED,           &aprs_packet_encode_user_defined           },
 	// { APRS_PACKET_TYPE_SHELTER_TIME,           &aprs_packet_encode_shelter_time           },
@@ -3803,6 +3813,30 @@ bool                      APRSERVICE_CALL aprs_packet_user_defined_set_data(stru
 	}
 
 	return false;
+}
+
+struct aprs_packet*       APRSERVICE_CALL aprs_packet_third_party_init(const char* sender, const char* tocall, struct aprs_path* path)
+{
+	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_THIRD_PARTY))
+		return packet;
+
+	return nullptr;
+}
+const char*               APRSERVICE_CALL aprs_packet_third_party_get_content(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_THIRD_PARTY)
+		return nullptr;
+
+	return packet->third_party.content.c_str();
+}
+bool                      APRSERVICE_CALL aprs_packet_third_party_set_content(struct aprs_packet* packet, const char* value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_THIRD_PARTY)
+		return false;
+
+	packet->third_party.content = value;
+
+	return true;
 }
 
 float                                     aprs_distance(double value, APRS_DISTANCES type)

@@ -1951,6 +1951,7 @@ void               aprs_packet_encode_telemetry(aprs_packet* packet, std::string
 				ss << (int)analog << ',';
 			for (uint8_t i = 0; i < 8; ++i)
 				ss << (((packet->telemetry->digital & (1 << i)) == (1 << i)) ? 1 : 0);
+			ss << packet->telemetry->comment;
 			break;
 
 		case APRS_TELEMETRY_TYPE_FLOAT:
@@ -1959,17 +1960,53 @@ void               aprs_packet_encode_telemetry(aprs_packet* packet, std::string
 				ss << analog << ',';
 			for (uint8_t i = 0; i < 8; ++i)
 				ss << (((packet->telemetry->digital & (1 << i)) == (1 << i)) ? 1 : 0);
+			ss << packet->telemetry->comment;
+			break;
+
+		case APRS_TELEMETRY_TYPE_BITS:
+			ss << ':' << std::setfill(' ') << std::setw(9) << std::left << packet->sender << ":BITS.";
+			for (uint8_t i = 0; i < 8; ++i)
+				ss << (((packet->telemetry->digital & (1 << i)) == (1 << i)) ? 1 : 0);
+			ss << packet->telemetry->comment;
+			break;
+
+		case APRS_TELEMETRY_TYPE_EQNS:
+			ss << ':' << std::setfill(' ') << std::setw(9) << std::left << packet->sender << ":EQNS.";
+			if (packet->telemetry->eqns_count)
+			{
+				auto eqn = packet->telemetry->eqns.data();
+
+				ss << eqn->a << ',' << eqn->b << ',' << eqn->c;
+
+				++eqn;
+
+				for (size_t i = 1; i < packet->telemetry->eqns_count; ++i, ++eqn)
+					ss << ',' << eqn->a << ',' << eqn->b << ',' << eqn->c;
+			}
+			break;
+
+		case APRS_TELEMETRY_TYPE_UNITS:
+			ss << ':' << std::setfill(' ') << std::setw(9) << std::left << packet->sender << ":UNIT.";
+			if (packet->telemetry->units_count)
+			{
+				ss << packet->telemetry->units[0];
+
+				for (size_t i = 1; i < packet->telemetry->units_count; ++i)
+					ss << ',' << packet->telemetry->units[i];
+			}
 			break;
 
 		case APRS_TELEMETRY_TYPE_PARAMS:
-		case APRS_TELEMETRY_TYPE_UNITS:
-		case APRS_TELEMETRY_TYPE_EQNS:
-		case APRS_TELEMETRY_TYPE_BITS:
-			// TODO: implement
+			ss << ':' << std::setfill(' ') << std::setw(9) << std::left << packet->sender << ":PARM.";
+			if (packet->telemetry->params_count)
+			{
+				ss << packet->telemetry->params[0];
+
+				for (size_t i = 1; i < packet->telemetry->params_count; ++i)
+					ss << ',' << packet->telemetry->params[i];
+			}
 			break;
 	}
-
-	ss << packet->telemetry->comment;
 }
 void               aprs_packet_encode_third_party(aprs_packet* packet, std::stringstream& ss)
 {

@@ -1,8 +1,13 @@
-#include <ctime>
 #include <iomanip>
 #include <iostream>
 
 #include <APRService.hpp>
+
+#if defined(APRSERVICE_UNIX)
+	#include <ctime>
+#elif defined(APRSERVICE_WIN32)
+	#include <Windows.h>
+#endif
 
 #define APRS_IS_HOST                  "noam.aprs2.net"
 #define APRS_IS_PORT                  14580
@@ -519,16 +524,22 @@ bool    demo_update(demo* d)
 
 int main(int argc, char* argv[])
 {
+#if defined(APRSERVICE_UNIX)
 	timespec ts =
 	{
 		.tv_sec  = (1000 / DEMO_TICK_RATE) / 1000,
 		.tv_nsec = ((1000 / DEMO_TICK_RATE) % 1000) * 1000000
 	};
+#endif
 
 	if (auto demo = demo_init())
 	{
 		while (demo_update(demo))
+#if defined(APRSERVICE_UNIX)
 			nanosleep(&ts, nullptr);
+#elif defined(APRSERVICE_WIN32)
+			Sleep(1000 / DEMO_TICK_RATE);
+#endif
 
 		demo_deinit(demo);
 	}

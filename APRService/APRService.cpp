@@ -1228,15 +1228,13 @@ bool                                       aprservice_connection_write_packet(ap
 						};
 						static auto          buffer_encode_path    = [](std::vector<uint8_t>& buffer, size_t offset, aprs_path* value)
 						{
-							auto size = aprs_path_get_length(value);
+							auto path = aprs_path_get(value);
 
-							for (size_t i = 0; i < size; offset += 7)
+							for (; *path; offset += 7)
 							{
-								auto path = aprs_path_get(value, i);
+								buffer_encode_station(buffer, offset, *path);
 
-								buffer_encode_station(buffer, offset, path);
-
-								if (++i == size)
+								if (!*(++path))
 									buffer[offset + 6] |= 0x01;
 							}
 

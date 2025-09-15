@@ -252,48 +252,130 @@ void    demo_event_handler(aprservice* service, aprservice_event_information* ev
 
 					case APRS_PACKET_TYPE_TELEMETRY:
 					{
-						auto telemetry_digital  = aprs_packet_telemetry_get_digital(packet);
-						auto telemetry_sequence = aprs_packet_telemetry_get_sequence(packet);
+						std::cout << "[Packet] [Telemetry] [From: " << sender << "] ";
 
-						std::cout << "[Packet] [Telemetry] [From: " << sender << "] [Seq: " << telemetry_sequence << "] ";
+						switch (aprs_packet_telemetry_get_type(packet))
+						{
+							case APRS_TELEMETRY_TYPE_U8:
+							case APRS_TELEMETRY_TYPE_FLOAT:
+								std::cout << "[Seq: " << aprs_packet_telemetry_get_sequence(packet) << "] ";
+								break;
+						}
 
 						switch (aprs_packet_telemetry_get_type(packet))
 						{
 							case APRS_TELEMETRY_TYPE_U8:
 							{
-								uint8_t telemetry_analog[] =
-								{
-									aprs_packet_telemetry_get_analog(packet, 0),
-									aprs_packet_telemetry_get_analog(packet, 1),
-									aprs_packet_telemetry_get_analog(packet, 2),
-									aprs_packet_telemetry_get_analog(packet, 3),
-									aprs_packet_telemetry_get_analog(packet, 4)
-								};
+								auto telementry_analog = aprs_packet_telemetry_get_analog(packet);
 
-								std::cout << "[Analog: " << (int)telemetry_analog[0] << ", " << (int)telemetry_analog[1] << ", " << (int)telemetry_analog[2] << ", " << (int)telemetry_analog[3] << ", " << (int)telemetry_analog[4] << "] ";
+								std::cout << "[Analog: ";
+
+								if (*telementry_analog)
+								{
+									std::cout << (int)**telementry_analog;
+
+									while (*(++telementry_analog))
+										std::cout << ", " << (int)**telementry_analog;
+								}
+
+								std::cout << "] ";
 							}
 							break;
 
 							case APRS_TELEMETRY_TYPE_FLOAT:
 							{
-								float telemetry_analog[] =
-								{
-									aprs_packet_telemetry_get_analog_float(packet, 0),
-									aprs_packet_telemetry_get_analog_float(packet, 1),
-									aprs_packet_telemetry_get_analog_float(packet, 2),
-									aprs_packet_telemetry_get_analog_float(packet, 3),
-									aprs_packet_telemetry_get_analog_float(packet, 4)
-								};
+								auto telementry_analog = aprs_packet_telemetry_get_analog_float(packet);
 
-								std::cout << "[Analog: " << telemetry_analog[0] << ", " << telemetry_analog[1] << ", " << telemetry_analog[2] << ", " << telemetry_analog[3] << ", " << telemetry_analog[4] << "] ";
+								std::cout << "[Analog: ";
+
+								if (*telementry_analog)
+								{
+									std::cout << **telementry_analog;
+
+									while (*(++telementry_analog))
+										std::cout << ", " << **telementry_analog;
+								}
+
+								std::cout << "] ";
 							}
 							break;
+
+							case APRS_TELEMETRY_TYPE_PARAMS:
+							{
+								auto telementry_params = aprs_packet_telemetry_get_params(packet);
+
+								std::cout << "[Params: ";
+
+								if (*telementry_params)
+								{
+									std::cout << *telementry_params;
+
+									while (*(++telementry_params))
+										std::cout << ", " << *telementry_params;
+								}
+
+								std::cout << "] ";
+							}
+							break;
+
+							case APRS_TELEMETRY_TYPE_UNITS:
+							{
+								auto telementry_units = aprs_packet_telemetry_get_units(packet);
+
+								std::cout << "[Units: ";
+
+								if (*telementry_units)
+								{
+									std::cout << *telementry_units;
+
+									while (*(++telementry_units))
+										std::cout << ", " << *telementry_units;
+								}
+
+								std::cout << "] ";
+							}
+							break;
+
+							case APRS_TELEMETRY_TYPE_EQNS:
+							{
+								auto telementry_equations = aprs_packet_telemetry_get_eqns(packet);
+
+								std::cout << "[Equations: ";
+
+								if (*telementry_equations)
+								{
+									std::cout << '[' << (*telementry_equations)->a << ", " << (*telementry_equations)->b << ", " << (*telementry_equations)->c << ']';
+
+									while (*(++telementry_equations))
+										std::cout << ", [" << (*telementry_equations)->a << ", " << (*telementry_equations)->b << ", " << (*telementry_equations)->c << ']';
+								}
+
+								std::cout << "] ";
+							}
+							break;
+
+							case APRS_TELEMETRY_TYPE_BITS:
+								std::cout << "[Bits: ";
+								for (uint8_t i = 0, b = aprs_packet_telemetry_get_bits(packet); i < 8; ++i)
+									std::cout << (((b & (1 << i)) == (1 << i)) ? 1 : 0);
+								std::cout << "] ";
+								break;
 						}
 
-						std::cout << "[Digital: ";
-						for (uint8_t i = 0; i < 8; ++i)
-							std::cout << (((telemetry_digital & (1 << i)) == (1 << i)) ? 1 : 0);
-						std::cout << ']' << std::endl;
+						switch (aprs_packet_telemetry_get_type(packet))
+						{
+							case APRS_TELEMETRY_TYPE_U8:
+							case APRS_TELEMETRY_TYPE_FLOAT:
+								std::cout << "[Digital: ";
+								for (uint8_t i = 0, d = aprs_packet_telemetry_get_digital(packet); i < 8; ++i)
+									std::cout << (((d & (1 << i)) == (1 << i)) ? 1 : 0);
+								std::cout << "] ";
+								break;
+						}
+
+						if (auto telemetry_comment = aprs_packet_telemetry_get_comment(packet))
+							std::cout << telemetry_comment;
+						std::cout << std::endl;
 					}
 					break;
 

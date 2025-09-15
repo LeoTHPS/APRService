@@ -25,6 +25,7 @@ struct aprs_path
 {
 	uint8_t                    size;
 	std::array<std::string, 8> chunks;
+	std::array<const char*, 9> chunks_c;
 
 	std::string                string;
 
@@ -136,13 +137,27 @@ struct aprs_packet_position
 };
 struct aprs_packet_telemetry
 {
-	APRS_TELEMETRY_TYPES   type;
+	APRS_TELEMETRY_TYPES                      type;
 
-	std::array<uint8_t, 5> analog_u8;
-	std::array<float, 5>   analog_float;
-	uint8_t                digital;
-	uint16_t               sequence;
-	std::string            comment;
+	std::array<aprs_telemetry_eqn, 15>        eqns;
+	std::array<const aprs_telemetry_eqn*, 16> eqns_c;
+	size_t                                    eqns_count;
+
+	std::array<std::string, 10>               units;
+	std::array<const char*, 11>               units_c;
+	size_t                                    units_count;
+
+	std::array<std::string, 10>               params;
+	std::array<const char*, 11>               params_c;
+	size_t                                    params_count;
+
+	std::array<uint8_t, 5>                    analog_u8;
+	std::array<const uint8_t*, 6>             analog_u8_c;
+	std::array<float, 5>                      analog_float;
+	std::array<const float*, 6>               analog_float_c;
+	uint8_t                                   digital;
+	uint16_t                                  sequence;
+	std::string                               comment;
 };
 struct aprs_packet_user_defined
 {
@@ -535,6 +550,13 @@ T                  aprs_decode_int_ex(const char* string, size_t max_length, cha
 		value = 10 * value + (get_char(i, *string) - '0');
 
 	return value;
+}
+inline float       aprs_decode_float(const char* string)
+{
+	if (!string)
+		return 0;
+
+	return strtof(string, nullptr);
 }
 bool               aprs_decode_time(aprs_time& value, const char* string, char type)
 {
@@ -1156,29 +1178,121 @@ bool               aprs_packet_decode_status(aprs_packet* packet)
 
 	return false;
 }
+bool               aprs_packet_decode_message_telemetry_params(aprs_packet* packet, const char* content)
+{
+	packet->type      = APRS_PACKET_TYPE_TELEMETRY;
+	packet->telemetry = new aprs_packet_telemetry
+	{
+		.type = APRS_TELEMETRY_TYPE_PARAMS
+	};
+
+	if (auto param = strtok((char*)content, ",")) do
+	{
+		packet->telemetry->params[packet->telemetry->params_count]   = param;
+		packet->telemetry->params_c[packet->telemetry->params_count] = packet->telemetry->params[packet->telemetry->params_count].c_str();
+	}
+	while ((++packet->telemetry->params_count < 10) && (param = strtok(nullptr, ",")));
+
+	return true;
+}
+bool               aprs_packet_decode_message_telemetry_units(aprs_packet* packet, const char* content)
+{
+	packet->type      = APRS_PACKET_TYPE_TELEMETRY;
+	packet->telemetry = new aprs_packet_telemetry
+	{
+		.type = APRS_TELEMETRY_TYPE_UNITS
+	};
+
+	if (auto unit = strtok((char*)content, ",")) do
+	{
+		packet->telemetry->units[packet->telemetry->units_count]   = unit;
+		packet->telemetry->units_c[packet->telemetry->units_count] = packet->telemetry->units[packet->telemetry->units_count].c_str();
+	}
+	while ((++packet->telemetry->units_count < 10) && (unit = strtok(nullptr, ",")));
+
+	return true;
+}
+bool               aprs_packet_decode_message_telemetry_eqns(aprs_packet* packet, const char* content)
+{
+	packet->type      = APRS_PACKET_TYPE_TELEMETRY;
+	packet->telemetry = new aprs_packet_telemetry
+	{
+		.type = APRS_TELEMETRY_TYPE_EQNS
+	};
+
+	const char* chunks[15]   = {};
+	size_t      chunks_count = 0;
+
+	if (auto chunk = strtok((char*)content, ",")) do
+		chunks[chunks_count] = chunk;
+	while ((++chunks_count < 15) && (chunk = strtok(nullptr, ",")));
+
+	for (size_t i = 0; i < 5; ++i, ++packet->telemetry->eqns_count)
+	{
+		packet->telemetry->eqns[i]   = { aprs_decode_float(chunks[i * 3]), aprs_decode_float(chunks[(i * 3) + 1]), aprs_decode_float(chunks[(i * 3) + 2]) };
+		packet->telemetry->eqns_c[i] = &packet->telemetry->eqns[i];
+	}
+
+	return true;
+}
+bool               aprs_packet_decode_message_telemetry_bits(aprs_packet* packet, const char* content)
+{
+	packet->type      = APRS_PACKET_TYPE_TELEMETRY;
+	packet->telemetry = new aprs_packet_telemetry
+	{
+		.type    = APRS_TELEMETRY_TYPE_BITS,
+		.digital = 0
+	};
+
+	if (auto bits = strtok((char*)content, ","))
+	{
+		for (size_t i = 0; i < 8; ++i)
+			if (bits[i] != '0')
+				packet->telemetry->digital |= 1 << i;
+
+		if (auto comment = strtok(nullptr, ""))
+			packet->telemetry->comment = comment;
+	}
+
+	return true;
+}
+bool               aprs_packet_decode_message_telemetry(aprs_packet* packet, std::cmatch& match)
+{
+	auto type = match[2].str();
+
+	     if (!type.compare("PARM")) return aprs_packet_decode_message_telemetry_params(packet, match[3].first);
+	else if (!type.compare("UNIT")) return aprs_packet_decode_message_telemetry_units(packet, match[3].first);
+	else if (!type.compare("EQNS")) return aprs_packet_decode_message_telemetry_eqns(packet, match[3].first);
+	else if (!type.compare("BITS")) return aprs_packet_decode_message_telemetry_bits(packet, match[3].first);
+
+	return false;
+}
 bool               aprs_packet_decode_message(aprs_packet* packet)
 {
 	static const std::regex regex("^:([^ :]+):(.+?)(\\{(.+))?$");
 	static const std::regex regex_ack("^ack\\S{1,5}$");
 	static const std::regex regex_rej("^rej\\S{1,5}$");
 	static const std::regex regex_bln("^BLN(\\S{1,6})$");
+	static const std::regex regex_telemetry("^:([^:]+):(PARM|UNIT|EQNS|BITS).(.*)$");
 
 	std::cmatch match;
 
-	if (!aprs_regex_match(match, regex, packet->content.c_str()))
+	if (aprs_regex_match(match, regex_telemetry, packet->content.c_str()))
+		return aprs_packet_decode_message_telemetry(packet, match);
+	else if (!aprs_regex_match(match, regex, packet->content.c_str()))
 		return false;
 
-	auto destination = match[1].str();
-	auto content     = match[2].str();
 	auto id          = (match.size() < 4) ? "" : match[4].str();
+	auto content     = match[2].str();
+	auto destination = match[1].str();
+
+	if (id.length() > 5)
+		return false;
 
 	if (!aprs_validate_name(destination.c_str()))
 		return false;
 
 	if (!aprs_validate_comment(content.c_str(), 67))
-		return false;
-
-	if (id.length() > 5)
 		return false;
 
 	packet->type    = APRS_PACKET_TYPE_MESSAGE;
@@ -1431,21 +1545,33 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 		!aprs_string_contains(analog_4.first, analog_1.length(), '.') &&
 		!aprs_string_contains(analog_5.first, analog_1.length(), '.'))
 	{
-		packet->telemetry->type         = APRS_TELEMETRY_TYPE_U8;
-		packet->telemetry->analog_u8[0] = aprs_decode_int<uint8_t>(analog_1.first, analog_1.length());
-		packet->telemetry->analog_u8[1] = aprs_decode_int<uint8_t>(analog_2.first, analog_2.length());
-		packet->telemetry->analog_u8[2] = aprs_decode_int<uint8_t>(analog_3.first, analog_3.length());
-		packet->telemetry->analog_u8[3] = aprs_decode_int<uint8_t>(analog_4.first, analog_4.length());
-		packet->telemetry->analog_u8[4] = aprs_decode_int<uint8_t>(analog_5.first, analog_5.length());
+		packet->telemetry->type           = APRS_TELEMETRY_TYPE_U8;
+		packet->telemetry->analog_u8[0]   = aprs_decode_int<uint8_t>(analog_1.first, analog_1.length());
+		packet->telemetry->analog_u8[1]   = aprs_decode_int<uint8_t>(analog_2.first, analog_2.length());
+		packet->telemetry->analog_u8[2]   = aprs_decode_int<uint8_t>(analog_3.first, analog_3.length());
+		packet->telemetry->analog_u8[3]   = aprs_decode_int<uint8_t>(analog_4.first, analog_4.length());
+		packet->telemetry->analog_u8[4]   = aprs_decode_int<uint8_t>(analog_5.first, analog_5.length());
+		packet->telemetry->analog_u8_c[0] = &packet->telemetry->analog_u8[0];
+		packet->telemetry->analog_u8_c[1] = &packet->telemetry->analog_u8[1];
+		packet->telemetry->analog_u8_c[2] = &packet->telemetry->analog_u8[2];
+		packet->telemetry->analog_u8_c[3] = &packet->telemetry->analog_u8[3];
+		packet->telemetry->analog_u8_c[4] = &packet->telemetry->analog_u8[4];
+		packet->telemetry->analog_u8_c[5] = nullptr;
 	}
 	else
 	{
-		packet->telemetry->type            = APRS_TELEMETRY_TYPE_FLOAT;
-		packet->telemetry->analog_float[0] = strtof(analog_1.str().c_str(), nullptr);
-		packet->telemetry->analog_float[1] = strtof(analog_2.str().c_str(), nullptr);
-		packet->telemetry->analog_float[2] = strtof(analog_3.str().c_str(), nullptr);
-		packet->telemetry->analog_float[3] = strtof(analog_4.str().c_str(), nullptr);
-		packet->telemetry->analog_float[4] = strtof(analog_5.str().c_str(), nullptr);
+		packet->telemetry->type              = APRS_TELEMETRY_TYPE_FLOAT;
+		packet->telemetry->analog_float[0]   = strtof(analog_1.str().c_str(), nullptr);
+		packet->telemetry->analog_float[1]   = strtof(analog_2.str().c_str(), nullptr);
+		packet->telemetry->analog_float[2]   = strtof(analog_3.str().c_str(), nullptr);
+		packet->telemetry->analog_float[3]   = strtof(analog_4.str().c_str(), nullptr);
+		packet->telemetry->analog_float[4]   = strtof(analog_5.str().c_str(), nullptr);
+		packet->telemetry->analog_float_c[0] = &packet->telemetry->analog_float[0];
+		packet->telemetry->analog_float_c[1] = &packet->telemetry->analog_float[1];
+		packet->telemetry->analog_float_c[2] = &packet->telemetry->analog_float[2];
+		packet->telemetry->analog_float_c[3] = &packet->telemetry->analog_float[3];
+		packet->telemetry->analog_float_c[4] = &packet->telemetry->analog_float[4];
+		packet->telemetry->analog_float_c[5] = nullptr;
 	}
 
 	return true;
@@ -1834,6 +1960,13 @@ void               aprs_packet_encode_telemetry(aprs_packet* packet, std::string
 			for (uint8_t i = 0; i < 8; ++i)
 				ss << (((packet->telemetry->digital & (1 << i)) == (1 << i)) ? 1 : 0);
 			break;
+
+		case APRS_TELEMETRY_TYPE_PARAMS:
+		case APRS_TELEMETRY_TYPE_UNITS:
+		case APRS_TELEMETRY_TYPE_EQNS:
+		case APRS_TELEMETRY_TYPE_BITS:
+			// TODO: implement
+			break;
 	}
 
 	ss << packet->telemetry->comment;
@@ -1915,7 +2048,7 @@ consteval bool static_assert_aprs_packet_encoders(std::index_sequence<I ...>)
 }
 static_assert(static_assert_aprs_packet_encoders(std::make_index_sequence<sizeof(aprs_packet_encoders) / sizeof(aprs_packet_encoder_context)> {}));
 
-struct aprs_path*         APRSERVICE_CALL aprs_path_init()
+struct aprs_path*                 APRSERVICE_CALL aprs_path_init()
 {
 	auto path = new aprs_path
 	{
@@ -1926,7 +2059,7 @@ struct aprs_path*         APRSERVICE_CALL aprs_path_init()
 
 	return path;
 }
-struct aprs_path*         APRSERVICE_CALL aprs_path_init_from_string(const char* string)
+struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(const char* string)
 {
 	if (!string)
 		return nullptr;
@@ -1958,31 +2091,29 @@ struct aprs_path*         APRSERVICE_CALL aprs_path_init_from_string(const char*
 		}
 
 		path->chunks[path->size++].assign(chunk, chunk_length);
+		path->chunks_c[path->size - 1] = path->chunks[path->size - 1].c_str();
 	} while (chunk = strtok(nullptr, ","));
 
 	return path;
 }
-void                      APRSERVICE_CALL aprs_path_deinit(struct aprs_path* path)
+void                              APRSERVICE_CALL aprs_path_deinit(struct aprs_path* path)
 {
 	if (!--path->reference_count)
 		delete path;
 }
-const char*               APRSERVICE_CALL aprs_path_get(struct aprs_path* path, uint8_t index)
+const char**                      APRSERVICE_CALL aprs_path_get(struct aprs_path* path)
 {
-	if (index >= path->size)
-		return nullptr;
-
-	return path->chunks[index].c_str();
+	return path->chunks_c.data();
 }
-uint8_t                   APRSERVICE_CALL aprs_path_get_length(struct aprs_path* path)
+uint8_t                           APRSERVICE_CALL aprs_path_get_length(struct aprs_path* path)
 {
 	return path->size;
 }
-uint8_t                   APRSERVICE_CALL aprs_path_get_capacity(struct aprs_path* path)
+uint8_t                           APRSERVICE_CALL aprs_path_get_capacity(struct aprs_path* path)
 {
 	return path->chunks.max_size();
 }
-bool                      APRSERVICE_CALL aprs_path_set(struct aprs_path* path, uint8_t index, const char* value)
+bool                              APRSERVICE_CALL aprs_path_set(struct aprs_path* path, uint8_t index, const char* value)
 {
 	if (index >= path->size)
 		return false;
@@ -1994,7 +2125,7 @@ bool                      APRSERVICE_CALL aprs_path_set(struct aprs_path* path, 
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_path_pop(struct aprs_path* path)
+bool                              APRSERVICE_CALL aprs_path_pop(struct aprs_path* path)
 {
 	if (path->size == 0)
 		return false;
@@ -2003,10 +2134,11 @@ bool                      APRSERVICE_CALL aprs_path_pop(struct aprs_path* path)
 		return false;
 
 	path->chunks[--path->size].clear();
+	path->chunks_c[path->size + 1] = nullptr;
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_path_push(struct aprs_path* path, const char* value)
+bool                              APRSERVICE_CALL aprs_path_push(struct aprs_path* path, const char* value)
 {
 	if (!aprs_validate_path(value))
 		return false;
@@ -2015,17 +2147,20 @@ bool                      APRSERVICE_CALL aprs_path_push(struct aprs_path* path,
 		return false;
 
 	path->chunks[path->size++] = value;
+	path->chunks_c[path->size - 1] = path->chunks[path->size - 1].c_str();
+	path->chunks_c[path->size] = nullptr;
 
 	return true;
 }
-void                      APRSERVICE_CALL aprs_path_clear(struct aprs_path* path)
+void                              APRSERVICE_CALL aprs_path_clear(struct aprs_path* path)
 {
 	for (size_t i = 0; i < path->size; ++i)
 		path->chunks[i].clear();
 
 	path->size = 0;
+	path->chunks_c.fill(nullptr);
 }
-const char*               APRSERVICE_CALL aprs_path_to_string(struct aprs_path* path)
+const char*                       APRSERVICE_CALL aprs_path_to_string(struct aprs_path* path)
 {
 	std::stringstream ss;
 
@@ -2041,12 +2176,12 @@ const char*               APRSERVICE_CALL aprs_path_to_string(struct aprs_path* 
 
 	return path->string.c_str();
 }
-void                      APRSERVICE_CALL aprs_path_add_reference(struct aprs_path* path)
+void                              APRSERVICE_CALL aprs_path_add_reference(struct aprs_path* path)
 {
 	++path->reference_count;
 }
 
-struct aprs_time*         APRSERVICE_CALL aprs_time_now()
+struct aprs_time*                 APRSERVICE_CALL aprs_time_now()
 {
 	static aprs_time time;
 
@@ -2057,11 +2192,11 @@ struct aprs_time*         APRSERVICE_CALL aprs_time_now()
 
 	return &time;
 }
-int                       APRSERVICE_CALL aprs_time_get_type(const struct aprs_time* time)
+int                               APRSERVICE_CALL aprs_time_get_type(const struct aprs_time* time)
 {
 	return time->type;
 }
-bool                      APRSERVICE_CALL aprs_time_get_dms(const struct aprs_time* time, uint8_t* day, uint8_t* minute, uint8_t* second)
+bool                              APRSERVICE_CALL aprs_time_get_dms(const struct aprs_time* time, uint8_t* day, uint8_t* minute, uint8_t* second)
 {
 	if (!(time->type & APRS_TIME_DHM))
 		return false;
@@ -2072,7 +2207,7 @@ bool                      APRSERVICE_CALL aprs_time_get_dms(const struct aprs_ti
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_time_get_hms(const struct aprs_time* time, uint8_t* hour, uint8_t* minute, uint8_t* second)
+bool                              APRSERVICE_CALL aprs_time_get_hms(const struct aprs_time* time, uint8_t* hour, uint8_t* minute, uint8_t* second)
 {
 	if (!(time->type & APRS_TIME_HMS))
 		return false;
@@ -2083,7 +2218,7 @@ bool                      APRSERVICE_CALL aprs_time_get_hms(const struct aprs_ti
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_time_get_mdhm(const struct aprs_time* time, uint8_t* month, uint8_t* day, uint8_t* hour, uint8_t* minute)
+bool                              APRSERVICE_CALL aprs_time_get_mdhm(const struct aprs_time* time, uint8_t* month, uint8_t* day, uint8_t* hour, uint8_t* minute)
 {
 	if (!(time->type & APRS_TIME_MDHM))
 		return false;
@@ -2096,7 +2231,7 @@ bool                      APRSERVICE_CALL aprs_time_get_mdhm(const struct aprs_t
 	return true;
 }
 
-bool                                      aprs_packet_decode(aprs_packet* packet)
+bool                                              aprs_packet_decode(aprs_packet* packet)
 {
 	if (auto content = aprs_packet_get_content(packet))
 		for (auto& decoder : aprs_packet_decoders)
@@ -2105,7 +2240,7 @@ bool                                      aprs_packet_decode(aprs_packet* packet
 
 	return false;
 }
-bool                                      aprs_packet_encode(aprs_packet* packet, std::stringstream& ss)
+bool                                              aprs_packet_encode(aprs_packet* packet, std::stringstream& ss)
 {
 	if (auto type = aprs_packet_get_type(packet); type < APRS_PACKET_TYPES_COUNT)
 	{
@@ -2117,7 +2252,7 @@ bool                                      aprs_packet_encode(aprs_packet* packet
 	return false;
 }
 
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_init(const char* sender, const char* tocall, struct aprs_path* path)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_init(const char* sender, const char* tocall, struct aprs_path* path)
 {
 	if (!tocall || !path)
 		return nullptr;
@@ -2138,7 +2273,7 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_init(const char* sender, c
 
 	return packet;
 }
-struct aprs_packet*                       aprs_packet_init_ex(const char* sender, const char* tocall, struct aprs_path* path, enum APRS_PACKET_TYPES type)
+struct aprs_packet*                               aprs_packet_init_ex(const char* sender, const char* tocall, struct aprs_path* path, enum APRS_PACKET_TYPES type)
 {
 	auto packet = new aprs_packet
 	{
@@ -2153,7 +2288,7 @@ struct aprs_packet*                       aprs_packet_init_ex(const char* sender
 
 	return packet;
 }
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_init_from_string(const char* string)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_string(const char* string)
 {
 	static const std::regex regex("^([^>]{3,9})>([^,]+),([^:]+):(.+)$");
 	static const std::regex regex_path("^((\\S+?(?=,qA\\w)),(qA\\w),(.+))|(\\S+)$");
@@ -2193,7 +2328,7 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_init_from_string(const cha
 
 	return packet;
 }
-void                      APRSERVICE_CALL aprs_packet_deinit(struct aprs_packet* packet)
+void                              APRSERVICE_CALL aprs_packet_deinit(struct aprs_packet* packet)
 {
 	if (!--packet->reference_count)
 	{
@@ -2272,35 +2407,35 @@ void                      APRSERVICE_CALL aprs_packet_deinit(struct aprs_packet*
 		delete packet;
 	}
 }
-const char*               APRSERVICE_CALL aprs_packet_get_q(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_get_q(struct aprs_packet* packet)
 {
 	return packet->qconstruct.c_str();
 }
-enum APRS_PACKET_TYPES    APRSERVICE_CALL aprs_packet_get_type(struct aprs_packet* packet)
+enum APRS_PACKET_TYPES            APRSERVICE_CALL aprs_packet_get_type(struct aprs_packet* packet)
 {
 	return packet->type;
 }
-struct aprs_path*         APRSERVICE_CALL aprs_packet_get_path(struct aprs_packet* packet)
+struct aprs_path*                 APRSERVICE_CALL aprs_packet_get_path(struct aprs_packet* packet)
 {
 	return packet->path;
 }
-const char*               APRSERVICE_CALL aprs_packet_get_igate(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_get_igate(struct aprs_packet* packet)
 {
 	return packet->igate.c_str();
 }
-const char*               APRSERVICE_CALL aprs_packet_get_tocall(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_get_tocall(struct aprs_packet* packet)
 {
 	return packet->tocall.c_str();
 }
-const char*               APRSERVICE_CALL aprs_packet_get_sender(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_get_sender(struct aprs_packet* packet)
 {
 	return packet->sender.c_str();
 }
-const char*               APRSERVICE_CALL aprs_packet_get_content(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_get_content(struct aprs_packet* packet)
 {
 	return packet->content.c_str();
 }
-bool                      APRSERVICE_CALL aprs_packet_set_path(struct aprs_packet* packet, struct aprs_path* value)
+bool                              APRSERVICE_CALL aprs_packet_set_path(struct aprs_packet* packet, struct aprs_path* value)
 {
 	if (!value)
 		return false;
@@ -2313,7 +2448,7 @@ bool                      APRSERVICE_CALL aprs_packet_set_path(struct aprs_packe
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_set_tocall(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_set_tocall(struct aprs_packet* packet, const char* value)
 {
 	if (auto length = aprs_validate_name(value))
 	{
@@ -2324,7 +2459,7 @@ bool                      APRSERVICE_CALL aprs_packet_set_tocall(struct aprs_pac
 
 	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_set_sender(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_set_sender(struct aprs_packet* packet, const char* value)
 {
 	if (auto length = aprs_validate_station(value))
 	{
@@ -2335,7 +2470,7 @@ bool                      APRSERVICE_CALL aprs_packet_set_sender(struct aprs_pac
 
 	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_set_content(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_set_content(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_RAW)
 		return false;
@@ -2349,7 +2484,7 @@ bool                      APRSERVICE_CALL aprs_packet_set_content(struct aprs_pa
 
 	return false;
 }
-const char*               APRSERVICE_CALL aprs_packet_to_string(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_to_string(struct aprs_packet* packet)
 {
 	{
 		std::stringstream ss;
@@ -2369,12 +2504,12 @@ const char*               APRSERVICE_CALL aprs_packet_to_string(struct aprs_pack
 
 	return packet->string.c_str();
 }
-void                      APRSERVICE_CALL aprs_packet_add_reference(struct aprs_packet* packet)
+void                              APRSERVICE_CALL aprs_packet_add_reference(struct aprs_packet* packet)
 {
 	++packet->reference_count;
 }
 
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_gps_init(const char* sender, const char* tocall, struct aprs_path* path, const char* nmea)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_gps_init(const char* sender, const char* tocall, struct aprs_path* path, const char* nmea)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_GPS))
 	{
@@ -2392,21 +2527,21 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_gps_init(const char* sende
 
 	return nullptr;
 }
-const char*               APRSERVICE_CALL aprs_packet_gps_get_nmea(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_gps_get_nmea(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_GPS)
 		return nullptr;
 
 	return packet->gps->nmea.c_str();
 }
-const char*               APRSERVICE_CALL aprs_packet_gps_get_comment(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_gps_get_comment(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_GPS)
 		return nullptr;
 
 	return packet->gps->comment.c_str();
 }
-bool                      APRSERVICE_CALL aprs_packet_gps_set_nmea(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_gps_set_nmea(struct aprs_packet* packet, const char* value)
 {
 	if (!*value || (*value != '$'))
 		return false;
@@ -2418,7 +2553,7 @@ bool                      APRSERVICE_CALL aprs_packet_gps_set_nmea(struct aprs_p
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_gps_set_comment(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_gps_set_comment(struct aprs_packet* packet, const char* value)
 {
 	if (!*value)
 		return false;
@@ -2431,7 +2566,7 @@ bool                      APRSERVICE_CALL aprs_packet_gps_set_comment(struct apr
 	return true;
 }
 
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_item_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_item_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_ITEM))
 	{
@@ -2456,84 +2591,84 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_item_init(const char* send
 
 	return nullptr;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_is_alive(struct aprs_packet* packet)
+bool                              APRSERVICE_CALL aprs_packet_item_is_alive(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
 	return packet->item->is_alive;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_is_compressed(struct aprs_packet* packet)
+bool                              APRSERVICE_CALL aprs_packet_item_is_compressed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
 	return packet->item->is_compressed;
 }
-const char*               APRSERVICE_CALL aprs_packet_item_get_name(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_item_get_name(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return nullptr;
 
 	return packet->item->name.c_str();
 }
-const char*               APRSERVICE_CALL aprs_packet_item_get_comment(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_item_get_comment(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return nullptr;
 
 	return packet->item->comment.c_str();
 }
-uint16_t                  APRSERVICE_CALL aprs_packet_item_get_speed(struct aprs_packet* packet)
+uint16_t                          APRSERVICE_CALL aprs_packet_item_get_speed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return 0;
 
 	return packet->extensions.speed;
 }
-uint16_t                  APRSERVICE_CALL aprs_packet_item_get_course(struct aprs_packet* packet)
+uint16_t                          APRSERVICE_CALL aprs_packet_item_get_course(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return 0;
 
 	return packet->extensions.course;
 }
-int32_t                   APRSERVICE_CALL aprs_packet_item_get_altitude(struct aprs_packet* packet)
+int32_t                           APRSERVICE_CALL aprs_packet_item_get_altitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return 0;
 
 	return packet->extensions.altitude;
 }
-float                     APRSERVICE_CALL aprs_packet_item_get_latitude(struct aprs_packet* packet)
+float                             APRSERVICE_CALL aprs_packet_item_get_latitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return 0;
 
 	return packet->item->latitude;
 }
-float                     APRSERVICE_CALL aprs_packet_item_get_longitude(struct aprs_packet* packet)
+float                             APRSERVICE_CALL aprs_packet_item_get_longitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return 0;
 
 	return packet->item->longitude;
 }
-char                      APRSERVICE_CALL aprs_packet_item_get_symbol_table(struct aprs_packet* packet)
+char                              APRSERVICE_CALL aprs_packet_item_get_symbol_table(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return '\0';
 
 	return packet->item->symbol_table;
 }
-char                      APRSERVICE_CALL aprs_packet_item_get_symbol_table_key(struct aprs_packet* packet)
+char                              APRSERVICE_CALL aprs_packet_item_get_symbol_table_key(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return '\0';
 
 	return packet->item->symbol_table_key;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_set_alive(struct aprs_packet* packet, bool value)
+bool                              APRSERVICE_CALL aprs_packet_item_set_alive(struct aprs_packet* packet, bool value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
@@ -2542,7 +2677,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_alive(struct aprs
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_set_compressed(struct aprs_packet* packet, bool value)
+bool                              APRSERVICE_CALL aprs_packet_item_set_compressed(struct aprs_packet* packet, bool value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
@@ -2551,7 +2686,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_compressed(struct
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_set_name(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_item_set_name(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
@@ -2565,7 +2700,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_name(struct aprs_
 
 	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_set_comment(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_item_set_comment(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
@@ -2585,7 +2720,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_comment(struct ap
 
 	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_set_speed(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_item_set_speed(struct aprs_packet* packet, uint16_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
@@ -2594,7 +2729,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_speed(struct aprs
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_set_course(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_item_set_course(struct aprs_packet* packet, uint16_t value)
 {
 	if (value > 359)
 		return false;
@@ -2606,7 +2741,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_course(struct apr
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_set_altitude(struct aprs_packet* packet, int32_t value)
+bool                              APRSERVICE_CALL aprs_packet_item_set_altitude(struct aprs_packet* packet, int32_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
@@ -2615,7 +2750,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_altitude(struct a
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_set_latitude(struct aprs_packet* packet, float value)
+bool                              APRSERVICE_CALL aprs_packet_item_set_latitude(struct aprs_packet* packet, float value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
@@ -2624,7 +2759,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_latitude(struct a
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_set_longitude(struct aprs_packet* packet, float value)
+bool                              APRSERVICE_CALL aprs_packet_item_set_longitude(struct aprs_packet* packet, float value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
@@ -2633,7 +2768,7 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_longitude(struct 
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_set_symbol(struct aprs_packet* packet, char table, char key)
+bool                              APRSERVICE_CALL aprs_packet_item_set_symbol(struct aprs_packet* packet, char table, char key)
 {
 	if (!aprs_validate_symbol(table, key))
 		return false;
@@ -2646,16 +2781,16 @@ bool                      APRSERVICE_CALL aprs_packet_item_set_symbol(struct apr
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_item_set_symbol_table(struct aprs_packet* packet, char value)
+bool                              APRSERVICE_CALL aprs_packet_item_set_symbol_table(struct aprs_packet* packet, char value)
 {
 	return aprs_packet_item_set_symbol(packet, value, aprs_packet_item_get_symbol_table_key(packet));
 }
-bool                      APRSERVICE_CALL aprs_packet_item_set_symbol_table_key(struct aprs_packet* packet, char value)
+bool                              APRSERVICE_CALL aprs_packet_item_set_symbol_table_key(struct aprs_packet* packet, char value)
 {
 	return aprs_packet_item_set_symbol(packet, aprs_packet_item_get_symbol_table(packet), value);
 }
 
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_object_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_object_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_OBJECT))
 	{
@@ -2681,91 +2816,91 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_object_init(const char* se
 
 	return nullptr;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_is_alive(struct aprs_packet* packet)
+bool                              APRSERVICE_CALL aprs_packet_object_is_alive(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
 	return packet->object->is_alive;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_is_compressed(struct aprs_packet* packet)
+bool                              APRSERVICE_CALL aprs_packet_object_is_compressed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
 	return packet->object->is_compressed;
 }
-const struct aprs_time*   APRSERVICE_CALL aprs_packet_object_get_time(struct aprs_packet* packet)
+const struct aprs_time*           APRSERVICE_CALL aprs_packet_object_get_time(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return nullptr;
 
 	return &packet->object->time;
 }
-const char*               APRSERVICE_CALL aprs_packet_object_get_name(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_object_get_name(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return nullptr;
 
 	return packet->object->name.c_str();
 }
-const char*               APRSERVICE_CALL aprs_packet_object_get_comment(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_object_get_comment(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return nullptr;
 
 	return packet->object->comment.c_str();
 }
-uint16_t                  APRSERVICE_CALL aprs_packet_object_get_speed(struct aprs_packet* packet)
+uint16_t                          APRSERVICE_CALL aprs_packet_object_get_speed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
 	return packet->extensions.speed;
 }
-uint16_t                  APRSERVICE_CALL aprs_packet_object_get_course(struct aprs_packet* packet)
+uint16_t                          APRSERVICE_CALL aprs_packet_object_get_course(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
 	return packet->extensions.course;
 }
-int32_t                   APRSERVICE_CALL aprs_packet_object_get_altitude(struct aprs_packet* packet)
+int32_t                           APRSERVICE_CALL aprs_packet_object_get_altitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
 	return packet->extensions.altitude;
 }
-float                     APRSERVICE_CALL aprs_packet_object_get_latitude(struct aprs_packet* packet)
+float                             APRSERVICE_CALL aprs_packet_object_get_latitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
 	return packet->object->latitude;
 }
-float                     APRSERVICE_CALL aprs_packet_object_get_longitude(struct aprs_packet* packet)
+float                             APRSERVICE_CALL aprs_packet_object_get_longitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return 0;
 
 	return packet->object->longitude;
 }
-char                      APRSERVICE_CALL aprs_packet_object_get_symbol_table(struct aprs_packet* packet)
+char                              APRSERVICE_CALL aprs_packet_object_get_symbol_table(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return '\0';
 
 	return packet->object->symbol_table;
 }
-char                      APRSERVICE_CALL aprs_packet_object_get_symbol_table_key(struct aprs_packet* packet)
+char                              APRSERVICE_CALL aprs_packet_object_get_symbol_table_key(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return '\0';
 
 	return packet->object->symbol_table_key;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_time(struct aprs_packet* packet, const struct aprs_time* value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_time(struct aprs_packet* packet, const struct aprs_time* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
@@ -2777,7 +2912,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_time(struct apr
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_alive(struct aprs_packet* packet, bool value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_alive(struct aprs_packet* packet, bool value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
@@ -2786,7 +2921,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_alive(struct ap
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_compressed(struct aprs_packet* packet, bool value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_compressed(struct aprs_packet* packet, bool value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
@@ -2795,7 +2930,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_compressed(stru
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_name(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_name(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
@@ -2809,7 +2944,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_name(struct apr
 
 	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_comment(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_comment(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
@@ -2829,7 +2964,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_comment(struct 
 
 	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_speed(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_speed(struct aprs_packet* packet, uint16_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
@@ -2838,7 +2973,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_speed(struct ap
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_course(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_course(struct aprs_packet* packet, uint16_t value)
 {
 	if (value > 359)
 		return false;
@@ -2850,7 +2985,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_course(struct a
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_altitude(struct aprs_packet* packet, int32_t value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_altitude(struct aprs_packet* packet, int32_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
@@ -2859,7 +2994,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_altitude(struct
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_latitude(struct aprs_packet* packet, float value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_latitude(struct aprs_packet* packet, float value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
@@ -2868,7 +3003,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_latitude(struct
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_longitude(struct aprs_packet* packet, float value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_longitude(struct aprs_packet* packet, float value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
@@ -2877,7 +3012,7 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_longitude(struc
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_symbol(struct aprs_packet* packet, char table, char key)
+bool                              APRSERVICE_CALL aprs_packet_object_set_symbol(struct aprs_packet* packet, char table, char key)
 {
 	if (!aprs_validate_symbol(table, key))
 		return false;
@@ -2890,16 +3025,16 @@ bool                      APRSERVICE_CALL aprs_packet_object_set_symbol(struct a
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_symbol_table(struct aprs_packet* packet, char value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_symbol_table(struct aprs_packet* packet, char value)
 {
 	return aprs_packet_object_set_symbol(packet, value, aprs_packet_object_get_symbol_table_key(packet));
 }
-bool                      APRSERVICE_CALL aprs_packet_object_set_symbol_table_key(struct aprs_packet* packet, char value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_symbol_table_key(struct aprs_packet* packet, char value)
 {
 	return aprs_packet_object_set_symbol(packet, aprs_packet_object_get_symbol_table(packet), value);
 }
 
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_status_init(const char* sender, const char* tocall, struct aprs_path* path, const char* message)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_status_init(const char* sender, const char* tocall, struct aprs_path* path, const char* message)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_STATUS))
 	{
@@ -2918,7 +3053,7 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_status_init(const char* se
 
 	return nullptr;
 }
-struct aprs_time*         APRSERVICE_CALL aprs_packet_status_get_time(struct aprs_packet* packet)
+struct aprs_time*                 APRSERVICE_CALL aprs_packet_status_get_time(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_STATUS)
 		return nullptr;
@@ -2928,14 +3063,14 @@ struct aprs_time*         APRSERVICE_CALL aprs_packet_status_get_time(struct apr
 
 	return &packet->status->time;
 }
-const char*               APRSERVICE_CALL aprs_packet_status_get_message(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_status_get_message(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_STATUS)
 		return nullptr;
 
 	return packet->status->message.c_str();
 }
-bool                      APRSERVICE_CALL aprs_packet_status_set_time(struct aprs_packet* packet, struct aprs_time* value)
+bool                              APRSERVICE_CALL aprs_packet_status_set_time(struct aprs_packet* packet, struct aprs_time* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_STATUS)
 		return false;
@@ -2957,7 +3092,7 @@ bool                      APRSERVICE_CALL aprs_packet_status_set_time(struct apr
 
 	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_status_set_message(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_status_set_message(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_STATUS)
 		return false;
@@ -2970,7 +3105,7 @@ bool                      APRSERVICE_CALL aprs_packet_status_set_message(struct 
 	return true;
 }
 
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init(const char* sender, const char* tocall, struct aprs_path* path, const char* destination, const char* content)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_message_init(const char* sender, const char* tocall, struct aprs_path* path, const char* destination, const char* content)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_MESSAGE))
 	{
@@ -2990,7 +3125,7 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init(const char* s
 
 	return nullptr;
 }
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init_ack(const char* sender, const char* tocall, struct aprs_path* path, const char* destination, const char* id)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_message_init_ack(const char* sender, const char* tocall, struct aprs_path* path, const char* destination, const char* id)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_MESSAGE))
 	{
@@ -3010,7 +3145,7 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init_ack(const cha
 
 	return nullptr;
 }
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init_reject(const char* sender, const char* tocall, struct aprs_path* path, const char* destination, const char* id)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_message_init_reject(const char* sender, const char* tocall, struct aprs_path* path, const char* destination, const char* id)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_MESSAGE))
 	{
@@ -3030,7 +3165,7 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init_reject(const 
 
 	return nullptr;
 }
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init_bulletin(const char* sender, const char* tocall, struct aprs_path* path, const char* destination)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_message_init_bulletin(const char* sender, const char* tocall, struct aprs_path* path, const char* destination)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_MESSAGE))
 	{
@@ -3049,7 +3184,7 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_message_init_bulletin(cons
 
 	return nullptr;
 }
-const char*               APRSERVICE_CALL aprs_packet_message_get_id(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_message_get_id(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return nullptr;
@@ -3059,28 +3194,28 @@ const char*               APRSERVICE_CALL aprs_packet_message_get_id(struct aprs
 
 	return packet->message->id.c_str();
 }
-enum APRS_MESSAGE_TYPES   APRSERVICE_CALL aprs_packet_message_get_type(struct aprs_packet* packet)
+enum APRS_MESSAGE_TYPES           APRSERVICE_CALL aprs_packet_message_get_type(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return APRS_MESSAGE_TYPES_COUNT;
 
 	return packet->message->type;
 }
-const char*               APRSERVICE_CALL aprs_packet_message_get_content(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_message_get_content(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return nullptr;
 
 	return packet->message->content.c_str();
 }
-const char*               APRSERVICE_CALL aprs_packet_message_get_destination(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_message_get_destination(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return nullptr;
 
 	return packet->message->destination.c_str();
 }
-bool                      APRSERVICE_CALL aprs_packet_message_set_id(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_message_set_id(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return false;
@@ -3114,7 +3249,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_id(struct aprs
 
 	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_message_set_type(struct aprs_packet* packet, enum APRS_MESSAGE_TYPES value)
+bool                              APRSERVICE_CALL aprs_packet_message_set_type(struct aprs_packet* packet, enum APRS_MESSAGE_TYPES value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return false;
@@ -3137,7 +3272,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_type(struct ap
 
 	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_message_set_content(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_message_set_content(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return false;
@@ -3168,7 +3303,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_content(struct
 
 	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_message_set_destination(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_message_set_destination(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return false;
@@ -3183,7 +3318,7 @@ bool                      APRSERVICE_CALL aprs_packet_message_set_destination(st
 	return false;
 }
 
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_weather_init(const char* sender, const char* tocall, struct aprs_path* path, const char* type, char software)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_weather_init(const char* sender, const char* tocall, struct aprs_path* path, const char* type, char software)
 {
 	auto type_length = aprs_string_length(type, true);
 
@@ -3204,91 +3339,91 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_weather_init(const char* s
 
 	return nullptr;
 }
-const struct aprs_time*   APRSERVICE_CALL aprs_packet_weather_get_time(struct aprs_packet* packet)
+const struct aprs_time*           APRSERVICE_CALL aprs_packet_weather_get_time(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return nullptr;
 
 	return &packet->weather->time;
 }
-const char*               APRSERVICE_CALL aprs_packet_weather_get_type(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_weather_get_type(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return nullptr;
 
 	return packet->weather->type.c_str();
 }
-char                      APRSERVICE_CALL aprs_packet_weather_get_software(struct aprs_packet* packet)
+char                              APRSERVICE_CALL aprs_packet_weather_get_software(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
 	return packet->weather->software;
 }
-uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_wind_speed(struct aprs_packet* packet)
+uint16_t                          APRSERVICE_CALL aprs_packet_weather_get_wind_speed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
 	return packet->weather->wind_speed;
 }
-uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_wind_speed_gust(struct aprs_packet* packet)
+uint16_t                          APRSERVICE_CALL aprs_packet_weather_get_wind_speed_gust(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
 	return packet->weather->wind_speed_gust;
 }
-uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_wind_direction(struct aprs_packet* packet)
+uint16_t                          APRSERVICE_CALL aprs_packet_weather_get_wind_direction(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
 	return packet->weather->wind_direction;
 }
-uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_rainfall_last_hour(struct aprs_packet* packet)
+uint16_t                          APRSERVICE_CALL aprs_packet_weather_get_rainfall_last_hour(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
 	return packet->weather->rainfall_last_hour;
 }
-uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_rainfall_last_24_hours(struct aprs_packet* packet)
+uint16_t                          APRSERVICE_CALL aprs_packet_weather_get_rainfall_last_24_hours(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
 	return packet->weather->rainfall_last_24_hours;
 }
-uint16_t                  APRSERVICE_CALL aprs_packet_weather_get_rainfall_since_midnight(struct aprs_packet* packet)
+uint16_t                          APRSERVICE_CALL aprs_packet_weather_get_rainfall_since_midnight(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
 	return packet->weather->rainfall_since_midnight;
 }
-uint8_t                   APRSERVICE_CALL aprs_packet_weather_get_humidity(struct aprs_packet* packet)
+uint8_t                           APRSERVICE_CALL aprs_packet_weather_get_humidity(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
 	return packet->weather->humidity;
 }
-int16_t                   APRSERVICE_CALL aprs_packet_weather_get_temperature(struct aprs_packet* packet)
+int16_t                           APRSERVICE_CALL aprs_packet_weather_get_temperature(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
 	return packet->weather->temperature;
 }
-uint32_t                  APRSERVICE_CALL aprs_packet_weather_get_barometric_pressure(struct aprs_packet* packet)
+uint32_t                          APRSERVICE_CALL aprs_packet_weather_get_barometric_pressure(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return 0;
 
 	return packet->weather->barometric_pressure;
 }
-bool                      APRSERVICE_CALL aprs_packet_weather_set_time(struct aprs_packet* packet, const struct aprs_time* value)
+bool                              APRSERVICE_CALL aprs_packet_weather_set_time(struct aprs_packet* packet, const struct aprs_time* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
@@ -3303,7 +3438,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_time(struct ap
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_speed(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_weather_set_wind_speed(struct aprs_packet* packet, uint16_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
@@ -3315,7 +3450,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_speed(str
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_speed_gust(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_weather_set_wind_speed_gust(struct aprs_packet* packet, uint16_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
@@ -3327,7 +3462,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_speed_gus
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_direction(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_weather_set_wind_direction(struct aprs_packet* packet, uint16_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
@@ -3339,7 +3474,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_wind_direction
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_last_hour(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_weather_set_rainfall_last_hour(struct aprs_packet* packet, uint16_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
@@ -3351,7 +3486,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_last_
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_last_24_hours(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_weather_set_rainfall_last_24_hours(struct aprs_packet* packet, uint16_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
@@ -3363,7 +3498,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_last_
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_since_midnight(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_weather_set_rainfall_since_midnight(struct aprs_packet* packet, uint16_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
@@ -3375,7 +3510,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_rainfall_since
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_weather_set_humidity(struct aprs_packet* packet, uint8_t value)
+bool                              APRSERVICE_CALL aprs_packet_weather_set_humidity(struct aprs_packet* packet, uint8_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
@@ -3387,7 +3522,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_humidity(struc
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_weather_set_temperature(struct aprs_packet* packet, int16_t value)
+bool                              APRSERVICE_CALL aprs_packet_weather_set_temperature(struct aprs_packet* packet, int16_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
@@ -3402,7 +3537,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_temperature(st
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_weather_set_barometric_pressure(struct aprs_packet* packet, uint32_t value)
+bool                              APRSERVICE_CALL aprs_packet_weather_set_barometric_pressure(struct aprs_packet* packet, uint32_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
@@ -3415,7 +3550,7 @@ bool                      APRSERVICE_CALL aprs_packet_weather_set_barometric_pre
 	return true;
 }
 
-aprs_packet*                              aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, int flags)
+aprs_packet*                                      aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, int flags)
 {
 	if ((flags & APRS_POSITION_FLAG_MIC_E) && (flags & APRS_POSITION_FLAG_TIME))
 		return nullptr;
@@ -3449,40 +3584,40 @@ aprs_packet*                              aprs_packet_position_init(const char* 
 
 	return nullptr;
 }
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key)
 {
 	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, 0);
 }
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_position_init_mic_e(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_mic_e(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key)
 {
 	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, APRS_POSITION_FLAG_MIC_E);
 }
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_position_init_compressed(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_compressed(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key)
 {
 	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, APRS_POSITION_FLAG_COMPRESSED);
 }
-bool                      APRSERVICE_CALL aprs_packet_position_is_mic_e(struct aprs_packet* packet)
+bool                              APRSERVICE_CALL aprs_packet_position_is_mic_e(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
 	return packet->position->flags & APRS_POSITION_FLAG_MIC_E;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_is_compressed(struct aprs_packet* packet)
+bool                              APRSERVICE_CALL aprs_packet_position_is_compressed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
 	return packet->position->flags & APRS_POSITION_FLAG_COMPRESSED;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_is_messaging_enabled(struct aprs_packet* packet)
+bool                              APRSERVICE_CALL aprs_packet_position_is_messaging_enabled(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
 	return packet->position->flags & APRS_POSITION_FLAG_MESSAGING_ENABLED;
 }
-const struct aprs_time*   APRSERVICE_CALL aprs_packet_position_get_time(struct aprs_packet* packet)
+const struct aprs_time*           APRSERVICE_CALL aprs_packet_position_get_time(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return nullptr;
@@ -3492,70 +3627,70 @@ const struct aprs_time*   APRSERVICE_CALL aprs_packet_position_get_time(struct a
 
 	return &packet->position->time;
 }
-int                       APRSERVICE_CALL aprs_packet_position_get_flags(struct aprs_packet* packet)
+int                               APRSERVICE_CALL aprs_packet_position_get_flags(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return 0;
 
 	return packet->position->flags;
 }
-const char*               APRSERVICE_CALL aprs_packet_position_get_comment(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_position_get_comment(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return nullptr;
 
 	return packet->position->comment.c_str();
 }
-uint16_t                  APRSERVICE_CALL aprs_packet_position_get_speed(struct aprs_packet* packet)
+uint16_t                          APRSERVICE_CALL aprs_packet_position_get_speed(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return 0;
 
 	return packet->extensions.speed;
 }
-uint16_t                  APRSERVICE_CALL aprs_packet_position_get_course(struct aprs_packet* packet)
+uint16_t                          APRSERVICE_CALL aprs_packet_position_get_course(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return 0;
 
 	return packet->extensions.course;
 }
-int32_t                   APRSERVICE_CALL aprs_packet_position_get_altitude(struct aprs_packet* packet)
+int32_t                           APRSERVICE_CALL aprs_packet_position_get_altitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return 0;
 
 	return packet->extensions.altitude;
 }
-float                     APRSERVICE_CALL aprs_packet_position_get_latitude(struct aprs_packet* packet)
+float                             APRSERVICE_CALL aprs_packet_position_get_latitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return 0;
 
 	return packet->position->latitude;
 }
-float                     APRSERVICE_CALL aprs_packet_position_get_longitude(struct aprs_packet* packet)
+float                             APRSERVICE_CALL aprs_packet_position_get_longitude(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return 0;
 
 	return packet->position->longitude;
 }
-char                      APRSERVICE_CALL aprs_packet_position_get_symbol_table(struct aprs_packet* packet)
+char                              APRSERVICE_CALL aprs_packet_position_get_symbol_table(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return '\0';
 
 	return packet->position->symbol_table;
 }
-char                      APRSERVICE_CALL aprs_packet_position_get_symbol_table_key(struct aprs_packet* packet)
+char                              APRSERVICE_CALL aprs_packet_position_get_symbol_table_key(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return '\0';
 
 	return packet->position->symbol_table_key;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_set_time(struct aprs_packet* packet, const struct aprs_time* value)
+bool                              APRSERVICE_CALL aprs_packet_position_set_time(struct aprs_packet* packet, const struct aprs_time* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
@@ -3577,7 +3712,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_time(struct a
 
 	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_set_comment(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_position_set_comment(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
@@ -3597,7 +3732,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_comment(struc
 
 	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_set_speed(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_position_set_speed(struct aprs_packet* packet, uint16_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
@@ -3606,7 +3741,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_speed(struct 
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_set_course(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_position_set_course(struct aprs_packet* packet, uint16_t value)
 {
 	if (value > 359)
 		return false;
@@ -3618,7 +3753,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_course(struct
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_set_altitude(struct aprs_packet* packet, int32_t value)
+bool                              APRSERVICE_CALL aprs_packet_position_set_altitude(struct aprs_packet* packet, int32_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
@@ -3627,7 +3762,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_altitude(stru
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_set_latitude(struct aprs_packet* packet, float value)
+bool                              APRSERVICE_CALL aprs_packet_position_set_latitude(struct aprs_packet* packet, float value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
@@ -3636,7 +3771,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_latitude(stru
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_set_longitude(struct aprs_packet* packet, float value)
+bool                              APRSERVICE_CALL aprs_packet_position_set_longitude(struct aprs_packet* packet, float value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
@@ -3645,7 +3780,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_longitude(str
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_set_symbol(struct aprs_packet* packet, char table, char key)
+bool                              APRSERVICE_CALL aprs_packet_position_set_symbol(struct aprs_packet* packet, char table, char key)
 {
 	if (!aprs_validate_symbol(table, key))
 		return false;
@@ -3658,15 +3793,15 @@ bool                      APRSERVICE_CALL aprs_packet_position_set_symbol(struct
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_set_symbol_table(struct aprs_packet* packet, char value)
+bool                              APRSERVICE_CALL aprs_packet_position_set_symbol_table(struct aprs_packet* packet, char value)
 {
 	return aprs_packet_position_set_symbol(packet, value, aprs_packet_position_get_symbol_table_key(packet));
 }
-bool                      APRSERVICE_CALL aprs_packet_position_set_symbol_table_key(struct aprs_packet* packet, char value)
+bool                              APRSERVICE_CALL aprs_packet_position_set_symbol_table_key(struct aprs_packet* packet, char value)
 {
 	return aprs_packet_position_set_symbol(packet, aprs_packet_position_get_symbol_table(packet), value);
 }
-bool                      APRSERVICE_CALL aprs_packet_position_enable_mic_e(struct aprs_packet* packet, bool value)
+bool                              APRSERVICE_CALL aprs_packet_position_enable_mic_e(struct aprs_packet* packet, bool value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
@@ -3681,7 +3816,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_enable_mic_e(stru
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_enable_messaging(struct aprs_packet* packet, bool value)
+bool                              APRSERVICE_CALL aprs_packet_position_enable_messaging(struct aprs_packet* packet, bool value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
@@ -3693,7 +3828,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_enable_messaging(
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_position_enable_compression(struct aprs_packet* packet, bool value)
+bool                              APRSERVICE_CALL aprs_packet_position_enable_compression(struct aprs_packet* packet, bool value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
@@ -3709,7 +3844,7 @@ bool                      APRSERVICE_CALL aprs_packet_position_enable_compressio
 	return true;
 }
 
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_telemetry_init(const char* sender, const char* tocall, struct aprs_path* path, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital, uint16_t sequence)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init(const char* sender, const char* tocall, struct aprs_path* path, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital, uint16_t sequence)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_TELEMETRY))
 	{
@@ -3720,6 +3855,13 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_telemetry_init(const char*
 			.digital   = digital
 		};
 
+		packet->telemetry->analog_u8_c[0] = &packet->telemetry->analog_u8[0];
+		packet->telemetry->analog_u8_c[1] = &packet->telemetry->analog_u8[1];
+		packet->telemetry->analog_u8_c[2] = &packet->telemetry->analog_u8[2];
+		packet->telemetry->analog_u8_c[3] = &packet->telemetry->analog_u8[3];
+		packet->telemetry->analog_u8_c[4] = &packet->telemetry->analog_u8[4];
+		packet->telemetry->analog_u8_c[5] = nullptr;
+
 		if (!aprs_packet_telemetry_set_sequence(packet, sequence))
 		{
 			aprs_packet_deinit(packet);
@@ -3732,7 +3874,7 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_telemetry_init(const char*
 
 	return nullptr;
 }
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_telemetry_init_float(const char* sender, const char* tocall, struct aprs_path* path, float a1, float a2, float a3, float a4, float a5, uint8_t digital, uint16_t sequence)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_float(const char* sender, const char* tocall, struct aprs_path* path, float a1, float a2, float a3, float a4, float a5, uint8_t digital, uint16_t sequence)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_TELEMETRY))
 	{
@@ -3743,6 +3885,13 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_telemetry_init_float(const
 			.digital      = digital
 		};
 
+		packet->telemetry->analog_float_c[0] = &packet->telemetry->analog_float[0];
+		packet->telemetry->analog_float_c[1] = &packet->telemetry->analog_float[1];
+		packet->telemetry->analog_float_c[2] = &packet->telemetry->analog_float[2];
+		packet->telemetry->analog_float_c[3] = &packet->telemetry->analog_float[3];
+		packet->telemetry->analog_float_c[4] = &packet->telemetry->analog_float[4];
+		packet->telemetry->analog_float_c[5] = nullptr;
+
 		if (!aprs_packet_telemetry_set_sequence(packet, sequence))
 		{
 			aprs_packet_deinit(packet);
@@ -3755,61 +3904,117 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_telemetry_init_float(const
 
 	return nullptr;
 }
-enum APRS_TELEMETRY_TYPES APRSERVICE_CALL aprs_packet_telemetry_get_type(struct aprs_packet* packet)
+enum APRS_TELEMETRY_TYPES         APRSERVICE_CALL aprs_packet_telemetry_get_type(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
 		return APRS_TELEMETRY_TYPES_COUNT;
 
 	return packet->telemetry->type;
 }
-uint8_t                   APRSERVICE_CALL aprs_packet_telemetry_get_analog(struct aprs_packet* packet, uint8_t index)
-{
-	if (index >= 5)
-		return 0;
-
-	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
-		return 0;
-
-	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_U8)
-		return 0;
-
-	return packet->telemetry->analog_u8[index];
-}
-float                     APRSERVICE_CALL aprs_packet_telemetry_get_analog_float(struct aprs_packet* packet, uint8_t index)
-{
-	if (index >= 5)
-		return 0;
-
-	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
-		return 0;
-
-	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_FLOAT)
-		return 0;
-
-	return packet->telemetry->analog_float[index];
-}
-uint8_t                   APRSERVICE_CALL aprs_packet_telemetry_get_digital(struct aprs_packet* packet)
-{
-	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
-		return 0;
-
-	return packet->telemetry->digital;
-}
-uint16_t                  APRSERVICE_CALL aprs_packet_telemetry_get_sequence(struct aprs_packet* packet)
-{
-	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
-		return 0;
-
-	return packet->telemetry->sequence;
-}
-const char*               APRSERVICE_CALL aprs_packet_telemetry_get_comment(struct aprs_packet* packet)
+const uint8_t**                   APRSERVICE_CALL aprs_packet_telemetry_get_analog(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
 		return nullptr;
 
-	return packet->telemetry->comment.c_str();
+	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_U8)
+		return nullptr;
+
+	return packet->telemetry->analog_u8_c.data();
 }
-bool                      APRSERVICE_CALL aprs_packet_telemetry_set_analog(struct aprs_packet* packet, uint8_t value, uint8_t index)
+const float**                     APRSERVICE_CALL aprs_packet_telemetry_get_analog_float(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
+		return nullptr;
+
+	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_FLOAT)
+		return nullptr;
+
+	return packet->telemetry->analog_float_c.data();
+}
+uint8_t                           APRSERVICE_CALL aprs_packet_telemetry_get_bits(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
+		return 0;
+
+	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_BITS)
+		return 0;
+
+	return packet->telemetry->digital;
+}
+const struct aprs_telemetry_eqn** APRSERVICE_CALL aprs_packet_telemetry_get_eqns(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
+		return nullptr;
+
+	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_EQNS)
+		return nullptr;
+
+	return packet->telemetry->eqns_c.data();
+}
+const char**                      APRSERVICE_CALL aprs_packet_telemetry_get_units(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
+		return nullptr;
+
+	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_UNITS)
+		return nullptr;
+
+	return packet->telemetry->units_c.data();
+}
+const char**                      APRSERVICE_CALL aprs_packet_telemetry_get_params(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
+		return nullptr;
+
+	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_PARAMS)
+		return nullptr;
+
+	return packet->telemetry->params_c.data();
+}
+uint8_t                           APRSERVICE_CALL aprs_packet_telemetry_get_digital(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
+		return 0;
+
+	switch (aprs_packet_telemetry_get_type(packet))
+	{
+		case APRS_TELEMETRY_TYPE_U8:
+		case APRS_TELEMETRY_TYPE_FLOAT:
+			return packet->telemetry->digital;
+	}
+
+	return 0;
+}
+uint16_t                          APRSERVICE_CALL aprs_packet_telemetry_get_sequence(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
+		return 0;
+
+	switch (aprs_packet_telemetry_get_type(packet))
+	{
+		case APRS_TELEMETRY_TYPE_U8:
+		case APRS_TELEMETRY_TYPE_FLOAT:
+			return packet->telemetry->sequence;
+	}
+
+	return 0;
+}
+const char*                       APRSERVICE_CALL aprs_packet_telemetry_get_comment(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
+		return nullptr;
+
+	switch (aprs_packet_telemetry_get_type(packet))
+	{
+		case APRS_TELEMETRY_TYPE_U8:
+		case APRS_TELEMETRY_TYPE_FLOAT:
+		case APRS_TELEMETRY_TYPE_BITS:
+			return packet->telemetry->comment.c_str();
+	}
+
+	return nullptr;
+}
+bool                              APRSERVICE_CALL aprs_packet_telemetry_set_analog(struct aprs_packet* packet, uint8_t value, uint8_t index)
 {
 	if (index >= 5)
 		return false;
@@ -3824,7 +4029,7 @@ bool                      APRSERVICE_CALL aprs_packet_telemetry_set_analog(struc
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_telemetry_set_analog_float(struct aprs_packet* packet, float value, uint8_t index)
+bool                              APRSERVICE_CALL aprs_packet_telemetry_set_analog_float(struct aprs_packet* packet, float value, uint8_t index)
 {
 	if (index >= 5)
 		return false;
@@ -3839,16 +4044,22 @@ bool                      APRSERVICE_CALL aprs_packet_telemetry_set_analog_float
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_telemetry_set_digital(struct aprs_packet* packet, uint8_t value)
+bool                              APRSERVICE_CALL aprs_packet_telemetry_set_digital(struct aprs_packet* packet, uint8_t value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
 		return false;
 
-	packet->telemetry->digital = value;
+	switch (aprs_packet_telemetry_get_type(packet))
+	{
+		case APRS_TELEMETRY_TYPE_U8:
+		case APRS_TELEMETRY_TYPE_FLOAT:
+			packet->telemetry->digital = value;
+			return true;
+	}
 
-	return true;
+	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_telemetry_set_sequence(struct aprs_packet* packet, uint16_t value)
+bool                              APRSERVICE_CALL aprs_packet_telemetry_set_sequence(struct aprs_packet* packet, uint16_t value)
 {
 	if (value > 999)
 		return false;
@@ -3856,26 +4067,39 @@ bool                      APRSERVICE_CALL aprs_packet_telemetry_set_sequence(str
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
 		return false;
 
-	packet->telemetry->sequence = value;
+	switch (aprs_packet_telemetry_get_type(packet))
+	{
+		case APRS_TELEMETRY_TYPE_U8:
+		case APRS_TELEMETRY_TYPE_FLOAT:
+			packet->telemetry->sequence = value;
+			return true;
+	}
 
-	return true;
+	return false;
 }
-bool                      APRSERVICE_CALL aprs_packet_telemetry_set_comment(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_telemetry_set_comment(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
 		return false;
 
-	if (auto length = aprs_validate_comment(value, 67))
+	switch (aprs_packet_telemetry_get_type(packet))
 	{
-		packet->telemetry->comment.assign(value, length);
+		case APRS_TELEMETRY_TYPE_U8:
+		case APRS_TELEMETRY_TYPE_FLOAT:
+		case APRS_TELEMETRY_TYPE_BITS:
+			if (auto length = aprs_validate_comment(value, 67))
+			{
+				packet->telemetry->comment.assign(value, length);
 
-		return true;
+				return true;
+			}
+			break;
 	}
 
 	return false;
 }
 
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_user_defined_init(const char* sender, const char* tocall, struct aprs_path* path, char id, char type, const char* data)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_user_defined_init(const char* sender, const char* tocall, struct aprs_path* path, char id, char type, const char* data)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_USER_DEFINED))
 	{
@@ -3895,28 +4119,28 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_user_defined_init(const ch
 
 	return nullptr;
 }
-char                      APRSERVICE_CALL aprs_packet_user_defined_get_id(struct aprs_packet* packet)
+char                              APRSERVICE_CALL aprs_packet_user_defined_get_id(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
 		return 0;
 
 	return packet->user_defined->id;
 }
-char                      APRSERVICE_CALL aprs_packet_user_defined_get_type(struct aprs_packet* packet)
+char                              APRSERVICE_CALL aprs_packet_user_defined_get_type(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
 		return 0;
 
 	return packet->user_defined->type;
 }
-const char*               APRSERVICE_CALL aprs_packet_user_defined_get_data(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_user_defined_get_data(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
 		return nullptr;
 
 	return packet->user_defined->data.c_str();
 }
-bool                      APRSERVICE_CALL aprs_packet_user_defined_set_id(struct aprs_packet* packet, char value)
+bool                              APRSERVICE_CALL aprs_packet_user_defined_set_id(struct aprs_packet* packet, char value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
 		return false;
@@ -3928,7 +4152,7 @@ bool                      APRSERVICE_CALL aprs_packet_user_defined_set_id(struct
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_user_defined_set_type(struct aprs_packet* packet, char value)
+bool                              APRSERVICE_CALL aprs_packet_user_defined_set_type(struct aprs_packet* packet, char value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
 		return false;
@@ -3940,7 +4164,7 @@ bool                      APRSERVICE_CALL aprs_packet_user_defined_set_type(stru
 
 	return true;
 }
-bool                      APRSERVICE_CALL aprs_packet_user_defined_set_data(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_user_defined_set_data(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
 		return false;
@@ -3955,7 +4179,7 @@ bool                      APRSERVICE_CALL aprs_packet_user_defined_set_data(stru
 	return false;
 }
 
-struct aprs_packet*       APRSERVICE_CALL aprs_packet_third_party_init(const char* sender, const char* tocall, struct aprs_path* path)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_third_party_init(const char* sender, const char* tocall, struct aprs_path* path)
 {
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_THIRD_PARTY))
 	{
@@ -3966,14 +4190,14 @@ struct aprs_packet*       APRSERVICE_CALL aprs_packet_third_party_init(const cha
 
 	return nullptr;
 }
-const char*               APRSERVICE_CALL aprs_packet_third_party_get_content(struct aprs_packet* packet)
+const char*                       APRSERVICE_CALL aprs_packet_third_party_get_content(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_THIRD_PARTY)
 		return nullptr;
 
 	return packet->third_party->content.c_str();
 }
-bool                      APRSERVICE_CALL aprs_packet_third_party_set_content(struct aprs_packet* packet, const char* value)
+bool                              APRSERVICE_CALL aprs_packet_third_party_set_content(struct aprs_packet* packet, const char* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_THIRD_PARTY)
 		return false;
@@ -3983,7 +4207,7 @@ bool                      APRSERVICE_CALL aprs_packet_third_party_set_content(st
 	return true;
 }
 
-float                                     aprs_distance(double value, APRS_DISTANCES type)
+float                                             aprs_distance(double value, APRS_DISTANCES type)
 {
 	switch (type)
 	{
@@ -3995,7 +4219,7 @@ float                                     aprs_distance(double value, APRS_DISTA
 
 	return 0;
 }
-float                     APRSERVICE_CALL aprs_distance(float latitude1, float longitude1, float latitude2, float longitude2, enum APRS_DISTANCES type)
+float                             APRSERVICE_CALL aprs_distance(float latitude1, float longitude1, float latitude2, float longitude2, enum APRS_DISTANCES type)
 {
 	double radians[] =
 	{
@@ -4010,7 +4234,7 @@ float                     APRSERVICE_CALL aprs_distance(float latitude1, float l
 
 	return aprs_distance(b, type);
 }
-float                     APRSERVICE_CALL aprs_distance_3d(float latitude1, float longitude1, int32_t altitude1, float latitude2, float longitude2, int32_t altitude2, enum APRS_DISTANCES type)
+float                             APRSERVICE_CALL aprs_distance_3d(float latitude1, float longitude1, int32_t altitude1, float latitude2, float longitude2, int32_t altitude2, enum APRS_DISTANCES type)
 {
 	double distance   = aprs_distance(latitude1, longitude1, latitude2, longitude2, type);
 	double distance_z = (altitude1 > altitude2) ? (altitude1 - altitude2) : (altitude2 - altitude1);

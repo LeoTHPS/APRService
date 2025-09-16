@@ -1809,7 +1809,7 @@ bool                                       aprservice_poll_connection(struct apr
 
 	return true;
 }
-bool                                       aprservice_send(struct aprservice* service, aprs_packet* packet)
+bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, struct aprs_packet* packet)
 {
 	if (!aprservice_connection_write_packet(service->connection, packet))
 	{

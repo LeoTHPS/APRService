@@ -62,7 +62,7 @@ void    demo_event_handler(aprservice* service, aprservice_event_information* ev
 
 		case APRSERVICE_EVENT_DISCONNECT:
 			if (auto disconnect = (aprservice_event_information_disconnect*)event)
-					std::cout << "Disconnected" << std::endl;
+				std::cout << "Disconnected" << std::endl;
 			break;
 
 		case APRSERVICE_EVENT_AUTHENTICATE:

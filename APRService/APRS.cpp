@@ -551,13 +551,6 @@ T                  aprs_decode_int_ex(const char* string, size_t max_length, cha
 
 	return value;
 }
-inline float       aprs_decode_float(const char* string)
-{
-	if (!string)
-		return 0;
-
-	return strtof(string, nullptr);
-}
 bool               aprs_decode_time(aprs_time& value, const char* string, char type)
 {
 	static auto string_is_valid = [](size_t index, char value)->bool
@@ -597,6 +590,10 @@ bool               aprs_decode_time(aprs_time& value, const char* string, char t
 	}
 
 	return false;
+}
+constexpr float    aprs_decode_float(const char* string)
+{
+	return string ? strtof(string, nullptr) : 0;
 }
 bool               aprs_decode_latitude(float& value, const char* string, char hemisphere)
 {

@@ -943,49 +943,48 @@ int                                        aprservice_connection_read(aprservice
 #if defined(APRSERVICE_UNIX)
 			ssize_t bytes_received;
 
-			if ((bytes_received = recv(connection->socket, buffer, size, 0)) == -1)
+			switch (bytes_received = recv(connection->socket, buffer, size, 0))
 			{
-				auto error = errno;
-
-				if ((error == EAGAIN) || (error == EWOULDBLOCK))
-					return -1;
-
-				aprservice_connection_close(connection);
-
-				if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
+				case 0:
+					aprservice_connection_close(connection);
 					return 0;
 
-				aprservice_log_error_ex(recv, error);
+				case -1:
+					switch (errno)
+					{
+						case EAGAIN:
+						case EWOULDBLOCK:
+							return -1;
 
-				return 0;
+						default:
+							aprservice_connection_close(connection);
+							break;
+					}
+					return 0;
+
+				default:
+					*number_of_bytes_received = bytes_received;
+					break;
 			}
-
-			*number_of_bytes_received = bytes_received;
 #elif defined(APRSERVICE_WIN32)
 			int bytes_received;
 
-			if ((bytes_received = recv(connection->socket, reinterpret_cast<char*>(buffer), static_cast<int>(size), 0)) == SOCKET_ERROR)
+			switch (bytes_received = recv(connection->socket, reinterpret_cast<char*>(buffer), static_cast<int>(size), 0))
 			{
-				auto error = WSAGetLastError();
+				case 0:
+					aprservice_connection_close(connection);
+					return 0;
 
-				switch (error)
-				{
-					case WSAEWOULDBLOCK:
+				case SOCKET_ERROR:
+					if (WSAGetLastError() == WSAEWOULDBLOCK)
 						return -1;
+					aprservice_connection_close(connection);
+					return 0;
 
-					case WSAENETDOWN:
-					case WSAENETRESET:
-					case WSAETIMEDOUT:
-					case WSAECONNRESET:
-					case WSAECONNABORTED:
-						aprservice_connection_close(connection);
-						return 0;
-				}
-
-				return 0;
+				default:
+					*number_of_bytes_received = bytes_received;
+					break;
 			}
-
-			*number_of_bytes_received = bytes_received;
 #endif
 		}
 		break;
@@ -1052,17 +1051,14 @@ int                                        aprservice_connection_write(aprservic
 
 			if ((bytes_sent = send(connection->socket, buffer, size, 0)) == -1)
 			{
-				auto error = errno;
-
-				if ((error == EAGAIN) || (error == EWOULDBLOCK))
-					return -1;
+				switch (errno)
+				{
+					case EAGAIN:
+					case EWOULDBLOCK:
+						return -1;
+				}
 
 				aprservice_connection_close(connection);
-
-				if ((error == EHOSTDOWN) || (error == ECONNRESET) || (error == EHOSTUNREACH))
-					return 0;
-
-				aprservice_log_error_ex(send, error);
 
 				return 0;
 			}
@@ -1073,24 +1069,10 @@ int                                        aprservice_connection_write(aprservic
 
 			if ((bytes_sent = send(connection->socket, reinterpret_cast<const char*>(buffer), static_cast<int>(size), 0)) == SOCKET_ERROR)
 			{
-				auto error = WSAGetLastError();
+				if (WSAGetLastError() == WSAEWOULDBLOCK)
+					return -1;
 
-				switch (error)
-				{
-					case WSAEWOULDBLOCK:
-						return -1;
-
-					case WSAENETDOWN:
-					case WSAENETRESET:
-					case WSAETIMEDOUT:
-					case WSAECONNRESET:
-					case WSAECONNABORTED:
-					case WSAEHOSTUNREACH:
-						aprservice_connection_close(connection);
-						return 0;
-				}
-
-				aprservice_log_error_ex(send, error);
+				aprservice_connection_close(connection);
 
 				return 0;
 			}

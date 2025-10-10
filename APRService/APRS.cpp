@@ -375,6 +375,22 @@ bool               aprs_regex_match(std::cmatch& match, const std::regex& regex,
 
 	return true;
 }
+bool               aprs_regex_match(std::smatch& match, const std::regex& regex, const std::string& string)
+{
+	try
+	{
+		if (!std::regex_match(string, match, regex))
+			return false;
+	}
+	catch (const std::regex_error& exception)
+	{
+		std::cerr << exception.what() << std::endl;
+
+		return false;
+	}
+
+	return true;
+}
 
 bool               aprs_validate_time(const aprs_time* value)
 {
@@ -950,7 +966,7 @@ void               aprs_packet_encode_data_extensions(aprs_packet* packet, std::
 	}
 }
 
-bool               aprs_packet_decode_mic_e(aprs_packet* packet)
+bool               aprs_packet_decode_mic_e(aprs_packet* packet, const char* content, bool gps_is_new)
 {
 	// packet->type     = APRS_PACKET_TYPE_POSITION;
 	// packet->position = new aprs_packet_position { .flags = APRS_POSITION_FLAG_MIC_E };
@@ -959,14 +975,13 @@ bool               aprs_packet_decode_mic_e(aprs_packet* packet)
 
 	return false;
 }
+bool               aprs_packet_decode_mic_e(aprs_packet* packet)
+{
+	return aprs_packet_decode_mic_e(packet, &packet->content[1], true);
+}
 bool               aprs_packet_decode_mic_e_old(aprs_packet* packet)
 {
-	// packet->type     = APRS_PACKET_TYPE_POSITION;
-	// packet->position = new aprs_packet_position { .flags = APRS_POSITION_FLAG_MIC_E };
-
-	// TODO: decode mic-e (old)
-
-	return false;
+	return aprs_packet_decode_mic_e(packet, &packet->content[1], false);
 }
 bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 {
@@ -2324,24 +2339,25 @@ struct aprs_packet*                               aprs_packet_init_ex(const char
 }
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_string(const char* string)
 {
-	static const std::regex regex("^([^>]{3,9})>([^,]+),([^:]+):(.+)$");
-	static const std::regex regex_path("^((\\S+?(?=,qA\\w)),(qA\\w),(.+))|(\\S+)$");
-
-	aprs_path*  path;
-	std::cmatch path_match;
-	std::string path_string;
+	static const std::regex regex("^([^>]{3,9})>([^,]+),([^:]+):(.*)$");
+	static const std::regex regex_path_is("(.*?),?(qA\\w),(\\S+)$");
 
 	std::cmatch match;
 
 	if (!aprs_regex_match(match, regex, string))
 		return nullptr;
 
-	path_string = match[3].str();
+	aprs_path*  path;
+	std::cmatch path_match;
+	auto        path_string     = match[3].str();
+	std::string path_q_igate[2] = { "", "" };
 
-	if (!aprs_regex_match(path_match, regex_path, path_string.c_str()))
-		return nullptr;
-
-	path_string = path_match[2].str();
+	if (aprs_regex_match(path_match, regex_path_is, path_string.c_str()))
+	{
+		path_q_igate[0] = path_match[2].str();
+		path_q_igate[1] = path_match[3].str();
+		path_string     = path_match[1].str();
+	}
 
 	if (!(path = aprs_path_init_from_string(path_string.c_str())))
 		return nullptr;
@@ -2349,11 +2365,11 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_string(c
 	auto packet = new aprs_packet
 	{
 		.path            = path,
-		.igate           = path_match[4].str(),
+		.igate           = std::move(path_q_igate[1]),
 		.tocall          = match[2].str(),
 		.sender          = match[1].str(),
 		.content         = match[4].str(),
-		.qconstruct      = path_match[3].str(),
+		.qconstruct      = std::move(path_q_igate[0]),
 		.reference_count = 1
 	};
 

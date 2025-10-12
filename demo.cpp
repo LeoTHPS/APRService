@@ -222,10 +222,11 @@ void    demo_event_handler(aprservice* service, aprservice_event_information* ev
 
 					case APRS_PACKET_TYPE_POSITION:
 					{
-						auto position_flags     = aprs_packet_position_get_flags(packet);
-						auto position_comment   = aprs_packet_position_get_comment(packet);
-						auto position_latitude  = aprs_packet_position_get_latitude(packet);
-						auto position_longitude = aprs_packet_position_get_longitude(packet);
+						auto position_flags         = aprs_packet_position_get_flags(packet);
+						auto position_comment       = aprs_packet_position_get_comment(packet);
+						auto position_latitude      = aprs_packet_position_get_latitude(packet);
+						auto position_longitude     = aprs_packet_position_get_longitude(packet);
+						auto position_mic_e_message = aprs_packet_position_get_mic_e_message(packet);
 
 						std::cout << "[Packet] [Position] ";
 
@@ -249,9 +250,11 @@ void    demo_event_handler(aprservice* service, aprservice_event_information* ev
 						}
 
 						if (position_flags & APRS_POSITION_FLAG_MIC_E)
-							std::cout << "[Mic-E] ";
+							std::cout << "[Mic-E: " << aprs_mic_e_message_to_string((APRS_MIC_E_MESSAGES)position_mic_e_message) << "] ";
 
-						std::cout << "[From: " << sender << "] [Lat: " << position_latitude << "] [Long: " << position_longitude << "] " << position_comment << std::endl;
+						std::cout << "[From: " << sender << "] [Lat: " << position_latitude << "] [Long: " << position_longitude << "] ";
+
+						std::cout << position_comment << std::endl;
 					}
 					break;
 
@@ -524,7 +527,7 @@ bool    demo_update(demo* d)
 
 int main(int argc, char* argv[])
 {
-#if defined(APRSERVICE_UNIX)
+#if defined(APRSERVICE_UNIX) && DEMO_TICK_RATE
 	timespec ts =
 	{
 		.tv_sec  = (1000 / DEMO_TICK_RATE) / 1000,
@@ -535,7 +538,9 @@ int main(int argc, char* argv[])
 	if (auto demo = demo_init())
 	{
 		while (demo_update(demo))
-#if defined(APRSERVICE_UNIX)
+#if !DEMO_TICK_RATE
+			;
+#elif defined(APRSERVICE_UNIX)
 			nanosleep(&ts, nullptr);
 #elif defined(APRSERVICE_WIN32)
 			Sleep(1000 / DEMO_TICK_RATE);

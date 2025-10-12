@@ -59,6 +59,28 @@ enum APRS_MESSAGE_TYPES
 	APRS_MESSAGE_TYPES_COUNT
 };
 
+enum APRS_MIC_E_MESSAGES
+{
+	APRS_MIC_E_MESSAGE_EMERGENCY,
+	APRS_MIC_E_MESSAGE_PRIORITY,
+	APRS_MIC_E_MESSAGE_SPECIAL,
+	APRS_MIC_E_MESSAGE_COMMITTED,
+	APRS_MIC_E_MESSAGE_RETURNING,
+	APRS_MIC_E_MESSAGE_IN_SERVICE,
+	APRS_MIC_E_MESSAGE_EN_ROUTE,
+	APRS_MIC_E_MESSAGE_OFF_DUTY,
+
+	APRS_MIC_E_MESSAGE_CUSTOM_0,
+	APRS_MIC_E_MESSAGE_CUSTOM_1,
+	APRS_MIC_E_MESSAGE_CUSTOM_2,
+	APRS_MIC_E_MESSAGE_CUSTOM_3,
+	APRS_MIC_E_MESSAGE_CUSTOM_4,
+	APRS_MIC_E_MESSAGE_CUSTOM_5,
+	APRS_MIC_E_MESSAGE_CUSTOM_6,
+
+	APRS_MIC_E_MESSAGES_COUNT
+};
+
 enum APRS_POSITION_FLAGS
 {
 	APRS_POSITION_FLAG_TIME              = 0x1,
@@ -229,7 +251,7 @@ APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_weather_set_barometric_pressure(struct aprs_packet* packet, uint32_t value);
 
 APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key);
-APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_mic_e(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key);
+APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_mic_e(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, enum APRS_MIC_E_MESSAGES message);
 APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_compressed(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_is_mic_e(struct aprs_packet* packet);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_is_compressed(struct aprs_packet* packet);
@@ -244,6 +266,7 @@ APRSERVICE_EXPORT float                             APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT float                             APRSERVICE_CALL aprs_packet_position_get_longitude(struct aprs_packet* packet);
 APRSERVICE_EXPORT char                              APRSERVICE_CALL aprs_packet_position_get_symbol_table(struct aprs_packet* packet);
 APRSERVICE_EXPORT char                              APRSERVICE_CALL aprs_packet_position_get_symbol_table_key(struct aprs_packet* packet);
+APRSERVICE_EXPORT int                               APRSERVICE_CALL aprs_packet_position_get_mic_e_message(struct aprs_packet* packet);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_set_time(struct aprs_packet* packet, const struct aprs_time* value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_set_comment(struct aprs_packet* packet, const char* value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_set_speed(struct aprs_packet* packet, uint16_t value);
@@ -254,6 +277,7 @@ APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_set_symbol(struct aprs_packet* packet, char table, char key);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_set_symbol_table(struct aprs_packet* packet, char value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_set_symbol_table_key(struct aprs_packet* packet, char value);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_set_mic_e_message(struct aprs_packet* packet, enum APRS_MIC_E_MESSAGES value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_enable_mic_e(struct aprs_packet* packet, bool value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_enable_messaging(struct aprs_packet* packet, bool value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_enable_compression(struct aprs_packet* packet, bool value);
@@ -295,4 +319,5 @@ APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT float                             APRSERVICE_CALL aprs_distance(float latitude1, float longitude1, float latitude2, float longitude2, enum APRS_DISTANCES type);
 APRSERVICE_EXPORT float                             APRSERVICE_CALL aprs_distance_3d(float latitude1, float longitude1, int32_t altitude1, float latitude2, float longitude2, int32_t altitude2, enum APRS_DISTANCES type);
 
+APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_mic_e_message_to_string(enum APRS_MIC_E_MESSAGES value);
 #endif

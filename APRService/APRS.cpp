@@ -21,6 +21,39 @@ constexpr uint8_t  APRS_DATA_EXTENSION_POWER[]       = { 0,  1,  4,  9,   16,  2
 constexpr uint16_t APRS_DATA_EXTENSION_HEIGHT[]      = { 10, 20, 40, 80,  160, 320, 640, 1280, 2560, 5120 };
 constexpr uint16_t APRS_DATA_EXTENSION_DIRECTIVITY[] = { 0,  45, 90, 135, 180, 225, 270, 315,  360 };
 
+struct aprs_mic_e_message
+{
+	APRS_MIC_E_MESSAGES message;
+	const char*         string;
+};
+
+constexpr const aprs_mic_e_message aprs_mic_e_messages[APRS_MIC_E_MESSAGES_COUNT] =
+{
+	{ APRS_MIC_E_MESSAGE_EMERGENCY,  "Emergency"  },
+	{ APRS_MIC_E_MESSAGE_PRIORITY,   "Priority"   },
+	{ APRS_MIC_E_MESSAGE_SPECIAL,    "Special"    },
+	{ APRS_MIC_E_MESSAGE_COMMITTED,  "Committed"  },
+	{ APRS_MIC_E_MESSAGE_RETURNING,  "Returning"  },
+	{ APRS_MIC_E_MESSAGE_IN_SERVICE, "In Service" },
+	{ APRS_MIC_E_MESSAGE_EN_ROUTE,   "En Route"   },
+	{ APRS_MIC_E_MESSAGE_OFF_DUTY,   "Off Duty"   },
+
+	{ APRS_MIC_E_MESSAGE_CUSTOM_0,   "Custom 0"   },
+	{ APRS_MIC_E_MESSAGE_CUSTOM_1,   "Custom 1"   },
+	{ APRS_MIC_E_MESSAGE_CUSTOM_2,   "Custom 2"   },
+	{ APRS_MIC_E_MESSAGE_CUSTOM_3,   "Custom 3"   },
+	{ APRS_MIC_E_MESSAGE_CUSTOM_4,   "Custom 4"   },
+	{ APRS_MIC_E_MESSAGE_CUSTOM_5,   "Custom 5"   },
+	{ APRS_MIC_E_MESSAGE_CUSTOM_6,   "Custom 6"   }
+};
+
+template<size_t ... I>
+constexpr bool static_assert_aprs_mic_e_messages(std::index_sequence<I ...>)
+{
+	return ((aprs_mic_e_messages[I].message == I) && ...);
+}
+static_assert(static_assert_aprs_mic_e_messages(std::make_index_sequence<APRS_MIC_E_MESSAGES_COUNT> {}));
+
 struct aprs_path
 {
 	uint8_t                    size;
@@ -123,17 +156,21 @@ struct aprs_packet_weather
 };
 struct aprs_packet_position
 {
-	int         flags;
+	int                 flags;
 
-	aprs_time   time;
+	aprs_time           time;
 
-	float       latitude;
-	float       longitude;
+	float               latitude;
+	float               longitude;
 
-	std::string comment;
+	std::string         comment;
 
-	char        symbol_table;
-	char        symbol_table_key;
+	char                symbol_table;
+	char                symbol_table_key;
+
+	APRS_MIC_E_MESSAGES mic_e_message;
+	uint8_t             mic_e_telemetry[5];
+	uint8_t             mic_e_telemetry_channels;
 };
 struct aprs_packet_telemetry
 {
@@ -435,6 +472,18 @@ bool               aprs_validate_symbol(char table, char key)
 
 	return false;
 }
+constexpr bool     aprs_validate_base91(char value)
+{
+	return (value >= 33) & (value <= 124);
+}
+bool               aprs_validate_base91(const char* string, size_t length)
+{
+	for (size_t i = 0; i < length; ++i, ++string)
+		if (!aprs_validate_base91(*string))
+			return false;
+
+	return true;
+}
 bool               aprs_validate_string(const char* value, size_t length, bool(*is_char_valid)(size_t index, char value))
 {
 	size_t i = 0;
@@ -566,6 +615,78 @@ T                  aprs_decode_int_ex(const char* string, size_t max_length, cha
 		value = 10 * value + (get_char(i, *string) - '0');
 
 	return value;
+}
+bool               aprs_decode_hex_1(uint8_t& value, char c)
+{
+	if (c == '0')
+	{
+		value = 0;
+
+		return true;
+	}
+
+	if (c == '1')
+	{
+		value = 1;
+
+		return true;
+	}
+
+	return false;
+}
+bool               aprs_decode_hex_4(uint8_t& value, char c)
+{
+	if ((c >= '0') && (c <= '9'))
+	{
+		value = c - '0';
+
+		return true;
+	}
+
+	if ((c >= 'a') && (c <= 'f'))
+	{
+		value = 10 + (c - 'a');
+
+		return true;
+	}
+
+	if ((c >= 'A') && (c <= 'F'))
+	{
+		value = 10 + (c - 'A');
+
+		return true;
+	}
+
+	return false;
+}
+bool               aprs_decode_hex_8(uint8_t& value, char c1, char c2)
+{
+	uint8_t tmp[2];
+
+	if (!aprs_decode_hex_4(tmp[0], c1) || !aprs_decode_hex_4(tmp[1], c2))
+		return false;
+
+	value = (tmp[0] << 4) | tmp[1];
+
+	return true;
+}
+template<typename T>
+bool               aprs_decode_base91(T& value, const char* string, size_t length)
+{
+	value = 0;
+
+	for (size_t i = 0, j = length - 1; i < length; ++i, --j, ++string)
+	{
+		if (!aprs_validate_base91(*string))
+			return false;
+
+		if (j)
+			value += std::pow(91, j) * (*string - 33);
+		else
+			value += *string - 33;
+	}
+
+	return true;
 }
 bool               aprs_decode_time(aprs_time& value, const char* string, char type)
 {
@@ -966,22 +1087,145 @@ void               aprs_packet_encode_data_extensions(aprs_packet* packet, std::
 	}
 }
 
-bool               aprs_packet_decode_mic_e(aprs_packet* packet, const char* content, bool gps_is_new)
+bool               aprs_packet_decode_mic_e(aprs_packet* packet, const std::string& tocall, const std::string& content, bool gps_is_new)
 {
-	// packet->type     = APRS_PACKET_TYPE_POSITION;
-	// packet->position = new aprs_packet_position { .flags = APRS_POSITION_FLAG_MIC_E };
+	if ((tocall.length() < 6) || (content.length() < 9))
+		return false;
 
-	// TODO: decode mic-e
+	auto destination = tocall.c_str();
+	auto information = content.c_str();
 
-	return false;
+	auto     comment          = &information[9];
+	int8_t   message          = 0;
+	int8_t   lat_long[2]      = {};
+	int8_t   latitude[6]      = {};
+	uint32_t longitude[3]     = {};
+	int8_t   longitude_offset = 0;
+
+	for (size_t i = 0; i < 6; ++i)
+	{
+		auto c = destination[i];
+
+		if ((c >= '0') && (c <= '9'))
+			latitude[i] = c - '0';
+		else if ((c >= 'A') && (c <= 'J'))
+			latitude[i] = c - 'A';
+		else if ((c >= 'P') && (c <= 'Y'))
+			latitude[i] = c - 'P';
+		else if ((c == 'K') || (c == 'L') || (c == 'Z'))
+			lat_long[i] = 0;
+		else
+			return false;
+
+		switch (i)
+		{
+			case 0:
+			case 1:
+			case 2:
+				if ((c >= '0') && (c <= '9'))
+					; // do nothing
+				else if ((c >= 'A') && (c <= 'K'))
+					message |= 0x80 | (1 << (2 - i));
+				else if ((c >= 'P') && (c <= 'Z'))
+					message |= 1 << (2 - i);
+				else
+					return false;
+				break;
+
+			case 3:
+				if (((c >= '0') && (c <= '9')) || (c == 'L'))
+					lat_long[0] = -1;
+				else if ((c >= 'P') && (c <= 'Z'))
+					lat_long[0] = 1;
+				else
+					return false;
+				break;
+
+			case 4:
+				if (((c >= '0') && (c <= '9')) || (c == 'L'))
+					longitude_offset = 0;
+				else if ((c >= 'P') && (c <= 'Z'))
+					longitude_offset = 100;
+				else
+					return false;
+				break;
+
+			case 5:
+				if (((c >= '0') && (c <= '9')) || (c == 'L'))
+					lat_long[1] = 1;
+				else if ((c >= 'P') && (c <= 'Z'))
+					lat_long[1] = -1;
+				else
+					return false;
+				break;
+		}
+	}
+
+	if (((longitude[0] = ((information[1] - 28) + longitude_offset)) >= 180) && (longitude[0] < 189))
+		longitude[0] -= 80;
+	else if ((longitude[0] >= 190) && (longitude[0] <= 199))
+		longitude[0] -= 190;
+	if ((longitude[1] = (information[2] - 28)) >= 60)
+		longitude[1] -= 60;
+	longitude[2] = information[3] - 28;
+
+	packet->type     = APRS_PACKET_TYPE_POSITION;
+	packet->position = new aprs_packet_position
+	{
+		.flags            = APRS_POSITION_FLAG_MIC_E,
+
+		.latitude         = (((latitude[0] * 10) + latitude[1]) + (((latitude[2] * 10) + latitude[3]) / 60.0f) + (((latitude[4] * 10) + latitude[5]) / 6000.0f)) * lat_long[0],
+		.longitude        = (longitude[0] + (longitude[1] / 60.0f) + (longitude[2] / 6000.0f)) * lat_long[1],
+
+		.comment          = comment,
+
+		.symbol_table     = information[8],
+		.symbol_table_key = information[7],
+
+		.mic_e_message    = (APRS_MIC_E_MESSAGES)(message & 0x7F)
+	};
+
+	if (!aprs_decode_base91(packet->extensions.altitude, comment, 3) || (comment[3] != '}'))
+		packet->extensions.altitude = 0;
+	else
+	{
+		comment                     += 4;
+		packet->position->comment    = comment;
+		packet->extensions.altitude -= 10000;
+		packet->extensions.altitude *= 3.28084f;
+	}
+
+	// TODO: decode telemetry
+	// TODO: decode maidenhead
+	// TODO: decode extensions in comment
+	// TODO: override position with standard position in comment
+
+	if (message & 0x80)
+		packet->position->mic_e_message = (APRS_MIC_E_MESSAGES)(packet->position->mic_e_message + 7);
+
+	packet->extensions.speed    = ((information[4] - 28) * 10) + ((information[5] - 28) / 10);
+	packet->extensions.course   = (((information[5] - 28) % 10) * 100) + (information[6] - 28);
+
+	if (packet->extensions.speed >= 800)
+		packet->extensions.speed -= 800;
+
+	if (packet->extensions.course >= 400)
+		packet->extensions.course -= 400;
+
+	if (packet->extensions.course == 360)
+		packet->extensions.course = 0;
+
+	packet->extensions.speed *= 1.151f; // knots -> mph
+
+	return true;
 }
 bool               aprs_packet_decode_mic_e(aprs_packet* packet)
 {
-	return aprs_packet_decode_mic_e(packet, &packet->content[1], true);
+	return aprs_packet_decode_mic_e(packet, packet->tocall, packet->content, true);
 }
 bool               aprs_packet_decode_mic_e_old(aprs_packet* packet)
 {
-	return aprs_packet_decode_mic_e(packet, &packet->content[1], false);
+	return aprs_packet_decode_mic_e(packet, packet->tocall, packet->content, false);
 }
 bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 {
@@ -3600,20 +3844,27 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_barome
 	return true;
 }
 
-aprs_packet*                                      aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, int flags)
+aprs_packet*                                      aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, int flags, int mic_e_message)
 {
-	if ((flags & APRS_POSITION_FLAG_MIC_E) && (flags & APRS_POSITION_FLAG_TIME))
-		return nullptr;
+	if (flags & APRS_POSITION_FLAG_MIC_E)
+	{
+		if (flags & APRS_POSITION_FLAG_TIME)
+			return nullptr;
 
-	if ((flags & APRS_POSITION_FLAG_MIC_E) && (flags & APRS_POSITION_FLAG_COMPRESSED))
-		return nullptr;
+		if (flags & APRS_POSITION_FLAG_COMPRESSED)
+			return nullptr;
+
+		if ((mic_e_message < 0) || (mic_e_message > 7))
+			return nullptr;
+	}
 
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_POSITION))
 	{
 		packet->position = new aprs_packet_position
 		{
-			.flags = flags,
-			.time  = *aprs_time_now()
+			.flags         = flags,
+			.time          = *aprs_time_now(),
+			.mic_e_message = (APRS_MIC_E_MESSAGES)mic_e_message
 		};
 
 		if (!aprs_packet_position_set_speed(packet, speed) ||
@@ -3636,15 +3887,15 @@ aprs_packet*                                      aprs_packet_position_init(cons
 }
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key)
 {
-	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, 0);
+	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, 0, -1);
 }
-struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_mic_e(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_mic_e(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, enum APRS_MIC_E_MESSAGES message)
 {
-	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, APRS_POSITION_FLAG_MIC_E);
+	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, APRS_POSITION_FLAG_MIC_E, message);
 }
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_compressed(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key)
 {
-	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, APRS_POSITION_FLAG_COMPRESSED);
+	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, APRS_POSITION_FLAG_COMPRESSED, -1);
 }
 bool                              APRSERVICE_CALL aprs_packet_position_is_mic_e(struct aprs_packet* packet)
 {
@@ -3739,6 +3990,13 @@ char                              APRSERVICE_CALL aprs_packet_position_get_symbo
 		return '\0';
 
 	return packet->position->symbol_table_key;
+}
+int                               APRSERVICE_CALL aprs_packet_position_get_mic_e_message(struct aprs_packet* packet)
+{
+	if (!aprs_packet_position_is_mic_e(packet))
+		return -1;
+
+	return packet->position->mic_e_message;
 }
 bool                              APRSERVICE_CALL aprs_packet_position_set_time(struct aprs_packet* packet, const struct aprs_time* value)
 {
@@ -3850,6 +4108,18 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_symbo
 bool                              APRSERVICE_CALL aprs_packet_position_set_symbol_table_key(struct aprs_packet* packet, char value)
 {
 	return aprs_packet_position_set_symbol(packet, aprs_packet_position_get_symbol_table(packet), value);
+}
+bool                              APRSERVICE_CALL aprs_packet_position_set_mic_e_message(struct aprs_packet* packet, enum APRS_MIC_E_MESSAGES value)
+{
+	if (value >= APRS_MIC_E_MESSAGES_COUNT)
+		return false;
+
+	if (!aprs_packet_position_is_mic_e(packet))
+		return false;
+
+	packet->position->mic_e_message = value;
+
+	return true;
 }
 bool                              APRSERVICE_CALL aprs_packet_position_enable_mic_e(struct aprs_packet* packet, bool value)
 {
@@ -4290,4 +4560,12 @@ float                             APRSERVICE_CALL aprs_distance_3d(float latitud
 	double distance_z = (altitude1 > altitude2) ? (altitude1 - altitude2) : (altitude2 - altitude1);
 
 	return distance + aprs_distance(distance_z / 20903251, type);
+}
+
+const char*                       APRSERVICE_CALL aprs_mic_e_message_to_string(enum APRS_MIC_E_MESSAGES value)
+{
+	if (value >= APRS_MIC_E_MESSAGES_COUNT)
+		return nullptr;
+
+	return aprs_mic_e_messages[value].string;
 }

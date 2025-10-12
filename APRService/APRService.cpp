@@ -1529,7 +1529,7 @@ bool                       APRSERVICE_CALL aprservice_set_position_type(struct a
 	switch (value)
 	{
 		case APRSERVICE_POSITION_TYPE_MIC_E:
-			if (auto packet = aprs_packet_position_init_mic_e(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), aprs_packet_position_get_latitude(service->position.packet), aprs_packet_position_get_longitude(service->position.packet), aprs_packet_position_get_altitude(service->position.packet), aprs_packet_position_get_speed(service->position.packet), aprs_packet_position_get_course(service->position.packet), aprs_packet_position_get_comment(service->position.packet), aprs_packet_position_get_symbol_table(service->position.packet), aprs_packet_position_get_symbol_table_key(service->position.packet)))
+			if (auto packet = aprs_packet_position_init_mic_e(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), aprs_packet_position_get_latitude(service->position.packet), aprs_packet_position_get_longitude(service->position.packet), aprs_packet_position_get_altitude(service->position.packet), aprs_packet_position_get_speed(service->position.packet), aprs_packet_position_get_course(service->position.packet), aprs_packet_position_get_comment(service->position.packet), aprs_packet_position_get_symbol_table(service->position.packet), aprs_packet_position_get_symbol_table_key(service->position.packet), APRS_MIC_E_MESSAGE_OFF_DUTY))
 			{
 				aprs_packet_deinit(service->position.packet);
 

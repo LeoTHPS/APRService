@@ -23,6 +23,8 @@
 #define APRS_STATION_PATH             "WIDE1-1"
 #define APRS_STATION_BEACON           (0 * 60) /* interval in seconds or 0 to disable */
 #define APRS_STATION_COMMENT          "Test"
+#define APRS_STATION_SPEED            0
+#define APRS_STATION_COURSE           0
 #define APRS_STATION_ALTITUDE         0
 #define APRS_STATION_LATITUDE         0
 #define APRS_STATION_LONGITUDE        0
@@ -470,7 +472,7 @@ demo*   demo_init()
 		return nullptr;
 	}
 
-	if (!aprservice_set_position(d->service, APRS_STATION_LATITUDE, APRS_STATION_LONGITUDE, APRS_STATION_ALTITUDE, 0, 0))
+	if (!aprservice_set_position(d->service, APRS_STATION_LATITUDE, APRS_STATION_LONGITUDE, APRS_STATION_ALTITUDE, APRS_STATION_SPEED, APRS_STATION_COURSE))
 	{
 		std::cerr << "Error setting station position" << std::endl;
 

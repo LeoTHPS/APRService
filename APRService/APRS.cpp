@@ -1203,8 +1203,8 @@ bool               aprs_packet_decode_mic_e(aprs_packet* packet, const std::stri
 	if (message & 0x80)
 		packet->position->mic_e_message = (APRS_MIC_E_MESSAGES)(packet->position->mic_e_message + 7);
 
-	packet->extensions.speed    = ((information[4] - 28) * 10) + ((information[5] - 28) / 10);
-	packet->extensions.course   = (((information[5] - 28) % 10) * 100) + (information[6] - 28);
+	packet->extensions.speed  = ((information[4] - 28) * 10) + ((information[5] - 28) / 10);
+	packet->extensions.course = (((information[5] - 28) % 10) * 100) + (information[6] - 28);
 
 	if (packet->extensions.speed >= 800)
 		packet->extensions.speed -= 800;
@@ -2191,9 +2191,9 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 			ss << std::setfill('0') << std::setw(2) << longitude_seconds;
 			ss << longitude_west_east << packet->position->symbol_table_key;
 		}
-	}
 
-	aprs_packet_encode_data_extensions(packet, ss);
+		aprs_packet_encode_data_extensions(packet, ss);
+	}
 
 	ss << packet->position->comment;
 }

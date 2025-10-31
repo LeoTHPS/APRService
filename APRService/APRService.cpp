@@ -133,6 +133,9 @@ struct aprservice_connection
 	WSADATA                                  winsock;
 #endif
 
+	uint32_t                                 io_time;
+	uint32_t                                 io_timeout;
+
 	std::queue<std::string>                  rx_queue;
 	std::string                              rx_buffer;
 	std::array<char, 128>                    rx_buffer_tmp;
@@ -356,6 +359,9 @@ aprservice_connection*                     aprservice_connection_init(aprservice
 		.is_open        = false,
 
 		.type           = type,
+
+		.io_time        = aprservice_get_time(service),
+		.io_timeout     = 2 * 60,
 
 		.device_speed   = speed,
 		.host_or_device = host_or_device,
@@ -919,11 +925,22 @@ bool                                       aprservice_connection_poll(aprservice
 	switch (connection->type)
 	{
 		case APRSERVICE_CONNECTION_TYPE_APRS_IS:
-			return aprservice_connection_poll_aprs_is(connection);
+			if (!aprservice_connection_poll_aprs_is(connection))
+				return false;
+			break;
 
 		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
 		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
-			return aprservice_connection_poll_kiss_tnc(connection);
+			if (!aprservice_connection_poll_kiss_tnc(connection))
+				return false;
+			break;
+	}
+
+	if ((aprservice_get_time(connection->service) - connection->io_time) >= connection->io_timeout)
+	{
+		aprservice_connection_close(connection);
+
+		return false;
 	}
 
 	return true;
@@ -953,7 +970,9 @@ int                                        aprservice_connection_read(aprservice
 					switch (errno)
 					{
 						case EAGAIN:
+	#if EAGAIN != EWOULDBLOCK
 						case EWOULDBLOCK:
+	#endif
 							return -1;
 
 						default:
@@ -1032,6 +1051,8 @@ int                                        aprservice_connection_read(aprservice
 		break;
 	}
 
+	connection->io_time = aprservice_get_time(connection->service);
+
 	return 1;
 }
 // @return 0 on disconnect
@@ -1054,7 +1075,9 @@ int                                        aprservice_connection_write(aprservic
 				switch (errno)
 				{
 					case EAGAIN:
+	#if EAGAIN != EWOULDBLOCK
 					case EWOULDBLOCK:
+	#endif
 						return -1;
 				}
 
@@ -1124,6 +1147,8 @@ int                                        aprservice_connection_write(aprservic
 		}
 		break;
 	}
+
+	connection->io_time = aprservice_get_time(connection->service);
 
 	return 1;
 }
@@ -1447,6 +1472,10 @@ int                        APRSERVICE_CALL aprservice_get_position_type(struct a
 {
 	return service->position.type;
 }
+uint32_t                   APRSERVICE_CALL aprservice_get_connection_timeout(struct aprservice* service)
+{
+	return service->connection->io_timeout;
+}
 bool                       APRSERVICE_CALL aprservice_set_path(struct aprservice* service, struct aprs_path* value)
 {
 	if (!value)
@@ -1579,6 +1608,10 @@ void                       APRSERVICE_CALL aprservice_set_event_handler(struct a
 void                       APRSERVICE_CALL aprservice_set_default_event_handler(struct aprservice* service, aprservice_event_handler handler, void* param)
 {
 	service->events[APRSERVICE_EVENTS_COUNT] = { .handler = handler, .handler_param = param };
+}
+void                       APRSERVICE_CALL aprservice_set_connection_timeout(struct aprservice* service, uint32_t seconds)
+{
+	service->connection->io_timeout = seconds;
 }
 void                       APRSERVICE_CALL aprservice_enable_monitoring(struct aprservice* service, bool value)
 {

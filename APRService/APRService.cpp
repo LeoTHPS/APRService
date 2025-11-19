@@ -995,8 +995,12 @@ int                                        aprservice_connection_read(aprservice
 					return 0;
 
 				case SOCKET_ERROR:
-					if (WSAGetLastError() == WSAEWOULDBLOCK)
-						return -1;
+					switch (WSAGetLastError())
+					{
+						case WSAEINPROGRESS:
+						case WSAEWOULDBLOCK:
+							return -1;
+					}
 					aprservice_connection_close(connection);
 					return 0;
 
@@ -1092,8 +1096,13 @@ int                                        aprservice_connection_write(aprservic
 
 			if ((bytes_sent = send(connection->socket, reinterpret_cast<const char*>(buffer), static_cast<int>(size), 0)) == SOCKET_ERROR)
 			{
-				if (WSAGetLastError() == WSAEWOULDBLOCK)
-					return -1;
+				switch (WSAGetLastError())
+				{
+					case WSAENOBUFS:
+					case WSAEINPROGRESS:
+					case WSAEWOULDBLOCK:
+						return -1;
+				}
 
 				aprservice_connection_close(connection);
 

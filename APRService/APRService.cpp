@@ -134,7 +134,6 @@ struct aprservice_connection
 #endif
 
 	uint32_t                                 io_time;
-	uint32_t                                 io_timeout;
 
 	std::queue<std::string>                  rx_queue;
 	std::string                              rx_buffer;
@@ -168,6 +167,7 @@ struct aprservice
 	const std::string                                                               station;
 	aprservice_position                                                             position;
 	aprservice_connection*                                                          connection;
+	uint32_t                                                                        connection_timeout;
 
 	std::list<aprservice_item*>                                                     items;
 	std::map<uint64_t, std::list<aprservice_task*>>                                 tasks;
@@ -361,7 +361,6 @@ aprservice_connection*                     aprservice_connection_init(aprservice
 		.type           = type,
 
 		.io_time        = aprservice_get_time(service),
-		.io_timeout     = 2 * 60,
 
 		.device_speed   = speed,
 		.host_or_device = host_or_device,
@@ -936,7 +935,7 @@ bool                                       aprservice_connection_poll(aprservice
 			break;
 	}
 
-	if ((aprservice_get_time(connection->service) - connection->io_time) >= connection->io_timeout)
+	if ((aprservice_get_time(connection->service) - connection->io_time) >= connection->service->connection_timeout)
 	{
 		aprservice_connection_close(connection);
 
@@ -1334,20 +1333,21 @@ struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, 
 
 	auto service = new aprservice
 	{
-		.is_connected    = false,
-		.is_monitoring   = false,
+		.is_connected       = false,
+		.is_monitoring      = false,
 
-		.time            = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
+		.time               = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
 
-		.path            = path,
-		.station         = station,
-		.position        = { .type = APRSERVICE_POSITION_TYPE_POSITION },
+		.path               = path,
+		.station            = station,
+		.position           = { .type = APRSERVICE_POSITION_TYPE_POSITION },
+		.connection_timeout = 2 * 60,
 
-		.events          = {},
+		.events             = {},
 
-		.message_count   = 0,
+		.message_count      = 0,
 
-		.telemetry_count = 0
+		.telemetry_count    = 0
 	};
 
 	if (!(service->position.packet = aprs_packet_position_init(station, APRSERVICE_TOCALL, path, 0, 0, 0, 0, 0, "", symbol_table, symbol_table_key)))
@@ -1483,7 +1483,7 @@ int                        APRSERVICE_CALL aprservice_get_position_type(struct a
 }
 uint32_t                   APRSERVICE_CALL aprservice_get_connection_timeout(struct aprservice* service)
 {
-	return service->connection->io_timeout;
+	return service->connection_timeout;
 }
 bool                       APRSERVICE_CALL aprservice_set_path(struct aprservice* service, struct aprs_path* value)
 {
@@ -1620,7 +1620,7 @@ void                       APRSERVICE_CALL aprservice_set_default_event_handler(
 }
 void                       APRSERVICE_CALL aprservice_set_connection_timeout(struct aprservice* service, uint32_t seconds)
 {
-	service->connection->io_timeout = seconds;
+	service->connection_timeout = seconds;
 }
 void                       APRSERVICE_CALL aprservice_enable_monitoring(struct aprservice* service, bool value)
 {

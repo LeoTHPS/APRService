@@ -520,14 +520,12 @@ auto               aprs_validate_path(const char* value)
 }
 auto               aprs_validate_station(const char* value)
 {
-	// TODO: this could be better..
+	aprs_strlen_result result      = { .valid = true, .length = 0 };
+	int                ssid_offset = -1;
 
-	aprs_strlen_result result     = { .valid = true, .length = 0 };
-	bool               ssid_begin = false;
-
-	for (; *value; ++value, ++result.length)
-		if ((*value == '-') && !ssid_begin)
-			ssid_begin = true;
+	for (int i = 0; *value && (result.length < 10); ++i, ++value, ++result.length)
+		if ((*value == '-') && (ssid_offset == -1))
+			ssid_offset = i;
 		else if ((*value < '0') || (*value > '9'))
 			if ((*value < 'A') || (*value > 'Z'))
 			{
@@ -537,6 +535,9 @@ auto               aprs_validate_station(const char* value)
 			}
 
 	if (!result.length || (result.length > 9))
+		result.valid = false;
+
+	if ((ssid_offset != -1) && (ssid_offset < (result.length - 3)))
 		result.valid = false;
 
 	return result;
@@ -2616,6 +2617,15 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_string(c
 		.qconstruct      = std::move(path_q_igate[0]),
 		.reference_count = 1
 	};
+
+	for (auto& c : packet->sender)
+	{
+		if (c == '-')
+			break;
+
+		if ((c >= 'a') && (c <= 'z'))
+			c = 'A' + (c - 'a');
+	}
 
 	if (!aprs_packet_decode(packet))
 		packet->type = APRS_PACKET_TYPE_RAW;

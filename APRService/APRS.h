@@ -320,4 +320,5 @@ APRSERVICE_EXPORT float                             APRSERVICE_CALL aprs_distanc
 APRSERVICE_EXPORT float                             APRSERVICE_CALL aprs_distance_3d(float latitude1, float longitude1, int32_t altitude1, float latitude2, float longitude2, int32_t altitude2, enum APRS_DISTANCES type);
 
 APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_mic_e_message_to_string(enum APRS_MIC_E_MESSAGES value);
+
 #endif

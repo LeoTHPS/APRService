@@ -88,7 +88,7 @@ struct aprservice_event_information_receive_message
 struct aprservice_event_information_receive_server_message
 {
 	enum APRSERVICE_EVENTS type;
-	const char*            message;
+	const char*            content;
 };
 
 typedef void(APRSERVICE_CALL *aprservice_task_handler)(struct aprservice* service, struct aprservice_task_information* task, void* param);

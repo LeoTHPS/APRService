@@ -1810,7 +1810,7 @@ bool                                       aprservice_poll_connection(struct apr
 					if ((service->connection->auth.state == APRSERVICE_AUTH_STATE_SENT) && aprservice_connection_auth_from_string(&service->connection->auth, &service->line[2], service->connection->passcode != 0))
 						aprservice_event_execute(service, APRSERVICE_EVENT_AUTHENTICATE, { .message = service->connection->auth.message.c_str(), .success = service->connection->auth.success, .verified = service->connection->auth.verified });
 					else
-						aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE, { .message = &service->line[2] });
+						aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE, { .content = &service->line[2] });
 				}
 				else if (auto packet = aprs_packet_init_from_string(service->line.c_str()))
 				{

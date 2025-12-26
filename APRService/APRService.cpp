@@ -1197,14 +1197,14 @@ bool                                       aprservice_connection_write_packet(ap
 						auto        content_size = content.length();
 
 						std::vector<uint8_t> buffer(14 + (path_size * 7) + 2 + content_size, 0);
-						static auto          buffer_encode_station = [](std::vector<uint8_t>& buffer, size_t offset, const char* value)
+						static auto          buffer_encode_station = [](std::vector<uint8_t>& buffer, size_t offset, const char* station, bool repeated)
 						{
 							size_t i = 0;
 							auto   b = &buffer[offset];
 
 						encode_call:
 							for (; i < 6; ++i)
-								switch (*value)
+								switch (*station)
 								{
 									case '-':
 									case '*':
@@ -1212,7 +1212,7 @@ bool                                       aprservice_connection_write_packet(ap
 										goto encode_ssid;
 
 									default:
-										*(b++) = *(value++) << 1;
+										*(b++) = *(station++) << 1;
 										break;
 								}
 
@@ -1220,15 +1220,15 @@ bool                                       aprservice_connection_write_packet(ap
 							for (; i < 6; ++i)
 								*(b++) = 0x40;
 
-							switch (*value)
+							switch (*station)
 							{
 								case '-':
-									++value;
+									++station;
 									for (i = 0; i < 2; ++i)
-										if (!value[i] || (value[i] == '*'))
+										if (!station[i] || repeated)
 											break;
-									*b = i ? ((aprservice_parse_uint<uint8_t>(value, i) & 0x0F) << 1) : 0;
-									if (value[i] == '*')
+									*b = i ? ((aprservice_parse_uint<uint8_t>(station, i) & 0x0F) << 1) : 0;
+									if (repeated)
 										*b |= 0x80;
 									break;
 
@@ -1243,21 +1243,19 @@ bool                                       aprservice_connection_write_packet(ap
 						};
 						static auto          buffer_encode_path    = [](std::vector<uint8_t>& buffer, size_t offset, aprs_path* value)
 						{
-							auto path = aprs_path_get(value);
+							auto path_node   = aprs_path_get(value);
+							auto path_length = aprs_path_get_length(value);
 
-							for (; *path; offset += 7)
-							{
-								buffer_encode_station(buffer, offset, *path);
+							for (size_t i = 0; i < path_length; ++i, offset += 7)
+								buffer_encode_station(buffer, offset, path_node->station, path_node->repeated);
 
-								if (!*(++path))
-									buffer[offset + 6] |= 0x01;
-							}
+							buffer[offset + 6] |= 0x01;
 
 							return offset;
 						};
 
-						buffer_encode_station(buffer, 0, aprs_packet_get_tocall(value));
-						buffer_encode_station(buffer, 7, aprs_packet_get_sender(value));
+						buffer_encode_station(buffer, 0, aprs_packet_get_tocall(value), false);
+						buffer_encode_station(buffer, 7, aprs_packet_get_sender(value), false);
 						auto offset      = buffer_encode_path(buffer, 14, path);
 						buffer[offset++] = 0x03;
 						buffer[offset++] = 0xF0;

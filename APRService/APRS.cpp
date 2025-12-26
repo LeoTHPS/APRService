@@ -56,13 +56,13 @@ static_assert(static_assert_aprs_mic_e_messages(std::make_index_sequence<APRS_MI
 
 struct aprs_path
 {
-	uint8_t                    size;
-	std::array<std::string, 8> chunks;
-	std::array<const char*, 9> chunks_c;
+	uint8_t                       size;
+	std::array<aprs_path_node, 8> chunks;
+	std::array<std::string, 8>    chunks_stations;
 
-	std::string                string;
+	std::string                   string;
 
-	size_t                     reference_count;
+	size_t                        reference_count;
 };
 
 struct aprs_time
@@ -506,18 +506,6 @@ auto               aprs_validate_name(const char* value)
 
 	return result;
 }
-auto               aprs_validate_path(const char* value)
-{
-	aprs_strlen_result result = { .valid = false, .length = 0 };
-
-	if (auto length = aprs_string_length(value, true); length && ((length <= 9) || ((length == 10) && (value[9] == '*'))))
-	{
-		result.valid  = true;
-		result.length = length;
-	}
-
-	return result;
-}
 auto               aprs_validate_station(const char* value)
 {
 	aprs_strlen_result result      = { .valid = true, .length = 0 };
@@ -577,6 +565,40 @@ auto               aprs_validate_user_defined_data(const char* value)
 		}
 
 	return result;
+}
+
+bool               aprs_extract_path_node(std::string& station, bool& repeated, const char* value)
+{
+	size_t length      = 0;
+	int    ssid_offset = -1;
+
+	repeated = false;
+
+	for (int i = 0; *value && (length < 10); ++i, ++value, ++length)
+		if ((*value == '-') && (ssid_offset == -1))
+			ssid_offset = i;
+		else if ((*value < '0') || (*value > '9'))
+			if ((*value < 'A') || (*value > 'Z'))
+			{
+				if ((*value == '*') && !value[1])
+				{
+					repeated = true;
+
+					break;
+				}
+
+				return false;
+			}
+
+	if (!length || (length > 9))
+		return false;
+
+	if ((ssid_offset != -1) && (ssid_offset < (length - 3)))
+		return false;
+
+	station.assign(&value[-length], length);
+
+	return true;
 }
 
 template<typename T>
@@ -2366,7 +2388,6 @@ struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(con
 	};
 
 	std::string buffer(string);
-	size_t      chunk_length;
 
 	if (auto chunk = strtok(&buffer[0], ",")) do
 	{
@@ -2377,15 +2398,14 @@ struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(con
 			return nullptr;
 		}
 
-		if (!(chunk_length = aprs_validate_path(chunk)))
+		if (!aprs_extract_path_node(path->chunks_stations[path->size], path->chunks[path->size].repeated, chunk))
 		{
 			delete path;
 
 			return nullptr;
 		}
 
-		path->chunks[path->size++].assign(chunk, chunk_length);
-		path->chunks_c[path->size - 1] = path->chunks[path->size - 1].c_str();
+		path->chunks[path->size++].station = path->chunks_stations[path->size].c_str();
 	} while (chunk = strtok(nullptr, ","));
 
 	return path;
@@ -2395,9 +2415,9 @@ void                              APRSERVICE_CALL aprs_path_deinit(struct aprs_p
 	if (!--path->reference_count)
 		delete path;
 }
-const char**                      APRSERVICE_CALL aprs_path_get(struct aprs_path* path)
+const struct aprs_path_node*      APRSERVICE_CALL aprs_path_get(struct aprs_path* path)
 {
-	return path->chunks_c.data();
+	return path->chunks.data();
 }
 uint8_t                           APRSERVICE_CALL aprs_path_get_length(struct aprs_path* path)
 {
@@ -2407,15 +2427,17 @@ uint8_t                           APRSERVICE_CALL aprs_path_get_capacity(struct 
 {
 	return path->chunks.max_size();
 }
-bool                              APRSERVICE_CALL aprs_path_set(struct aprs_path* path, uint8_t index, const char* value)
+bool                              APRSERVICE_CALL aprs_path_set(struct aprs_path* path, uint8_t index, const char* station, bool repeated)
 {
 	if (index >= path->size)
 		return false;
 
-	if (!aprs_validate_path(value))
+	if (!aprs_validate_station(station))
 		return false;
 
-	path->chunks[index] = value;
+	path->chunks_stations[index].assign(station);
+	path->chunks[index].station  = path->chunks_stations[index].c_str();
+	path->chunks[index].repeated = repeated;
 
 	return true;
 }
@@ -2424,35 +2446,39 @@ bool                              APRSERVICE_CALL aprs_path_pop(struct aprs_path
 	if (path->size == 0)
 		return false;
 
-	if (path->size == path->chunks.max_size())
-		return false;
+	path->chunks_stations[path->size].clear();
+	path->chunks[path->size].station  = nullptr;
+	path->chunks[path->size].repeated = false;
 
-	path->chunks[--path->size].clear();
-	path->chunks_c[path->size + 1] = nullptr;
+	--path->size;
 
 	return true;
 }
-bool                              APRSERVICE_CALL aprs_path_push(struct aprs_path* path, const char* value)
+bool                              APRSERVICE_CALL aprs_path_push(struct aprs_path* path, const char* station, bool repeated)
 {
-	if (!aprs_validate_path(value))
+	if (!aprs_validate_station(station))
 		return false;
 
 	if (path->size == path->chunks.max_size())
 		return false;
 
-	path->chunks[path->size++] = value;
-	path->chunks_c[path->size - 1] = path->chunks[path->size - 1].c_str();
-	path->chunks_c[path->size] = nullptr;
+	path->chunks_stations[path->size].assign(station);
+	path->chunks[path->size].station  = path->chunks_stations[path->size].c_str();
+	path->chunks[path->size].repeated = repeated;
+
+	++path->size;
 
 	return true;
 }
 void                              APRSERVICE_CALL aprs_path_clear(struct aprs_path* path)
 {
 	for (size_t i = 0; i < path->size; ++i)
-		path->chunks[i].clear();
+	{
+		path->chunks_stations[i].clear();
+		path->chunks[i].repeated = false;
+	}
 
 	path->size = 0;
-	path->chunks_c.fill(nullptr);
 }
 const char*                       APRSERVICE_CALL aprs_path_to_string(struct aprs_path* path)
 {
@@ -2460,10 +2486,18 @@ const char*                       APRSERVICE_CALL aprs_path_to_string(struct apr
 
 	if (path->size)
 	{
-		ss << path->chunks[0];
+		ss << path->chunks[0].station;
+
+		if (path->chunks[0].repeated)
+			ss << '*';
 
 		for (size_t i = 1; i < path->size; ++i)
-			ss << ',' << path->chunks[i];
+		{
+			ss << ',' << path->chunks[i].station;
+
+			if (path->chunks[i].repeated)
+				ss << '*';
+		}
 	}
 
 	path->string = ss.str();

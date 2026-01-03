@@ -1548,7 +1548,7 @@ bool               aprs_packet_decode_message_telemetry(aprs_packet* packet, std
 }
 bool               aprs_packet_decode_message(aprs_packet* packet)
 {
-	static const std::regex regex("^:([^ :]+):(.+?)(\\{(.+))?$");
+	static const std::regex regex("^:([^ :]+) *:(.+?)(\\{(.+))?$");
 	static const std::regex regex_ack("^ack\\S{1,5}$");
 	static const std::regex regex_rej("^rej\\S{1,5}$");
 	static const std::regex regex_bln("^BLN(\\S{1,6})$");

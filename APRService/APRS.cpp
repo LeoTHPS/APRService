@@ -2388,6 +2388,7 @@ struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(con
 	};
 
 	std::string buffer(string);
+	int         last_repeated_index = -1;
 
 	if (auto chunk = strtok(&buffer[0], ",")) do
 	{
@@ -2405,8 +2406,16 @@ struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(con
 			return nullptr;
 		}
 
-		path->chunks[path->size++].station = path->chunks_stations[path->size].c_str();
+		path->chunks[path->size].station = path->chunks_stations[path->size].c_str();
+
+		if (path->chunks[path->size].repeated)
+			last_repeated_index = path->size;
+
+		++path->size;
 	} while (chunk = strtok(nullptr, ","));
+
+	for (int i = 0; i < last_repeated_index; ++i)
+		path->chunks[i].repeated = true;
 
 	return path;
 }

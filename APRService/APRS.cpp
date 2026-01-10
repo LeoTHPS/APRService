@@ -2499,6 +2499,25 @@ void                              APRSERVICE_CALL aprs_path_clear(struct aprs_pa
 
 	path->size = 0;
 }
+bool                              APRSERVICE_CALL aprs_path_compare(struct aprs_path* path, struct aprs_path* path2)
+{
+	if (!path2)
+		return false;
+
+	if (path->size != path2->size)
+		return false;
+
+	for (size_t i = 0; i < path->size; ++i)
+	{
+		if (!path->chunks[i].repeated != path2->chunks[i].repeated)
+			return false;
+
+		if (!path->chunks_stations[i].compare(path2->chunks_stations[i]))
+			return false;
+	}
+
+	return true;
+}
 const char*                       APRSERVICE_CALL aprs_path_to_string(struct aprs_path* path)
 {
 	std::stringstream ss;
@@ -2574,6 +2593,38 @@ bool                              APRSERVICE_CALL aprs_time_get_mdhm(const struc
 	*day    = time->tm_mday;
 	*hour   = time->tm_hour;
 	*minute = time->tm_min;
+
+	return true;
+}
+bool                              APRSERVICE_CALL aprs_time_compare(const struct aprs_time* time, const struct aprs_time* time2)
+{
+	if (!time2)
+		return false;
+
+	if (time->type != time2->type)
+		return false;
+
+	if (time->type & APRS_TIME_DHM)
+	{
+		if (time->tm_mday != time2->tm_mday) return false;
+		if (time->tm_min  != time2->tm_min)  return false;
+		if (time->tm_sec  != time2->tm_sec)  return false;
+	}
+
+	if (time->type & APRS_TIME_HMS)
+	{
+		if (time->tm_hour != time2->tm_hour) return false;
+		if (time->tm_min  != time2->tm_min)  return false;
+		if (time->tm_sec  != time2->tm_sec)  return false;
+	}
+
+	if (time->type & APRS_TIME_MDHM)
+	{
+		if (time->tm_mon  != time2->tm_mon)  return false;
+		if (time->tm_mday != time2->tm_mday) return false;
+		if (time->tm_hour != time2->tm_hour) return false;
+		if (time->tm_min  != time2->tm_min)  return false;
+	}
 
 	return true;
 }
@@ -2686,9 +2737,11 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(str
 			break;
 
 		// case APRS_PACKET_TYPE_TEST:
+			// TODO: implement
 			// break;
 
 		// case APRS_PACKET_TYPE_QUERY:
+			// TODO: implement
 			// break;
 
 		case APRS_PACKET_TYPE_OBJECT:
@@ -2807,9 +2860,11 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(str
 			break;
 
 		// case APRS_PACKET_TYPE_MAP_FEATURE:
+			// TODO: implement
 			// break;
 
 		// case APRS_PACKET_TYPE_GRID_BEACON:
+			// TODO: implement
 			// break;
 
 		case APRS_PACKET_TYPE_THIRD_PARTY:
@@ -2820,6 +2875,7 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(str
 			break;
 
 		// case APRS_PACKET_TYPE_MICROFINDER:
+			// TODO: implement
 			// break;
 
 		case APRS_PACKET_TYPE_USER_DEFINED:
@@ -2832,12 +2888,15 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(str
 			break;
 
 		// case APRS_PACKET_TYPE_SHELTER_TIME:
+			// TODO: implement
 			// break;
 
 		// case APRS_PACKET_TYPE_STATION_CAPABILITIES:
+			// TODO: implement
 			// break;
 
 		// case APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON:
+			// TODO: implement
 			// break;
 	}
 
@@ -2913,9 +2972,11 @@ void                              APRSERVICE_CALL aprs_packet_deinit(struct aprs
 				break;
 
 			// case APRS_PACKET_TYPE_TEST:
+				// TODO: implement
 				// break;
 
 			// case APRS_PACKET_TYPE_QUERY:
+				// TODO: implement
 				// break;
 
 			case APRS_PACKET_TYPE_OBJECT:
@@ -2943,9 +3004,11 @@ void                              APRSERVICE_CALL aprs_packet_deinit(struct aprs
 				break;
 
 			// case APRS_PACKET_TYPE_MAP_FEATURE:
+				// TODO: implement
 				// break;
 
 			// case APRS_PACKET_TYPE_GRID_BEACON:
+				// TODO: implement
 				// break;
 
 			case APRS_PACKET_TYPE_THIRD_PARTY:
@@ -2953,6 +3016,7 @@ void                              APRSERVICE_CALL aprs_packet_deinit(struct aprs
 				break;
 
 			// case APRS_PACKET_TYPE_MICROFINDER:
+				// TODO: implement
 				// break;
 
 			case APRS_PACKET_TYPE_USER_DEFINED:
@@ -2960,12 +3024,15 @@ void                              APRSERVICE_CALL aprs_packet_deinit(struct aprs
 				break;
 
 			// case APRS_PACKET_TYPE_SHELTER_TIME:
+				// TODO: implement
 				// break;
 
 			// case APRS_PACKET_TYPE_STATION_CAPABILITIES:
+				// TODO: implement
 				// break;
 
 			// case APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON:
+				// TODO: implement
 				// break;
 		}
 
@@ -3048,6 +3115,175 @@ bool                              APRSERVICE_CALL aprs_packet_set_content(struct
 	}
 
 	return false;
+}
+bool                              APRSERVICE_CALL aprs_packet_compare(struct aprs_packet* packet, struct aprs_packet* packet2)
+{
+	if (!packet2)
+		return false;
+
+	if (packet->type != packet2->type)
+		return false;
+
+	if (packet->type                       != packet2->type)                       return false;
+	if (!aprs_path_compare(packet->path, packet2->path))                           return false;
+	if (packet->igate                      != packet2->igate)                      return false;
+	if (packet->tocall                     != packet2->tocall)                     return false;
+	if (packet->sender                     != packet2->sender)                     return false;
+	if (packet->content                    != packet2->content)                    return false;
+	if (packet->qconstruct                 != packet2->qconstruct)                 return false;
+	if (packet->extensions.speed           != packet2->extensions.speed)           return false;
+	if (packet->extensions.course          != packet2->extensions.course)          return false;
+	if (packet->extensions.altitude        != packet2->extensions.altitude)        return false;
+	if (packet->extensions.dfs.strength    != packet2->extensions.dfs.strength)    return false;
+	if (packet->extensions.dfs.height      != packet2->extensions.dfs.height)      return false;
+	if (packet->extensions.dfs.gain        != packet2->extensions.dfs.gain)        return false;
+	if (packet->extensions.dfs.directivity != packet2->extensions.dfs.directivity) return false;
+	if (packet->extensions.phg.power       != packet2->extensions.phg.power)       return false;
+	if (packet->extensions.phg.height      != packet2->extensions.phg.height)      return false;
+	if (packet->extensions.phg.gain        != packet2->extensions.phg.gain)        return false;
+	if (packet->extensions.phg.directivity != packet2->extensions.phg.directivity) return false;
+	if (packet->extensions.rng.miles       != packet2->extensions.rng.miles)       return false;
+
+	switch (packet->type)
+	{
+		case APRS_PACKET_TYPE_GPS:
+			if (packet->gps->nmea    != packet2->gps->nmea)    return false;
+			if (packet->gps->comment != packet2->gps->comment) return false;
+			break;
+
+		case APRS_PACKET_TYPE_RAW:
+			break;
+
+		case APRS_PACKET_TYPE_ITEM:
+			if (packet->item->is_alive         != packet2->item->is_alive)         return false;
+			if (packet->item->is_compressed    != packet2->item->is_compressed)    return false;
+			if (!aprs_time_compare(&packet->item->time, &packet2->item->time))     return false;
+			if (packet->item->name             != packet2->item->name)             return false;
+			if (packet->item->comment          != packet2->item->comment)          return false;
+			if (packet->item->latitude         != packet2->item->latitude)         return false;
+			if (packet->item->longitude        != packet2->item->longitude)        return false;
+			if (packet->item->symbol_table     != packet2->item->symbol_table)     return false;
+			if (packet->item->symbol_table_key != packet2->item->symbol_table_key) return false;
+			break;
+
+		// case APRS_PACKET_TYPE_TEST:
+			// TODO: implement
+			// break;
+
+		// case APRS_PACKET_TYPE_QUERY:
+			// TODO: implement
+			// break;
+
+		case APRS_PACKET_TYPE_OBJECT:
+			if (packet->object->is_alive         != packet2->object->is_alive)         return false;
+			if (packet->object->is_compressed    != packet2->object->is_compressed)    return false;
+			if (!aprs_time_compare(&packet->object->time, &packet2->object->time))     return false;
+			if (packet->object->name             != packet2->object->name)             return false;
+			if (packet->object->comment          != packet2->object->comment)          return false;
+			if (packet->object->latitude         != packet2->object->latitude)         return false;
+			if (packet->object->longitude        != packet2->object->longitude)        return false;
+			if (packet->object->symbol_table     != packet2->object->symbol_table)     return false;
+			if (packet->object->symbol_table_key != packet2->object->symbol_table_key) return false;
+			break;
+
+		case APRS_PACKET_TYPE_STATUS:
+			if (packet->status->is_time_set != packet2->status->is_time_set)       return false;
+			if (!aprs_time_compare(&packet->status->time, &packet2->status->time)) return false;
+			if (packet->status->message != packet2->status->message)               return false;
+			break;
+
+		case APRS_PACKET_TYPE_MESSAGE:
+			if (packet->message->id          != packet2->message->id)          return false;
+			if (packet->message->type        != packet2->message->type)        return false;
+			if (packet->message->content     != packet2->message->content)     return false;
+			if (packet->message->destination != packet2->message->destination) return false;
+			break;
+
+		case APRS_PACKET_TYPE_WEATHER:
+			if (!aprs_time_compare(&packet->weather->time, &packet2->weather->time))                   return false;
+			if (packet->weather->wind_speed              != packet2->weather->wind_speed)              return false;
+			if (packet->weather->wind_speed_gust         != packet2->weather->wind_speed_gust)         return false;
+			if (packet->weather->wind_direction          != packet2->weather->wind_direction)          return false;
+			if (packet->weather->rainfall_last_hour      != packet2->weather->rainfall_last_hour)      return false;
+			if (packet->weather->rainfall_last_24_hours  != packet2->weather->rainfall_last_24_hours)  return false;
+			if (packet->weather->rainfall_since_midnight != packet2->weather->rainfall_since_midnight) return false;
+			if (packet->weather->humidity                != packet2->weather->humidity)                return false;
+			if (packet->weather->temperature             != packet2->weather->temperature)             return false;
+			if (packet->weather->barometric_pressure     != packet2->weather->barometric_pressure)     return false;
+			if (packet->weather->type                    != packet2->weather->type)                    return false;
+			if (packet->weather->software                != packet2->weather->software)                return false;
+			break;
+
+		case APRS_PACKET_TYPE_POSITION:
+			if (packet->position->flags                    != packet2->position->flags)                    return false;
+			if (!aprs_time_compare(&packet->position->time, &packet2->position->time))                     return false;
+			if (packet->position->latitude                 != packet2->position->latitude)                 return false;
+			if (packet->position->longitude                != packet2->position->longitude)                return false;
+			if (packet->position->comment                  != packet2->position->comment)                  return false;
+			if (packet->position->symbol_table             != packet2->position->symbol_table)             return false;
+			if (packet->position->symbol_table_key         != packet2->position->symbol_table_key)         return false;
+			if (packet->position->mic_e_message            != packet2->position->mic_e_message)            return false;
+			if (packet->position->mic_e_telemetry          != packet2->position->mic_e_telemetry)          return false;
+			if (packet->position->mic_e_telemetry_channels != packet2->position->mic_e_telemetry_channels) return false;
+		break;
+
+		case APRS_PACKET_TYPE_TELEMETRY:
+			if (packet->telemetry->type         != packet2->telemetry->type)         return false;
+			if (packet->telemetry->eqns_count   != packet2->telemetry->eqns_count)   return false;
+			if (packet->telemetry->units        != packet2->telemetry->units)        return false;
+			if (packet->telemetry->units_count  != packet2->telemetry->units_count)  return false;
+			if (packet->telemetry->params       != packet2->telemetry->params)       return false;
+			if (packet->telemetry->params_count != packet2->telemetry->params_count) return false;
+			if (packet->telemetry->analog_u8    != packet2->telemetry->analog_u8)    return false;
+			if (packet->telemetry->analog_float != packet2->telemetry->analog_float) return false;
+			if (packet->telemetry->digital      != packet2->telemetry->digital)      return false;
+			if (packet->telemetry->sequence     != packet2->telemetry->sequence)     return false;
+			if (packet->telemetry->comment      != packet2->telemetry->comment)      return false;
+
+			for (size_t i = 0; i < packet->telemetry->eqns_count; ++i)
+			{
+				if (packet->telemetry->eqns[i].a != packet2->telemetry->eqns[i].a) return false;
+				if (packet->telemetry->eqns[i].b != packet2->telemetry->eqns[i].b) return false;
+				if (packet->telemetry->eqns[i].c != packet2->telemetry->eqns[i].c) return false;
+			}
+			break;
+
+		// case APRS_PACKET_TYPE_MAP_FEATURE:
+			// TODO: implement
+			// break;
+
+		// case APRS_PACKET_TYPE_GRID_BEACON:
+			// TODO: implement
+			// break;
+
+		case APRS_PACKET_TYPE_THIRD_PARTY:
+			if (packet->third_party->content != packet2->third_party->content) return false;
+			break;
+
+		// case APRS_PACKET_TYPE_MICROFINDER:
+			// TODO: implement
+			// break;
+
+		case APRS_PACKET_TYPE_USER_DEFINED:
+			if (packet->user_defined->id   != packet2->user_defined->id)   return false;
+			if (packet->user_defined->type != packet2->user_defined->type) return false;
+			if (packet->user_defined->data != packet2->user_defined->data) return false;
+			break;
+
+		// case APRS_PACKET_TYPE_SHELTER_TIME:
+			// TODO: implement
+			// break;
+
+		// case APRS_PACKET_TYPE_STATION_CAPABILITIES:
+			// TODO: implement
+			// break;
+
+		// case APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON:
+			// TODO: implement
+			// break;
+	}
+
+	return true;
 }
 const char*                       APRSERVICE_CALL aprs_packet_to_string(struct aprs_packet* packet)
 {

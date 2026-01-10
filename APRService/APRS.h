@@ -130,6 +130,7 @@ APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_path_se
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_path_pop(struct aprs_path* path);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_path_push(struct aprs_path* path, const char* station, bool repeated);
 APRSERVICE_EXPORT void                              APRSERVICE_CALL aprs_path_clear(struct aprs_path* path);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_path_compare(struct aprs_path* path, struct aprs_path* path2);
 APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_path_to_string(struct aprs_path* path);
 APRSERVICE_EXPORT void                              APRSERVICE_CALL aprs_path_add_reference(struct aprs_path* path);
 
@@ -138,6 +139,7 @@ APRSERVICE_EXPORT int                               APRSERVICE_CALL aprs_time_ge
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_get_dms(const struct aprs_time* time, uint8_t* day, uint8_t* minute, uint8_t* second);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_get_hms(const struct aprs_time* time, uint8_t* hour, uint8_t* minute, uint8_t* second);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_get_mdhm(const struct aprs_time* time, uint8_t* month, uint8_t* day, uint8_t* hour, uint8_t* minute);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_compare(const struct aprs_time* time, const struct aprs_time* time2);
 
 APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_init(const char* sender, const char* tocall, struct aprs_path* path);
 APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(struct aprs_packet* packet);
@@ -154,6 +156,7 @@ APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_set_tocall(struct aprs_packet* packet, const char* value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_set_sender(struct aprs_packet* packet, const char* value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_set_content(struct aprs_packet* packet, const char* value);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_compare(struct aprs_packet* packet, struct aprs_packet* packet2);
 APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_packet_to_string(struct aprs_packet* packet);
 APRSERVICE_EXPORT void                              APRSERVICE_CALL aprs_packet_add_reference(struct aprs_packet* packet);
 

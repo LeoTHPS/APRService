@@ -120,6 +120,7 @@ struct aprs_telemetry_eqn
 };
 
 APRSERVICE_EXPORT struct aprs_path*                 APRSERVICE_CALL aprs_path_init();
+APRSERVICE_EXPORT struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_copy(struct aprs_path* path);
 APRSERVICE_EXPORT struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(const char* string);
 APRSERVICE_EXPORT void                              APRSERVICE_CALL aprs_path_deinit(struct aprs_path* path);
 APRSERVICE_EXPORT const struct aprs_path_node*      APRSERVICE_CALL aprs_path_get(struct aprs_path* path);
@@ -139,6 +140,7 @@ APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_ge
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_get_mdhm(const struct aprs_time* time, uint8_t* month, uint8_t* day, uint8_t* hour, uint8_t* minute);
 
 APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_init(const char* sender, const char* tocall, struct aprs_path* path);
+APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(struct aprs_packet* packet);
 APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_string(const char* string);
 APRSERVICE_EXPORT void                              APRSERVICE_CALL aprs_packet_deinit(struct aprs_packet* packet);
 APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_packet_get_q(struct aprs_packet* packet);

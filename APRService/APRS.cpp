@@ -156,21 +156,21 @@ struct aprs_packet_weather
 };
 struct aprs_packet_position
 {
-	int                 flags;
+	int                    flags;
 
-	aprs_time           time;
+	aprs_time              time;
 
-	float               latitude;
-	float               longitude;
+	float                  latitude;
+	float                  longitude;
 
-	std::string         comment;
+	std::string            comment;
 
-	char                symbol_table;
-	char                symbol_table_key;
+	char                   symbol_table;
+	char                   symbol_table_key;
 
-	APRS_MIC_E_MESSAGES mic_e_message;
-	uint8_t             mic_e_telemetry[5];
-	uint8_t             mic_e_telemetry_channels;
+	APRS_MIC_E_MESSAGES    mic_e_message;
+	std::array<uint8_t, 5> mic_e_telemetry;
+	uint8_t                mic_e_telemetry_channels;
 };
 struct aprs_packet_telemetry
 {
@@ -2375,6 +2375,23 @@ struct aprs_path*                 APRSERVICE_CALL aprs_path_init()
 
 	return path;
 }
+struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_copy(struct aprs_path* path)
+{
+	auto p = new aprs_path
+	{
+		.size            = path->size,
+		.chunks_stations = path->chunks_stations,
+
+		.string          = path->string,
+
+		.reference_count = 1
+	};
+
+	for (size_t i = 0; i < path->size; ++i)
+		p->chunks[i] = { .station = p->chunks_stations[i].c_str(), .repeated = path->chunks[i].repeated };
+
+	return p;
+}
 struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(const char* string)
 {
 	if (!string)
@@ -2617,6 +2634,214 @@ struct aprs_packet*                               aprs_packet_init_ex(const char
 	aprs_path_add_reference(path);
 
 	return packet;
+}
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(struct aprs_packet* packet)
+{
+	auto p = new aprs_packet
+	{
+		.type            = packet->type,
+		.path            = aprs_path_init_from_copy(packet->path),
+		.igate           = packet->igate,
+		.tocall          = packet->tocall,
+		.sender          = packet->sender,
+		.content         = packet->content,
+		.qconstruct      = packet->qconstruct,
+		.extensions      = packet->extensions,
+
+		.string          = packet->string,
+
+		.reference_count = 1
+	};
+
+	switch (packet->type)
+	{
+		case APRS_PACKET_TYPE_GPS:
+			p->gps = new aprs_packet_gps
+			{
+				.nmea    = packet->gps->nmea,
+				.comment = packet->gps->comment
+			};
+			break;
+
+		case APRS_PACKET_TYPE_RAW:
+			break;
+
+		case APRS_PACKET_TYPE_ITEM:
+			p->item = new aprs_packet_item
+			{
+				.is_alive         = packet->item->is_alive,
+				.is_compressed    = packet->item->is_compressed,
+
+				.time             = packet->item->time,
+
+				.name             = packet->item->name,
+				.comment          = packet->item->comment,
+
+				.latitude         = packet->item->latitude,
+				.longitude        = packet->item->longitude,
+
+				.symbol_table     = packet->item->symbol_table,
+				.symbol_table_key = packet->item->symbol_table_key
+			};
+			break;
+
+		// case APRS_PACKET_TYPE_TEST:
+			// break;
+
+		// case APRS_PACKET_TYPE_QUERY:
+			// break;
+
+		case APRS_PACKET_TYPE_OBJECT:
+			p->object = new aprs_packet_object
+			{
+				.is_alive         = packet->object->is_alive,
+				.is_compressed    = packet->object->is_compressed,
+
+				.time             = packet->object->time,
+
+				.name             = packet->object->name,
+				.comment          = packet->object->comment,
+
+				.latitude         = packet->object->latitude,
+				.longitude        = packet->object->longitude,
+
+				.symbol_table     = packet->object->symbol_table,
+				.symbol_table_key = packet->object->symbol_table_key
+			};
+			break;
+
+		case APRS_PACKET_TYPE_STATUS:
+			p->status = new aprs_packet_status
+			{
+				.is_time_set = packet->status->is_time_set,
+
+				.time        = packet->status->time,
+				.message     = packet->status->message
+			};
+			break;
+
+		case APRS_PACKET_TYPE_MESSAGE:
+			p->message = new aprs_packet_message
+			{
+				.id          = packet->message->id,
+				.type        = packet->message->type,
+				.content     = packet->message->content,
+				.destination = packet->message->destination
+			};
+			break;
+
+		case APRS_PACKET_TYPE_WEATHER:
+			p->weather = new aprs_packet_weather
+			{
+				.time                    = packet->weather->time,
+
+				.wind_speed              = packet->weather->wind_speed,
+				.wind_speed_gust         = packet->weather->wind_speed_gust,
+				.wind_direction          = packet->weather->wind_direction,
+
+				.rainfall_last_hour      = packet->weather->rainfall_last_hour,
+				.rainfall_last_24_hours  = packet->weather->rainfall_last_24_hours,
+				.rainfall_since_midnight = packet->weather->rainfall_since_midnight,
+
+				.humidity                = packet->weather->humidity,
+				.temperature             = packet->weather->temperature,
+				.barometric_pressure     = packet->weather->barometric_pressure,
+
+				.type                    = packet->weather->type,
+				.software                = packet->weather->software
+			};
+			break;
+
+		case APRS_PACKET_TYPE_POSITION:
+			p->position = new aprs_packet_position
+			{
+				.flags                    = packet->position->flags,
+
+				.time                     = packet->position->time,
+
+				.latitude                 = packet->position->latitude,
+				.longitude                = packet->position->longitude,
+
+				.comment                  = packet->position->comment,
+
+				.symbol_table             = packet->position->symbol_table,
+				.symbol_table_key         = packet->position->symbol_table_key,
+
+				.mic_e_message            = packet->position->mic_e_message,
+				.mic_e_telemetry          = packet->position->mic_e_telemetry,
+				.mic_e_telemetry_channels = packet->position->mic_e_telemetry_channels
+			};
+		break;
+
+		case APRS_PACKET_TYPE_TELEMETRY:
+			p->telemetry = new aprs_packet_telemetry
+			{
+				.type           = packet->telemetry->type,
+
+				.eqns           = packet->telemetry->eqns,
+				.eqns_count     = packet->telemetry->eqns_count,
+
+				.units          = packet->telemetry->units,
+				.units_count    = packet->telemetry->units_count,
+
+				.params         = packet->telemetry->params,
+				.params_count   = packet->telemetry->params_count,
+
+				.analog_u8      = packet->telemetry->analog_u8,
+				.analog_float   = packet->telemetry->analog_float,
+				.digital        = packet->telemetry->digital,
+				.sequence       = packet->telemetry->sequence,
+				.comment        = packet->telemetry->comment
+			};
+
+			for (size_t i = 0; i < p->telemetry->eqns_count; ++i)
+				p->telemetry->eqns_c[i] = &p->telemetry->eqns[i];
+			for (size_t i = 0; i < p->telemetry->units_count; ++i)
+				p->telemetry->units_c[i] = p->telemetry->units[i].c_str();
+			for (size_t i = 0; i < p->telemetry->params_count; ++i)
+				p->telemetry->params_c[i] = p->telemetry->params[i].c_str();
+			for (size_t i = 0; i < p->telemetry->analog_u8.size(); ++i)
+				p->telemetry->analog_u8_c[i] = &p->telemetry->analog_u8[i];
+			for (size_t i = 0; i < p->telemetry->analog_float.size(); ++i)
+				p->telemetry->analog_float_c[i] = &p->telemetry->analog_float[i];
+			break;
+
+		// case APRS_PACKET_TYPE_MAP_FEATURE:
+			// break;
+
+		// case APRS_PACKET_TYPE_GRID_BEACON:
+			// break;
+
+		case APRS_PACKET_TYPE_THIRD_PARTY:
+			p->third_party = new aprs_packet_third_party
+			{
+				.content = packet->third_party->content
+			};
+			break;
+
+		// case APRS_PACKET_TYPE_MICROFINDER:
+			// break;
+
+		case APRS_PACKET_TYPE_USER_DEFINED:
+			p->user_defined = new aprs_packet_user_defined
+			{
+				.id   = packet->user_defined->id,
+				.type = packet->user_defined->type,
+				.data = packet->user_defined->data
+			};
+			break;
+
+		// case APRS_PACKET_TYPE_SHELTER_TIME:
+			// break;
+
+		// case APRS_PACKET_TYPE_STATION_CAPABILITIES:
+			// break;
+
+		// case APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON:
+			// break;
+	}
+
+	return p;
 }
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_string(const char* string)
 {

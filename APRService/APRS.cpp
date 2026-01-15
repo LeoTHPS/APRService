@@ -1220,8 +1220,9 @@ bool               aprs_packet_decode_mic_e(aprs_packet* packet, const std::stri
 
 	// TODO: decode telemetry
 	// TODO: decode maidenhead
+	// TODO: decode weather in comment
+	// TODO: decode position in comment
 	// TODO: decode extensions in comment
-	// TODO: override position with standard position in comment
 
 	if (message & 0x80)
 		packet->position->mic_e_message = (APRS_MIC_E_MESSAGES)(packet->position->mic_e_message + 7);
@@ -1296,6 +1297,9 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 			.symbol_table_key = *match[8].first
 		};
 
+		// TODO: decode weather in comment
+		// TODO: decode position in comment
+
 		aprs_packet_decode_data_extensions(packet, packet->item->comment);
 
 		return true;
@@ -1321,6 +1325,9 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 			.symbol_table     = location.symbol_table,
 			.symbol_table_key = location.symbol_table_key
 		};
+
+		// TODO: decode weather in comment
+		// TODO: decode position in comment
 
 		aprs_packet_decode_data_extensions(packet, packet->item->comment);
 
@@ -1382,6 +1389,9 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 			.symbol_table_key = *match[10].first
 		};
 
+		// TODO: decode weather in comment
+		// TODO: decode position in comment
+
 		aprs_packet_decode_data_extensions(packet, packet->object->comment);
 
 		return true;
@@ -1411,6 +1421,9 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 			.symbol_table     = location.symbol_table,
 			.symbol_table_key = location.symbol_table_key
 		};
+
+		// TODO: decode weather in comment
+		// TODO: decode position in comment
 
 		aprs_packet_decode_data_extensions(packet, packet->object->comment);
 
@@ -1715,6 +1728,9 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 			.symbol_table_key = *match[6].first
 		};
 
+		// TODO: decode weather in comment
+		// TODO: decode position in comment
+
 		aprs_packet_decode_data_extensions(packet, packet->position->comment);
 
 		return true;
@@ -1748,6 +1764,9 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 			.symbol_table_key = *match[8].first,
 		};
 
+		// TODO: decode weather in comment
+		// TODO: decode position in comment
+
 		aprs_packet_decode_data_extensions(packet, packet->position->comment);
 
 		return true;
@@ -1771,6 +1790,9 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 			.symbol_table     = location.symbol_table,
 			.symbol_table_key = location.symbol_table_key
 		};
+
+		// TODO: decode weather in comment
+		// TODO: decode position in comment
 
 		aprs_packet_decode_data_extensions(packet, packet->position->comment);
 

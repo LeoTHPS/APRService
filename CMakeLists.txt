@@ -1,12 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 
-set(CMAKE_C_STANDARD           17)
 set(CMAKE_C_FLAGS_RELEASE      "${CMAKE_C_FLAGS_RELEASE} -s")
 set(CMAKE_C_FLAGS_MINSIZEREL   "${CMAKE_C_FLAGS_MINSIZEREL} -s")
-
-set(CMAKE_CXX_STANDARD         20)
-set(CMAKE_CXX_FLAGS_RELEASE    "${CMAKE_CXX_FLAGS_RELEASE} -s")
-set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -s")
 
 set(APRS_IS_HOST                  "noam.aprs2.net")
 set(APRS_IS_PORT                  14580)

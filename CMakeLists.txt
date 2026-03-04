@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.18)
 
 set(APRS_IS_HOST                  "noam.aprs2.net")
 set(APRS_IS_PORT                  14580)
-set(APRS_IS_PASSCODE              19371)
+set(APRS_IS_PASSCODE              0)
 
 set(APRS_KISS_TNC_TCP_HOST        "127.0.0.1")
 set(APRS_KISS_TNC_TCP_PORT        8001)

@@ -23,7 +23,7 @@ set(APRS_STATION_SYMBOL_TABLE     '/')
 set(APRS_STATION_SYMBOL_TABLE_KEY 'l')
 set(APRS_STATION_POSITION_TYPE    APRSERVICE_POSITION_TYPE_POSITION)
 
-set(DEMO_TICK_RATE                10)
+set(DEMO_UPDATE_INTERVAL          100)
 
 function(target_set_aprs_definitions target)
 	target_compile_definitions(${target} PRIVATE
@@ -49,7 +49,7 @@ function(target_set_aprs_definitions target)
 		-DAPRS_STATION_SYMBOL_TABLE_KEY=${APRS_STATION_SYMBOL_TABLE_KEY}
 		-DAPRS_STATION_POSITION_TYPE=${APRS_STATION_POSITION_TYPE}
 
-		-DDEMO_TICK_RATE=${DEMO_TICK_RATE}
+		-DDEMO_UPDATE_INTERVAL=${DEMO_UPDATE_INTERVAL}
 	)
 endfunction()
 

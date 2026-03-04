@@ -479,10 +479,10 @@ bool demo_update(struct demo* d)
 
 int main(int argc, char* argv[])
 {
-#if defined(APRSERVICE_UNIX) && DEMO_TICK_RATE
+#if defined(APRSERVICE_UNIX)
 	struct timespec ts;
-	ts.tv_sec  = (1000 / DEMO_TICK_RATE) / 1000;
-	ts.tv_nsec = ((1000 / DEMO_TICK_RATE) % 1000) * 1000000;
+	ts.tv_sec  = DEMO_UPDATE_INTERVAL / 1000;
+	ts.tv_nsec = (DEMO_UPDATE_INTERVAL % 1000) * 1000000;
 #endif
 
 	struct demo d;
@@ -490,12 +490,10 @@ int main(int argc, char* argv[])
 	if (demo_init(&d))
 	{
 		while (demo_update(&d))
-#if !DEMO_TICK_RATE
-			;
-#elif defined(APRSERVICE_UNIX)
+#if defined(APRSERVICE_UNIX)
 			nanosleep(&ts, nullptr);
 #elif defined(APRSERVICE_WIN32)
-			Sleep(1000 / DEMO_TICK_RATE);
+			Sleep(DEMO_UPDATE_INTERVAL);
 #endif
 
 		demo_deinit(&d);

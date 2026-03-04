@@ -144,6 +144,7 @@ APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect_
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc_tcp(struct aprservice* service, const char* hostname, uint16_t port);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc_serial(struct aprservice* service, const char* device, uint32_t speed);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_disconnect(struct aprservice* service);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_wait_for_io(struct aprservice* service);
 
 APRSERVICE_EXPORT struct aprservice_task*    APRSERVICE_CALL aprservice_task_schedule(struct aprservice* service, uint32_t seconds, aprservice_task_handler handler, void* param);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_task_cancel(struct aprservice_task* task);

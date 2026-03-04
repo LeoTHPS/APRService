@@ -524,7 +524,7 @@ socket_connect:
 bool                                       aprservice_connection_open_serial(aprservice_connection* connection)
 {
 #if defined(APRSERVICE_UNIX)
-	if ((connection->serial = open(connection->host_or_device.c_str(), O_RDWR | O_NOCTTY | O_NDELAY)) == -1)
+	if ((connection->serial = open(connection->host_or_device.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK)) == -1)
 	{
 		auto error = errno;
 
@@ -1063,7 +1063,7 @@ int                                        aprservice_connection_read(aprservice
 int                                        aprservice_connection_write(aprservice_connection* connection, const void* buffer, size_t size, size_t* number_of_bytes_sent)
 {
 	if (!aprservice_connection_is_open(connection))
-		return false;
+		return 0;
 
 	switch (connection->type)
 	{
@@ -1313,6 +1313,233 @@ bool                                       aprservice_connection_write_aprs_is(a
 
 	connection->tx_queue.push({ .value = std::move(value), .offset = 0 });
 	connection->tx_queue.push({ .value = "\r\n",           .offset = 0 });
+
+	return true;
+}
+bool                                       aprservice_connection_wait_for_io(aprservice_connection* connection)
+{
+	if (!aprservice_connection_is_open(connection))
+		return false;
+
+	if (connection->tx_queue.empty())
+	{
+		char buffer;
+
+		switch (connection->type)
+		{
+			case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+			{
+#if defined(APRSERVICE_UNIX)
+				int flags;
+
+				if ((flags = fcntl(connection->socket, F_GETFL, 0)) == -1)
+				{
+					auto error = errno;
+
+					aprservice_log_error_ex(fcntl, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+
+				flags &= ~O_NONBLOCK;
+
+				if (fcntl(connection->socket, F_SETFL, flags) == -1)
+				{
+					auto error = errno;
+
+					aprservice_log_error_ex(fcntl, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+
+				ssize_t bytes_received;
+
+				switch (bytes_received = recv(connection->socket, &buffer, sizeof(char), 0))
+				{
+					case 0:
+						aprservice_connection_close(connection);
+						return false;
+
+					case -1:
+						if (auto error = errno)
+							aprservice_log_error_ex(recv, error);
+						aprservice_connection_close(connection);
+						return false;
+				}
+
+				flags |= O_NONBLOCK;
+
+				if (fcntl(connection->socket, F_SETFL, flags) == -1)
+				{
+					auto error = errno;
+
+					aprservice_log_error_ex(fcntl, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+#elif defined(APRSERVICE_WIN32)
+				u_long arg = 0;
+
+				if (ioctlsocket(connection->socket, FIONBIO, &arg))
+				{
+					auto error = WSAGetLastError();
+
+					aprservice_log_error_ex(ioctlsocket, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+
+				int bytes_received;
+
+				switch (bytes_received = recv(connection->socket, &buffer, sizeof(char), 0))
+				{
+					case 0:
+						aprservice_connection_close(connection);
+						return false;
+
+					case SOCKET_ERROR:
+						if (auto error = WSAGetLastError())
+							aprservice_log_error_ex(recv, error);
+						aprservice_connection_close(connection);
+						return false;
+				}
+
+				arg = 1;
+
+				if (ioctlsocket(connection->socket, FIONBIO, &arg))
+				{
+					auto error = WSAGetLastError();
+
+					aprservice_log_error_ex(ioctlsocket, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+#endif
+			}
+			break;
+
+			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+			{
+				// TODO: debug this
+
+#if defined(APRSERVICE_UNIX)
+				int flags;
+
+				if ((flags = fcntl(connection->serial, F_GETFL, 0)) == -1)
+				{
+					auto error = errno;
+
+					aprservice_log_error_ex(fcntl, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+
+				flags &= ~O_NONBLOCK;
+
+				if (fcntl(connection->serial, F_SETFL, flags) == -1)
+				{
+					auto error = errno;
+
+					aprservice_log_error_ex(fcntl, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+
+				int bytes_received;
+
+				if ((bytes_received = read(connection->serial, &buffer, sizeof(char))) == -1)
+				{
+					auto error = errno;
+
+					aprservice_log_error_ex(read, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+
+				flags |= O_NONBLOCK;
+
+				if (fcntl(connection->serial, F_SETFL, flags) == -1)
+				{
+					auto error = errno;
+
+					aprservice_log_error_ex(fcntl, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+#elif defined(APRSERVICE_WIN32)
+				COMMTIMEOUTS timeouts[2] = {};
+
+				if (!GetCommTimeouts(connection->serial, &timeouts[0]))
+				{
+					auto error = GetLastError();
+
+					aprservice_log_error_ex(GetCommTimeouts, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+
+				if (!SetCommTimeouts(connection->serial, &timeouts[1]))
+				{
+					auto error = GetLastError();
+
+					aprservice_log_error_ex(SetCommTimeouts, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+
+				DWORD bytes_received;
+
+				if (!ReadFile(connection->serial, &buffer, sizeof(char), &bytes_received, nullptr))
+				{
+					auto error = GetLastError();
+
+					aprservice_log_error_ex(ReadFile, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+
+				if (!SetCommTimeouts(connection->serial, &timeouts[0]))
+				{
+					auto error = GetLastError();
+
+					aprservice_log_error_ex(SetCommTimeouts, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+#endif
+			}
+			break;
+		}
+
+		connection->rx_buffer.push_back(buffer);
+	}
 
 	return true;
 }
@@ -2607,6 +2834,20 @@ void                       APRSERVICE_CALL aprservice_disconnect(struct aprservi
 
 		service->is_connected = false;
 	}
+}
+bool                       APRSERVICE_CALL aprservice_wait_for_io(struct aprservice* service)
+{
+	if (!aprservice_is_connected(service))
+		return false;
+
+	if (!aprservice_connection_wait_for_io(service->connection))
+	{
+		aprservice_disconnect(service);
+
+		return false;
+	}
+
+	return true;
 }
 bool                                       aprservice_execute_command(struct aprservice* service, struct aprs_packet* packet, const char* sender, const char* name, const char* args)
 {

@@ -387,7 +387,7 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 	}
 }
 
-bool demo_init(struct demo* d)
+bool    demo_init(struct demo* d)
 {
 	if (!(d->path = aprs_path_init_from_string(APRS_STATION_PATH)))
 	{
@@ -446,15 +446,10 @@ bool demo_init(struct demo* d)
 
 	return true;
 }
-void demo_deinit(struct demo* d)
+void    demo_deinit(struct demo* d)
 {
 	aprservice_deinit(d->service);
 	aprs_path_deinit(d->path);
-}
-
-bool demo_is_connected(struct demo* d)
-{
-	return aprservice_is_connected(d->service);
 }
 
 #define demo_connect                       demo_connect_aprs_is
@@ -462,40 +457,20 @@ bool demo_is_connected(struct demo* d)
 #define demo_connect_kiss_tnc_tcp(demo)    aprservice_connect_kiss_tnc_tcp(demo->service, APRS_KISS_TNC_TCP_HOST, APRS_KISS_TNC_TCP_PORT)
 #define demo_connect_kiss_tnc_serial(demo) aprservice_connect_kiss_tnc_serial(demo->service, APRS_KISS_TNC_SERIAL_DEVICE, APRS_KISS_TNC_SERIAL_SPEED)
 
-bool demo_update(struct demo* d)
+void    demo_run(struct demo* d)
 {
-	if (!demo_is_connected(d) && !demo_connect(d))
-		;
-
-	if (!aprservice_poll(d->service))
-	{
-		printf("Error polling service\n");
-
-		return false;
-	}
-
-	return true;
+	while (aprservice_poll(d->service))
+		if (aprservice_is_connected(d->service) || demo_connect(d))
+			aprservice_wait_for_io(d->service);
 }
 
 int main(int argc, char* argv[])
 {
-#if defined(APRSERVICE_UNIX)
-	struct timespec ts;
-	ts.tv_sec  = DEMO_UPDATE_INTERVAL / 1000;
-	ts.tv_nsec = (DEMO_UPDATE_INTERVAL % 1000) * 1000000;
-#endif
-
 	struct demo d;
 
 	if (demo_init(&d))
 	{
-		while (demo_update(&d))
-#if defined(APRSERVICE_UNIX)
-			nanosleep(&ts, nullptr);
-#elif defined(APRSERVICE_WIN32)
-			Sleep(DEMO_UPDATE_INTERVAL);
-#endif
-
+		demo_run(&d);
 		demo_deinit(&d);
 	}
 

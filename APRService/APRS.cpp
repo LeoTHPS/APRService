@@ -8,6 +8,7 @@
 #include <cstring>
 #include <iomanip>
 #include <sstream>
+#include <charconv>
 #include <iostream>
 #include <type_traits>
 
@@ -236,103 +237,6 @@ struct aprs_packet
 	};
 };
 
-struct aprs_strlen_result
-{
-	bool   valid;
-	size_t length;
-
-	constexpr operator bool () const
-	{
-		return valid;
-	}
-
-	constexpr operator size_t () const
-	{
-		return length;
-	}
-
-	constexpr bool operator > (int value) const
-	{
-		return valid && (length > value);
-	}
-	constexpr bool operator < (int value) const
-	{
-		return valid && (length < value);
-	}
-
-	constexpr bool operator >= (int value) const
-	{
-		return valid && (length >= value);
-	}
-	constexpr bool operator <= (int value) const
-	{
-		return valid && (length <= value);
-	}
-
-	constexpr bool operator == (int value) const
-	{
-		return valid && (length == value);
-	}
-	constexpr bool operator != (int value) const
-	{
-		return valid && (length != value);
-	}
-
-	constexpr bool operator > (size_t value) const
-	{
-		return valid && (length > value);
-	}
-	constexpr bool operator < (size_t value) const
-	{
-		return valid && (length < value);
-	}
-
-	constexpr bool operator >= (size_t value) const
-	{
-		return valid && (length >= value);
-	}
-	constexpr bool operator <= (size_t value) const
-	{
-		return valid && (length <= value);
-	}
-
-	constexpr bool operator == (size_t value) const
-	{
-		return valid && (length == value);
-	}
-	constexpr bool operator != (size_t value) const
-	{
-		return valid && (length != value);
-	}
-
-	constexpr bool operator > (const aprs_strlen_result& value) const
-	{
-		return valid && value && (length > value.length);
-	}
-	constexpr bool operator < (const aprs_strlen_result& value) const
-	{
-		return valid && value && (length < value.length);
-	}
-
-	constexpr bool operator >= (const aprs_strlen_result& value) const
-	{
-		return valid && value && (length >= value.length);
-	}
-	constexpr bool operator <= (const aprs_strlen_result& value) const
-	{
-		return valid && value && (length <= value.length);
-	}
-
-	constexpr bool operator == (const aprs_strlen_result& value) const
-	{
-		return valid && value && (length == value.length);
-	}
-	constexpr bool operator != (const aprs_strlen_result& value) const
-	{
-		return valid && value && (length != value.length);
-	}
-};
-
 typedef bool(*aprs_packet_decode_handler)(aprs_packet* packet);
 typedef void(*aprs_packet_encode_handler)(aprs_packet* packet, std::stringstream& ss);
 
@@ -361,46 +265,22 @@ struct aprs_packet_decoder_context
 	aprs_packet_decode_handler function;
 };
 
-auto               aprs_string_length(const char* string, bool stop_at_whitespace = false)
-{
-	aprs_strlen_result result = { .valid = false, .length = 0 };
-
-	if (string)
-	{
-		result.valid = true;
-
-		for (auto c = string; *c; ++c, ++result.length)
-			if (stop_at_whitespace && isspace(*c))
-				break;
-	}
-
-	return result;
-}
-bool               aprs_string_contains(const char* string, size_t length, char value)
-{
-	for (size_t i = 0; *string && (i < length); ++i, ++string)
-		if (*string == value)
-			return true;
-
-	return false;
-}
+typedef std::regex                                           aprs_regex_pattern;
+typedef std::match_results<std::string_view::const_iterator> aprs_regex_match_result;
 
 template<typename T>
-inline constexpr T aprs_from_float(float value, float& fraction)
+constexpr T        aprs_from_float(float value, float& fraction)
 {
 	fraction = modff(value, &value);
 
 	return value;
 }
 
-bool               aprs_regex_match(std::cmatch& match, const std::regex& regex, const char* string)
+bool               aprs_regex_match(aprs_regex_match_result& match, const aprs_regex_pattern& regex, std::string_view string)
 {
-	if (!string)
-		return false;
-
 	try
 	{
-		if (!std::regex_match(string, match, regex))
+		if (!std::regex_match(string.begin(), string.end(), match, regex))
 			return false;
 	}
 	catch (const std::regex_error& exception)
@@ -412,21 +292,31 @@ bool               aprs_regex_match(std::cmatch& match, const std::regex& regex,
 
 	return true;
 }
-bool               aprs_regex_match(std::smatch& match, const std::regex& regex, const std::string& string)
+
+size_t             aprs_string_length(std::string_view string, bool stop_at_whitespace = false)
 {
-	try
-	{
-		if (!std::regex_match(string, match, regex))
-			return false;
-	}
-	catch (const std::regex_error& exception)
-	{
-		std::cerr << exception.what() << std::endl;
+	if (!stop_at_whitespace)
+		return string.length();
 
-		return false;
+	size_t value = 0;
+
+	for (auto c : string)
+	{
+		if (isspace(c))
+			break;
+
+		++value;
 	}
 
-	return true;
+	return value;
+}
+bool               aprs_string_contains(std::string_view string, char value)
+{
+	for (auto c : string)
+		if (c == value)
+			return true;
+
+	return false;
 }
 
 bool               aprs_validate_time(const aprs_time* value)
@@ -476,105 +366,94 @@ constexpr bool     aprs_validate_base91(char value)
 {
 	return (value >= 33) & (value <= 124);
 }
-bool               aprs_validate_base91(const char* string, size_t length)
+bool               aprs_validate_base91(std::string_view string)
 {
-	for (size_t i = 0; i < length; ++i, ++string)
-		if (!aprs_validate_base91(*string))
+	for (auto c : string)
+		if (!aprs_validate_base91(c))
 			return false;
 
 	return true;
 }
-bool               aprs_validate_string(const char* value, size_t length, bool(*is_char_valid)(size_t index, char value))
+bool               aprs_validate_string(std::string_view value, bool(*is_char_valid)(size_t index, char value))
 {
 	size_t i = 0;
 
-	for (; *value && (i < length); ++i, ++value)
-		if (!is_char_valid(i, *value))
+	for (auto c : value)
+		if (!is_char_valid(i, c))
 			return false;
 
-	return i == length;
+	return true;
 }
-auto               aprs_validate_name(const char* value)
+bool               aprs_validate_name(std::string_view value)
 {
-	aprs_strlen_result result = { .valid = false, .length = 0 };
-
 	if (auto length = aprs_string_length(value, true); length && (length <= 9))
+		return true;
+
+	return false;
+}
+bool               aprs_validate_station(std::string_view value)
+{
+	int i           = 0;
+	int ssid_offset = -1;
+
+	for (auto c : value)
 	{
-		result.valid  = true;
-		result.length = length;
+		if (c == '-')
+			ssid_offset = i;
+		else if ((c < '0') || (c > '9'))
+			if ((c < 'A') || (c > 'Z'))
+				return false;
+
+		if (++i == 10)
+			return false;
 	}
 
-	return result;
+	if (!i)
+		return false;
+
+	if ((ssid_offset != -1) && (ssid_offset < (i - 3)))
+		return false;
+
+	return true;
 }
-auto               aprs_validate_station(const char* value)
-{
-	aprs_strlen_result result      = { .valid = true, .length = 0 };
-	int                ssid_offset = -1;
-
-	for (int i = 0; *value && (result.length < 10); ++i, ++value, ++result.length)
-		if ((*value == '-') && (ssid_offset == -1))
-			ssid_offset = i;
-		else if ((*value < '0') || (*value > '9'))
-			if ((*value < 'A') || (*value > 'Z'))
-			{
-				result.valid = false;
-
-				break;
-			}
-
-	if (!result.length || (result.length > 9))
-		result.valid = false;
-
-	if ((ssid_offset != -1) && (ssid_offset < (result.length - 3)))
-		result.valid = false;
-
-	return result;
-}
-bool               aprs_validate_status(const char* value, size_t max_length)
+bool               aprs_validate_status(std::string_view value, size_t max_length)
 {
 	size_t i = 0;
 
-	for (; *value && (i < max_length); ++i, ++value)
-		if (!isprint(*value) || (*value == '|') || (*value == '~'))
+	for (auto c : value)
+	{
+		if (++i > max_length)
 			return false;
 
-	return i <= max_length;
-}
-auto               aprs_validate_comment(const char* value, size_t max_length)
-{
-	aprs_strlen_result result = { .valid = false, .length = 0 };
-
-	if (auto length = aprs_string_length(value); length && (length <= max_length))
-	{
-		result.valid  = true;
-		result.length = length;
+		if (!isprint(c) || (c == '|') || (c == '~'))
+			return false;
 	}
 
-	return result;
+	return true;
 }
-auto               aprs_validate_user_defined_data(const char* value)
+bool               aprs_validate_comment(std::string_view value, size_t max_length)
 {
-	aprs_strlen_result result = { .valid = true, .length = 0 };
+	if (auto length = aprs_string_length(value); length <= max_length)
+		return true;
 
-	for (; *value; ++value, ++result.length)
-		if (!isprint(*value))
-		{
-			result.valid = false;
+	return false;
+}
+bool               aprs_validate_user_defined_data(std::string_view value)
+{
+	for (auto c : value)
+		if (!isprint(c))
+			return false;
 
-			break;
-		}
-
-	return result;
+	return true;
 }
 
 bool               aprs_extract_path_node(std::string& station, bool& repeated, const char* value)
 {
 	size_t length      = 0;
+	       repeated    = false;
 	int    ssid_offset = -1;
 
-	repeated = false;
-
-	for (int i = 0; *value && (length < 10); ++i, ++value, ++length)
+	for (int i = 0; *value && (length < 10); ++i, ++length, ++value)
 		if ((*value == '-') && (ssid_offset == -1))
 			ssid_offset = i;
 		else if ((*value < '0') || (*value > '9'))
@@ -602,40 +481,26 @@ bool               aprs_extract_path_node(std::string& station, bool& repeated, 
 }
 
 template<typename T>
-T                  aprs_decode_int(const char* string, size_t max_length)
+T                  aprs_decode_int_ex(std::string_view string, size_t max_length, char(*get_char)(size_t index, char value))
 {
 	size_t i     = 0;
 	T      value = 0;
 
-	if (*string == '-')
+	if (!string.empty())
 	{
-		++i;
-		++string;
+		if (string.length() < max_length)
+			max_length = string.length();
 
-		value = 1 << ((sizeof(T) * 8) - 1);
+		if (string[0] == '-')
+		{
+			++i;
+
+			value = 1 << ((sizeof(T) * 8) - 1);
+		}
+
+		for (; i < max_length; ++i)
+			value = 10 * value + (get_char(i, string[i]) - '0');
 	}
-
-	for (; *string && (i < max_length); ++i, ++string)
-		value = 10 * value + (*string - '0');
-
-	return value;
-}
-template<typename T>
-T                  aprs_decode_int_ex(const char* string, size_t max_length, char(*get_char)(size_t index, char value))
-{
-	size_t i     = 0;
-	T      value = 0;
-
-	if (*string == '-')
-	{
-		++i;
-		++string;
-
-		value = 1 << ((sizeof(T) * 8) - 1);
-	}
-
-	for (; *string && (i < max_length); ++i, ++string)
-		value = 10 * value + (get_char(i, *string) - '0');
 
 	return value;
 }
@@ -694,31 +559,31 @@ bool               aprs_decode_hex_8(uint8_t& value, char c1, char c2)
 	return true;
 }
 template<typename T>
-bool               aprs_decode_base91(T& value, const char* string, size_t length)
+bool               aprs_decode_base91(T& value, std::string_view string)
 {
 	value = 0;
 
-	for (size_t i = 0, j = length - 1; i < length; ++i, --j, ++string)
+	for (size_t i = 0, j = string.length() - 1; i < string.length(); ++i, --j)
 	{
-		if (!aprs_validate_base91(*string))
+		if (!aprs_validate_base91(string[i]))
 			return false;
 
 		if (j)
-			value += std::pow(91, j) * (*string - 33);
+			value += std::pow(91, j) * (string[i] - 33);
 		else
-			value += *string - 33;
+			value += string[i] - 33;
 	}
 
 	return true;
 }
-bool               aprs_decode_time(aprs_time& value, const char* string, char type)
+bool               aprs_decode_time(aprs_time& value, std::string_view string, char type)
 {
 	static auto string_is_valid = [](size_t index, char value)->bool
 	{
 		return isdigit(value);
 	};
 
-	if (!aprs_validate_string(string, 6, string_is_valid))
+	if (!aprs_validate_string(string, string_is_valid))
 		return false;
 
 	tm time = {};
@@ -726,36 +591,54 @@ bool               aprs_decode_time(aprs_time& value, const char* string, char t
 	switch (type)
 	{
 		case 'h': // HMS
-			time.tm_hour = aprs_decode_int<uint8_t>(&string[0], 2);
-			time.tm_min  = aprs_decode_int<uint8_t>(&string[2], 2);
-			time.tm_sec  = aprs_decode_int<uint8_t>(&string[4], 2);
+		{
+			auto hour = string.substr(0, 2);
+			auto min  = string.substr(2, 2);
+			auto sec  = string.substr(4, 2);
+
+			std::from_chars(hour.data(), hour.data() + hour.length(), time.tm_hour);
+			std::from_chars(min.data(), min.data() + min.length(), time.tm_min);
+			std::from_chars(sec.data(), sec.data() + sec.length(), time.tm_sec);
+
 			value = { time, APRS_TIME_HMS };
-			return (value.tm_hour < 24) && (value.tm_min < 60) && (value.tm_sec < 60);
+		}
+		return (value.tm_hour < 24) && (value.tm_min < 60) && (value.tm_sec < 60);
 
 		case 'z': // DHM
 		case '/':
-			time.tm_mday = aprs_decode_int<uint8_t>(&string[0], 2);
-			time.tm_hour = aprs_decode_int<uint8_t>(&string[2], 2);
-			time.tm_min  = aprs_decode_int<uint8_t>(&string[4], 2);
+		{
+			auto mday = string.substr(0, 2);
+			auto hour = string.substr(2, 2);
+			auto min  = string.substr(4, 2);
+
+			std::from_chars(mday.data(), mday.data() + mday.length(), time.tm_mday);
+			std::from_chars(hour.data(), hour.data() + hour.length(), time.tm_hour);
+			std::from_chars(min.data(), min.data() + min.length(), time.tm_min);
+
 			value = { time, APRS_TIME_DHM };
-			return (value.tm_mday <= 31) && (value.tm_hour < 24) && (value.tm_min < 60);
+		}
+		return (value.tm_mday <= 31) && (value.tm_hour < 24) && (value.tm_min < 60);
 
 		case 0: // MDHM
-			time.tm_mon  = aprs_decode_int<uint8_t>(&string[0], 2);
-			time.tm_mday = aprs_decode_int<uint8_t>(&string[2], 2);
-			time.tm_hour = aprs_decode_int<uint8_t>(&string[4], 2);
-			time.tm_min  = aprs_decode_int<uint8_t>(&string[6], 2);
+		{
+			auto mon  = string.substr(0, 2);
+			auto mday = string.substr(2, 2);
+			auto hour = string.substr(4, 2);
+			auto min  = string.substr(6, 2);
+
+			std::from_chars(mon.data(), mon.data() + mon.length(), time.tm_mon);
+			std::from_chars(mday.data(), mday.data() + mday.length(), time.tm_mday);
+			std::from_chars(hour.data(), hour.data() + hour.length(), time.tm_hour);
+			std::from_chars(min.data(), min.data() + min.length(), time.tm_min);
+
 			value = { time, APRS_TIME_MDHM };
-			return (time.tm_mon <= 12) && (value.tm_mday <= 31) && (value.tm_hour < 24) && (value.tm_min < 60);
+		}
+		return (time.tm_mon <= 12) && (value.tm_mday <= 31) && (value.tm_hour < 24) && (value.tm_min < 60);
 	}
 
 	return false;
 }
-constexpr float    aprs_decode_float(const char* string)
-{
-	return string ? strtof(string, nullptr) : 0;
-}
-bool               aprs_decode_latitude(float& value, const char* string, char hemisphere)
+bool               aprs_decode_latitude(float& value, std::string_view string, char hemisphere)
 {
 	static auto string_is_valid = [](size_t index, char value)->bool
 	{
@@ -776,7 +659,7 @@ bool               aprs_decode_latitude(float& value, const char* string, char h
 		return false;
 	};
 
-	if (!aprs_validate_string(string, 7, string_is_valid))
+	if (!aprs_validate_string(string, string_is_valid))
 		return false;
 
 	static auto get_char = [](size_t index, char value)
@@ -784,9 +667,9 @@ bool               aprs_decode_latitude(float& value, const char* string, char h
 		return (value == ' ') ? '0' : value;
 	};
 
-	auto hours   = aprs_decode_int_ex<uint8_t>(&string[0], 2, get_char);
-	auto minutes = aprs_decode_int_ex<uint8_t>(&string[2], 2, get_char);
-	auto seconds = aprs_decode_int_ex<uint8_t>(&string[5], 2, get_char);
+	auto hours   = aprs_decode_int_ex<uint8_t>(string.substr(0, 2), 2, get_char);
+	auto minutes = aprs_decode_int_ex<uint8_t>(string.substr(2, 2), 2, get_char);
+	auto seconds = aprs_decode_int_ex<uint8_t>(string.substr(5, 2), 2, get_char);
 
 	value = hours + (minutes / 60.0f) + (seconds / 6000.0f);
 
@@ -795,7 +678,7 @@ bool               aprs_decode_latitude(float& value, const char* string, char h
 
 	return true;
 }
-bool               aprs_decode_longitude(float& value, const char* string, char hemisphere)
+bool               aprs_decode_longitude(float& value, std::string_view string, char hemisphere)
 {
 	static auto string_is_valid = [](size_t index, char value)->bool
 	{
@@ -817,7 +700,7 @@ bool               aprs_decode_longitude(float& value, const char* string, char 
 		return false;
 	};
 
-	if (!aprs_validate_string(string, 8, string_is_valid))
+	if (!aprs_validate_string(string, string_is_valid))
 		return false;
 
 	static auto get_char = [](size_t index, char value)
@@ -825,9 +708,9 @@ bool               aprs_decode_longitude(float& value, const char* string, char 
 		return (value == ' ') ? '0' : value;
 	};
 
-	auto hours   = aprs_decode_int_ex<uint8_t>(&string[0], 3, get_char);
-	auto minutes = aprs_decode_int_ex<uint8_t>(&string[3], 2, get_char);
-	auto seconds = aprs_decode_int_ex<uint8_t>(&string[6], 2, get_char);
+	auto hours   = aprs_decode_int_ex<uint8_t>(string.substr(0, 3), 3, get_char);
+	auto minutes = aprs_decode_int_ex<uint8_t>(string.substr(3, 2), 2, get_char);
+	auto seconds = aprs_decode_int_ex<uint8_t>(string.substr(6, 2), 2, get_char);
 
 	value = hours + (minutes / 60.0f) + (seconds / 6000.0f);
 
@@ -837,7 +720,7 @@ bool               aprs_decode_longitude(float& value, const char* string, char 
 	return true;
 }
 
-bool               aprs_decode_compressed_location(aprs_compressed_location& value, const char* string)
+bool               aprs_decode_compressed_location(aprs_compressed_location& value, std::string_view string)
 {
 	static auto string_is_valid = [](size_t index, char value)->bool
 	{
@@ -866,7 +749,7 @@ bool               aprs_decode_compressed_location(aprs_compressed_location& val
 		return false;
 	};
 
-	if (!aprs_validate_string(string, 13, string_is_valid))
+	if ((string.length() != 13) || !aprs_validate_string(string, string_is_valid))
 		return false;
 
 	auto cs        = &string[10];
@@ -926,13 +809,21 @@ void               aprs_encode_compressed_location(const aprs_compressed_locatio
 	ss << (uint8_t)0x51;
 }
 
-void               aprs_packet_decode_data_extensions(aprs_packet* packet, std::string& string)
+void               aprs_packet_decode_comment_weather(aprs_packet* packet, std::string& string)
 {
-	static const std::regex regex_dfs("^DFS(\\d)(\\d)(\\d)(\\d)");
-	static const std::regex regex_phg("^PHG(\\d)(\\d)(\\d)(\\d)");
-	static const std::regex regex_rng("^RNG(\\d{4})");
-	static const std::regex regex_altitude("\\/A=(-?\\d{1,6})");
-	static const std::regex regex_course_speed("^((\\d{3})\\/(\\d{3}))");
+	// TODO: implement
+}
+void               aprs_packet_decode_comment_position(aprs_packet* packet, std::string& string)
+{
+	// TODO: implement
+}
+void               aprs_packet_decode_comment_data_extensions(aprs_packet* packet, std::string& string)
+{
+	static const aprs_regex_pattern regex_dfs("DFS(\\d)(\\d)(\\d)(\\d)");
+	static const aprs_regex_pattern regex_phg("PHG(\\d)(\\d)(\\d)(\\d)");
+	static const aprs_regex_pattern regex_rng("RNG(\\d{4})");
+	static const aprs_regex_pattern regex_altitude("\\/A=(-?\\d{1,6})");
+	static const aprs_regex_pattern regex_course_speed("^((\\d{3})\\/(\\d{3}))");
 
 	switch (packet->type)
 	{
@@ -940,21 +831,36 @@ void               aprs_packet_decode_data_extensions(aprs_packet* packet, std::
 		case APRS_PACKET_TYPE_OBJECT:
 		case APRS_PACKET_TYPE_POSITION:
 		{
-			std::cmatch match;
+			aprs_regex_match_result match;
 
-			if (aprs_regex_match(match, regex_course_speed, string.c_str()))
+			if (aprs_regex_match(match, regex_course_speed, string))
 			{
-				packet->extensions.speed  = aprs_decode_int<uint16_t>(match[3].first, 3);
-				packet->extensions.course = aprs_decode_int<uint16_t>(match[2].first, 3);
+				auto& speed  = match[3];
+				auto& course = match[2];
+
+				std::from_chars(speed.first, speed.first + speed.length(), packet->extensions.speed);
+				std::from_chars(course.first, course.first + course.length(), packet->extensions.course);
 
 				string = string.substr(7);
 			}
-			else if (aprs_regex_match(match, regex_phg, string.c_str()))
+			else if (aprs_regex_match(match, regex_phg, string))
 			{
-				auto power       = aprs_decode_int<uint8_t>(match[1].first, 1);
-				auto height      = aprs_decode_int<uint16_t>(match[2].first, 1);
-				auto gain        = aprs_decode_int<uint8_t>(match[3].first, 1);
-				auto directivity = aprs_decode_int<uint16_t>(match[4].first, 1);
+				uint8_t  gain              = 0;
+				auto&    gain_match        = match[3];
+
+				uint8_t  power             = 0;
+				auto&    power_match       = match[1];
+
+				uint16_t height            = 0;
+				auto&    height_match      = match[2];
+
+				uint16_t directivity       = 0;
+				auto&    directivity_match = match[4];
+
+				std::from_chars(gain_match.first, gain_match.first + gain_match.length(), gain);
+				std::from_chars(power_match.first, power_match.first + power_match.length(), power);
+				std::from_chars(height_match.first, height_match.first + height_match.length(), height);
+				std::from_chars(directivity_match.first, directivity_match.first + directivity_match.length(), directivity);
 
 				if ((power < 10) && (height < 10) && (directivity < 10))
 				{
@@ -966,18 +872,32 @@ void               aprs_packet_decode_data_extensions(aprs_packet* packet, std::
 					string = string.substr(7);
 				}
 			}
-			else if (aprs_regex_match(match, regex_rng, string.c_str()))
+			else if (aprs_regex_match(match, regex_rng, string))
 			{
-				packet->extensions.rng.miles = aprs_decode_int<uint16_t>(match[1].first, 4);
+				auto& miles = match[1];
+
+				std::from_chars(miles.first, miles.first + miles.length(), packet->extensions.rng.miles);
 
 				string = string.substr(7);
 			}
-			else if (aprs_regex_match(match, regex_dfs, string.c_str()))
+			else if (aprs_regex_match(match, regex_dfs, string))
 			{
-				auto strength    = aprs_decode_int<uint8_t>(match[1].first, 1);
-				auto height      = aprs_decode_int<uint16_t>(match[2].first, 1);
-				auto gain        = aprs_decode_int<uint8_t>(match[3].first, 1);
-				auto directivity = aprs_decode_int<uint16_t>(match[4].first, 1);
+				uint8_t  gain              = 0;
+				auto&    gain_match        = match[3];
+
+				uint16_t height            = 0;
+				auto&    height_match      = match[2];
+
+				uint8_t  strength          = 0;
+				auto&    strength_match    = match[1];
+
+				uint16_t directivity       = 0;
+				auto&    directivity_match = match[4];
+
+				std::from_chars(gain_match.first, gain_match.first + gain_match.length(), gain);
+				std::from_chars(height_match.first, height_match.first + height_match.length(), height);
+				std::from_chars(strength_match.first, strength_match.first + strength_match.length(), strength);
+				std::from_chars(directivity_match.first, directivity_match.first + directivity_match.length(), directivity);
 
 				if ((height < 10) && (directivity < 10))
 				{
@@ -990,16 +910,36 @@ void               aprs_packet_decode_data_extensions(aprs_packet* packet, std::
 				}
 			}
 
-			if (aprs_regex_match(match, regex_altitude, string.c_str()))
+			if (aprs_regex_match(match, regex_altitude, string))
 			{
-				packet->extensions.altitude = aprs_decode_int<int32_t>(match[1].first, match[1].length());
+				auto& match0 = match[0];
 
-				if (auto i = string.find(match[0].first, 0, match[0].length()); i != std::string::npos)
-					string = string.erase(i, match[0].length());
+				int32_t altitude       = 0;
+				auto&   altitude_match = match[1];
+
+				std::from_chars(altitude_match.first, altitude_match.first + altitude_match.length(), packet->extensions.altitude);
+
+				if (auto i = string.find(match0.first, 0, match0.length()); i != std::string::npos)
+					string = string.erase(i, match0.length());
 			}
 		}
 		break;
 	}
+}
+void               aprs_packet_decode_comment(aprs_packet* packet, std::string& string)
+{
+	aprs_packet_decode_comment_weather(packet, string);
+	aprs_packet_decode_comment_position(packet, string);
+	aprs_packet_decode_comment_data_extensions(packet, string);
+}
+
+void               aprs_packet_encode_data_weather(aprs_packet* packet, std::stringstream& ss)
+{
+	// TODO: implement
+}
+void               aprs_packet_encode_data_position(aprs_packet* packet, std::stringstream& ss)
+{
+	// TODO: implement
 }
 void               aprs_packet_encode_data_extensions(aprs_packet* packet, std::stringstream& ss)
 {
@@ -1109,8 +1049,14 @@ void               aprs_packet_encode_data_extensions(aprs_packet* packet, std::
 			break;
 	}
 }
+void               aprs_packet_encode_comment(aprs_packet* packet, std::stringstream& ss)
+{
+	aprs_packet_encode_data_weather(packet, ss);
+	aprs_packet_encode_data_position(packet, ss);
+	aprs_packet_encode_data_extensions(packet, ss);
+}
 
-bool               aprs_packet_decode_mic_e(aprs_packet* packet, const std::string& tocall, const std::string& content, bool gps_is_new)
+bool               aprs_packet_decode_mic_e(aprs_packet* packet, std::string& tocall, std::string& content, bool gps_is_new)
 {
 	if ((tocall.length() < 6) || (content.length() < 9))
 		return false;
@@ -1208,7 +1154,7 @@ bool               aprs_packet_decode_mic_e(aprs_packet* packet, const std::stri
 		.mic_e_message    = (APRS_MIC_E_MESSAGES)(message & 0x7F)
 	};
 
-	if (!aprs_decode_base91(packet->extensions.altitude, comment, 3) || (comment[3] != '}'))
+	if (!aprs_decode_base91(packet->extensions.altitude, packet->position->comment) || (comment[3] != '}'))
 		packet->extensions.altitude = 0;
 	else
 	{
@@ -1220,9 +1166,8 @@ bool               aprs_packet_decode_mic_e(aprs_packet* packet, const std::stri
 
 	// TODO: decode telemetry
 	// TODO: decode maidenhead
-	// TODO: decode weather in comment
-	// TODO: decode position in comment
-	// TODO: decode extensions in comment
+
+	aprs_packet_decode_comment(packet, packet->position->comment);
 
 	if (message & 0x80)
 		packet->position->mic_e_message = (APRS_MIC_E_MESSAGES)(packet->position->mic_e_message + 7);
@@ -1253,11 +1198,11 @@ bool               aprs_packet_decode_mic_e_old(aprs_packet* packet)
 }
 bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 {
-	static const std::regex regex("^((\\$[^,]+)(,[^,]*)+,(...))(.*)$");
+	static const aprs_regex_pattern regex("^((\\$[^,]+)(,[^,]*)+,(...))(.*)$");
 
-	std::cmatch match;
+	aprs_regex_match_result match;
 
-	if (!aprs_regex_match(match, regex, packet->content.c_str()))
+	if (!aprs_regex_match(match, regex, packet->content))
 		return false;
 
 	packet->type = APRS_PACKET_TYPE_GPS;
@@ -1267,20 +1212,23 @@ bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 }
 bool               aprs_packet_decode_item(aprs_packet* packet)
 {
-	static const std::regex regex("^\\)([^ !_]{3,9}) *([!_])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static const std::regex regex_compressed("^\\)([^ !_]{3,9}) *([!_])(.{13})(.*)$");
+	static const aprs_regex_pattern regex("^\\)([^ !_]{3,9}) *([!_])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const aprs_regex_pattern regex_compressed("^\\)([^ !_]{3,9}) *([!_])(.{13})(.*)$");
 
-	std::cmatch match;
+	aprs_regex_match_result match;
 
-	if (aprs_regex_match(match, regex, packet->content.c_str()))
+	if (aprs_regex_match(match, regex, packet->content))
 	{
 		float latitude;
-		float longitude;
+		auto  latitude_match = match[3];
 
-		if (!aprs_decode_latitude(latitude, match[3].first, *match[4].first))
+		float longitude;
+		auto  longitude_match = match[6];
+
+		if (!aprs_decode_latitude(latitude, std::string_view(latitude_match.first, latitude_match.length()), *match[4].first))
 			return false;
 
-		if (!aprs_decode_longitude(longitude, match[6].first, *match[7].first))
+		if (!aprs_decode_longitude(longitude, std::string_view(longitude_match.first, longitude_match.length()), *match[7].first))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_ITEM;
@@ -1297,19 +1245,17 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 			.symbol_table_key = *match[8].first
 		};
 
-		// TODO: decode weather in comment
-		// TODO: decode position in comment
-
-		aprs_packet_decode_data_extensions(packet, packet->item->comment);
+		aprs_packet_decode_comment(packet, packet->item->comment);
 
 		return true;
 	}
 
-	if (aprs_regex_match(match, regex_compressed, packet->content.c_str()))
+	if (aprs_regex_match(match, regex_compressed, packet->content))
 	{
 		aprs_compressed_location location;
+		auto&                    location_match = match[3];
 
-		if (!aprs_decode_compressed_location(location, match[3].first))
+		if (!aprs_decode_compressed_location(location, std::string_view(location_match.first, location_match.length())))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_ITEM;
@@ -1326,10 +1272,7 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 			.symbol_table_key = location.symbol_table_key
 		};
 
-		// TODO: decode weather in comment
-		// TODO: decode position in comment
-
-		aprs_packet_decode_data_extensions(packet, packet->item->comment);
+		aprs_packet_decode_comment(packet, packet->item->comment);
 
 		return true;
 	}
@@ -1354,24 +1297,29 @@ bool               aprs_packet_decode_query(aprs_packet* packet)
 }
 bool               aprs_packet_decode_object(aprs_packet* packet)
 {
-	static const std::regex regex("^;([^ *_]{3,9}) *([*_])(\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static const std::regex regex_compressed("^;([^ *_]{3,9}) *([*_])(\\d{6})([z\\/h])(.{13})(.*)$");
+	static const aprs_regex_pattern regex("^;([^ *_]{3,9}) *([*_])(\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const aprs_regex_pattern regex_compressed("^;([^ *_]{3,9}) *([*_])(\\d{6})([z\\/h])(.{13})(.*)$");
 
-	aprs_time   time;
-	std::cmatch match;
+	aprs_time               time;
+	aprs_regex_match_result match;
 
-	if (aprs_regex_match(match, regex, packet->content.c_str()))
+	if (aprs_regex_match(match, regex, packet->content))
 	{
+		auto  time_match = match[3];
+
 		float latitude;
+		auto  latitude_match = match[5];
+
 		float longitude;
+		auto  longitude_match = match[8];
 
-		if (!aprs_decode_time(time, match[3].first, *match[4].first))
+		if (!aprs_decode_time(time, std::string_view(time_match.first, time_match.length()), *match[4].first))
 			return false;
 
-		if (!aprs_decode_latitude(latitude, match[5].first, *match[6].first))
+		if (!aprs_decode_latitude(latitude, std::string_view(latitude_match.first, latitude_match.length()), *match[6].first))
 			return false;
 
-		if (!aprs_decode_longitude(longitude, match[8].first, *match[9].first))
+		if (!aprs_decode_longitude(longitude, std::string_view(longitude_match.first, longitude_match.length()), *match[9].first))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_OBJECT;
@@ -1389,22 +1337,22 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 			.symbol_table_key = *match[10].first
 		};
 
-		// TODO: decode weather in comment
-		// TODO: decode position in comment
-
-		aprs_packet_decode_data_extensions(packet, packet->object->comment);
+		aprs_packet_decode_comment(packet, packet->object->comment);
 
 		return true;
 	}
 
-	if (aprs_regex_match(match, regex_compressed, packet->content.c_str()))
+	if (aprs_regex_match(match, regex_compressed, packet->content))
 	{
-		aprs_compressed_location location;
+		auto&                    time_match = match[3];
 
-		if (!aprs_decode_time(time, match[3].first, *match[4].first))
+		aprs_compressed_location location;
+		auto&                    location_match = match[5];
+
+		if (!aprs_decode_time(time, std::string_view(time_match.first, time_match.length()), *match[4].first))
 			return false;
 
-		if (!aprs_decode_compressed_location(location, match[5].first))
+		if (!aprs_decode_compressed_location(location, std::string_view(location_match.first, location_match.length())))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_OBJECT;
@@ -1422,10 +1370,7 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 			.symbol_table_key = location.symbol_table_key
 		};
 
-		// TODO: decode weather in comment
-		// TODO: decode position in comment
-
-		aprs_packet_decode_data_extensions(packet, packet->object->comment);
+		aprs_packet_decode_comment(packet, packet->object->comment);
 
 		return true;
 	}
@@ -1434,13 +1379,13 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 }
 bool               aprs_packet_decode_status(aprs_packet* packet)
 {
-	static const std::regex regex("^>(.*)$");
-	static const std::regex regex_time("^>(\\d{6})([z\\/h])(.*)$");
+	static const aprs_regex_pattern regex("^>(.*)$");
+	static const aprs_regex_pattern regex_time("^>(\\d{6})([z\\/h])(.*)$");
 
-	aprs_time   time;
-	std::cmatch match;
+	aprs_time               time;
+	aprs_regex_match_result match;
 
-	if (aprs_regex_match(match, regex, packet->content.c_str()))
+	if (aprs_regex_match(match, regex, packet->content))
 	{
 		packet->type   = APRS_PACKET_TYPE_STATUS;
 		packet->status = new aprs_packet_status
@@ -1452,9 +1397,11 @@ bool               aprs_packet_decode_status(aprs_packet* packet)
 		return true;
 	}
 
-	if (aprs_regex_match(match, regex_time, packet->content.c_str()))
+	if (aprs_regex_match(match, regex_time, packet->content))
 	{
-		if (!aprs_decode_time(time, match[1].first, *match[2].first))
+		auto& time_match = match[1];
+
+		if (!aprs_decode_time(time, std::string_view(time_match.first, time_match.length()), *match[2].first))
 			return false;
 
 		packet->type   = APRS_PACKET_TYPE_STATUS;
@@ -1470,7 +1417,7 @@ bool               aprs_packet_decode_status(aprs_packet* packet)
 
 	return false;
 }
-bool               aprs_packet_decode_message_telemetry_params(aprs_packet* packet, const char* content)
+bool               aprs_packet_decode_message_telemetry_params(aprs_packet* packet, std::string_view content)
 {
 	packet->type      = APRS_PACKET_TYPE_TELEMETRY;
 	packet->telemetry = new aprs_packet_telemetry
@@ -1478,7 +1425,7 @@ bool               aprs_packet_decode_message_telemetry_params(aprs_packet* pack
 		.type = APRS_TELEMETRY_TYPE_PARAMS
 	};
 
-	if (auto param = strtok((char*)content, ",")) do
+	if (auto param = strtok((char*)content.data(), ",")) do
 	{
 		packet->telemetry->params[packet->telemetry->params_count]   = param;
 		packet->telemetry->params_c[packet->telemetry->params_count] = packet->telemetry->params[packet->telemetry->params_count].c_str();
@@ -1487,7 +1434,7 @@ bool               aprs_packet_decode_message_telemetry_params(aprs_packet* pack
 
 	return true;
 }
-bool               aprs_packet_decode_message_telemetry_units(aprs_packet* packet, const char* content)
+bool               aprs_packet_decode_message_telemetry_units(aprs_packet* packet, std::string_view content)
 {
 	packet->type      = APRS_PACKET_TYPE_TELEMETRY;
 	packet->telemetry = new aprs_packet_telemetry
@@ -1495,7 +1442,7 @@ bool               aprs_packet_decode_message_telemetry_units(aprs_packet* packe
 		.type = APRS_TELEMETRY_TYPE_UNITS
 	};
 
-	if (auto unit = strtok((char*)content, ",")) do
+	if (auto unit = strtok((char*)content.data(), ",")) do
 	{
 		packet->telemetry->units[packet->telemetry->units_count]   = unit;
 		packet->telemetry->units_c[packet->telemetry->units_count] = packet->telemetry->units[packet->telemetry->units_count].c_str();
@@ -1504,7 +1451,7 @@ bool               aprs_packet_decode_message_telemetry_units(aprs_packet* packe
 
 	return true;
 }
-bool               aprs_packet_decode_message_telemetry_eqns(aprs_packet* packet, const char* content)
+bool               aprs_packet_decode_message_telemetry_eqns(aprs_packet* packet, std::string_view content)
 {
 	packet->type      = APRS_PACKET_TYPE_TELEMETRY;
 	packet->telemetry = new aprs_packet_telemetry
@@ -1515,19 +1462,27 @@ bool               aprs_packet_decode_message_telemetry_eqns(aprs_packet* packet
 	const char* chunks[15]   = {};
 	size_t      chunks_count = 0;
 
-	if (auto chunk = strtok((char*)content, ",")) do
+	if (auto chunk = strtok((char*)content.data(), ",")) do
 		chunks[chunks_count] = chunk;
 	while ((++chunks_count < 15) && (chunk = strtok(nullptr, ",")));
 
 	for (size_t i = 0; i < 5; ++i, ++packet->telemetry->eqns_count)
 	{
-		packet->telemetry->eqns[i]   = { aprs_decode_float(chunks[i * 3]), aprs_decode_float(chunks[(i * 3) + 1]), aprs_decode_float(chunks[(i * 3) + 2]) };
+		if (auto chunk = chunks[i * 3])
+			packet->telemetry->eqns[i].a = strtof(chunk, nullptr);
+
+		if (auto chunk = chunks[(i * 3) + 1])
+			packet->telemetry->eqns[i].b = strtof(chunk, nullptr);
+
+		if (auto chunk = chunks[(i * 3) + 2])
+			packet->telemetry->eqns[i].c = strtof(chunk, nullptr);
+
 		packet->telemetry->eqns_c[i] = &packet->telemetry->eqns[i];
 	}
 
 	return true;
 }
-bool               aprs_packet_decode_message_telemetry_bits(aprs_packet* packet, const char* content)
+bool               aprs_packet_decode_message_telemetry_bits(aprs_packet* packet, std::string_view content)
 {
 	packet->type      = APRS_PACKET_TYPE_TELEMETRY;
 	packet->telemetry = new aprs_packet_telemetry
@@ -1536,7 +1491,7 @@ bool               aprs_packet_decode_message_telemetry_bits(aprs_packet* packet
 		.digital = 0
 	};
 
-	if (auto bits = strtok((char*)content, ","))
+	if (auto bits = strtok((char*)content.data(), ","))
 	{
 		for (size_t i = 0; i < 8; ++i)
 			if (bits[i] != '0')
@@ -1548,65 +1503,80 @@ bool               aprs_packet_decode_message_telemetry_bits(aprs_packet* packet
 
 	return true;
 }
-bool               aprs_packet_decode_message_telemetry(aprs_packet* packet, std::cmatch& match)
+bool               aprs_packet_decode_message_telemetry(aprs_packet* packet, aprs_regex_match_result& match)
 {
-	auto type = match[2].str();
+	auto&            type_match = match[2];
+	std::string_view type(type_match.first, type_match.length());
 
-	     if (!type.compare("PARM")) return aprs_packet_decode_message_telemetry_params(packet, match[3].first);
-	else if (!type.compare("UNIT")) return aprs_packet_decode_message_telemetry_units(packet, match[3].first);
-	else if (!type.compare("EQNS")) return aprs_packet_decode_message_telemetry_eqns(packet, match[3].first);
-	else if (!type.compare("BITS")) return aprs_packet_decode_message_telemetry_bits(packet, match[3].first);
+	auto&            data_match = match[3];
+	std::string_view data(data_match.first, data_match.length());
+
+	     if (!type.compare("PARM")) return aprs_packet_decode_message_telemetry_params(packet, data);
+	else if (!type.compare("UNIT")) return aprs_packet_decode_message_telemetry_units(packet, data);
+	else if (!type.compare("EQNS")) return aprs_packet_decode_message_telemetry_eqns(packet, data);
+	else if (!type.compare("BITS")) return aprs_packet_decode_message_telemetry_bits(packet, data);
 
 	return false;
 }
 bool               aprs_packet_decode_message(aprs_packet* packet)
 {
-	static const std::regex regex("^:([^ :]+) *:(.+?)(\\{(.+))?$");
-	static const std::regex regex_ack("^ack\\S{1,5}$");
-	static const std::regex regex_rej("^rej\\S{1,5}$");
-	static const std::regex regex_bln("^BLN(\\S{1,6})$");
-	static const std::regex regex_telemetry("^:([^:]+):(PARM|UNIT|EQNS|BITS).(.*)$");
+	static const aprs_regex_pattern regex("^:([^ :]+) *:(.+?)(\\{(.+))?$");
+	static const aprs_regex_pattern regex_ack("^ack\\S{1,5}$");
+	static const aprs_regex_pattern regex_rej("^rej\\S{1,5}$");
+	static const aprs_regex_pattern regex_bln("^BLN(\\S{1,6})$");
+	static const aprs_regex_pattern regex_telemetry("^:([^:]+):(PARM|UNIT|EQNS|BITS).(.*)$");
 
-	std::cmatch match;
+	aprs_regex_match_result match;
 
-	if (aprs_regex_match(match, regex_telemetry, packet->content.c_str()))
+	if (aprs_regex_match(match, regex_telemetry, packet->content))
 		return aprs_packet_decode_message_telemetry(packet, match);
-	else if (!aprs_regex_match(match, regex, packet->content.c_str()))
+	else if (!aprs_regex_match(match, regex, packet->content))
 		return false;
 
-	auto id          = (match.size() < 4) ? "" : match[4].str();
-	auto content     = match[2].str();
-	auto destination = match[1].str();
+	std::string_view id;
 
-	if (id.length() > 5)
+	if (match.size() >= 4)
+	{
+		auto& match_id = match[4];
+
+		if (match_id.length() > 5)
+			return false;
+
+		id = std::string_view(match_id.first, match_id.length());
+	}
+
+	auto&            content_match = match[2];
+	std::string_view content(content_match.first, content_match.length());
+
+	auto&            destination_match = match[1];
+	std::string_view destination(destination_match.first, destination_match.length());
+
+	if (!aprs_validate_name(destination))
 		return false;
 
-	if (!aprs_validate_name(destination.c_str()))
-		return false;
-
-	if (!aprs_validate_comment(content.c_str(), 67))
+	if (!aprs_validate_comment(content, 67))
 		return false;
 
 	packet->type    = APRS_PACKET_TYPE_MESSAGE;
 	packet->message = new aprs_packet_message
 	{
-		.id          = std::move(id),
+		.id          = std::string(id.data(), id.length()),
 		.type        = APRS_MESSAGE_TYPE_MESSAGE,
-		.content     = std::move(content),
-		.destination = std::move(destination)
+		.content     = std::string(content.data(), content.length()),
+		.destination = std::string(destination.data(), destination.length())
 	};
 
-	if (aprs_regex_match(match, regex_ack, packet->message->content.c_str()))
+	if (aprs_regex_match(match, regex_ack, packet->message->content))
 	{
 		packet->message->type = APRS_MESSAGE_TYPE_ACK;
 		packet->message->content.clear();
 	}
-	else if (aprs_regex_match(match, regex_rej, packet->message->content.c_str()))
+	else if (aprs_regex_match(match, regex_rej, packet->message->content))
 	{
 		packet->message->type = APRS_MESSAGE_TYPE_REJECT;
 		packet->message->content.clear();
 	}
-	else if (aprs_regex_match(match, regex_bln, packet->message->destination.c_str()))
+	else if (aprs_regex_match(match, regex_bln, packet->message->destination))
 	{
 		packet->message->type        = APRS_MESSAGE_TYPE_BULLETIN;
 		packet->message->destination = match[1].str();
@@ -1618,34 +1588,37 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 {
 	aprs_time time;
 
-	if (!aprs_decode_time(time, &packet->content[1], 0))
+	if (!aprs_decode_time(time, std::string_view(&packet->content[1], packet->content.length() - 1), 0))
 		return false;
 
-	static auto decode_next_chunk = [](const char*& string, char& key, int& value)
+	static auto decode_next_chunk = [](std::string_view& string, char& key, int& value)
 	{
-		if (!isalpha(*string) || (!isdigit(string[1]) && (string[1] != '.') && (string[1] != ' ')))
+		if (!isalpha(string[0]) || (!isdigit(string[1]) && (string[1] != '.') && (string[1] != ' ')))
 			return false;
 
-		key   = *string++;
-		value = 0;
+		size_t i     = 1;
+		       key   = string[0];
+		       value = 0;
 
-		if (*string == '-')
+		if (string[i] == '-')
 		{
+			++i;
 			value = 0x8000;
-			++string;
 		}
 
-		for (; *string && (isdigit(*string) || (*string == '.') || (*string == ' ')); ++string)
-			switch (*string)
+		for (; string[i] && (isdigit(string[i]) || (string[i] == '.') || (string[i] == ' ')); ++i)
+			switch (string[i])
 			{
 				case '.':
 				case ' ':
 					break;
 
 				default:
-					value = 10 * value + (*string - '0');
+					value = 10 * value + (string[i] - '0');
 					break;
 			}
+
+		string = string.substr(0, i);
 
 		return true;
 	};
@@ -1653,9 +1626,9 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 	packet->type    = APRS_PACKET_TYPE_WEATHER;
 	packet->weather = new aprs_packet_weather { .time = time };
 
-	char        key;
-	int         value;
-	const char* string = &packet->content[9];
+	char             key;
+	int              value;
+	std::string_view string(&packet->content[9], packet->content.length() - 9);
 
 	while (decode_next_chunk(string, key, value))
 		switch (key)
@@ -1671,12 +1644,12 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 			case 'b': packet->weather->barometric_pressure     = value; break;
 		}
 
-	if (*string)
+	if (!string.empty())
 	{
-		packet->weather->software = *string;
+		packet->weather->software = string[0];
 
-		if (*(++string))
-			packet->weather->type = *string;
+		if (string.length() > 1)
+			packet->weather->type = string[1];
 	}
 
 	return true;
@@ -1699,21 +1672,24 @@ bool               aprs_packet_decode_weather_peet_bros_uii(aprs_packet* packet)
 }
 bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 {
-	static const std::regex regex("^[!=]([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static const std::regex regex_time("^[\\/@](\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static const std::regex regex_compressed("^[!=\\/@](.{13})(.*)$");
+	static const aprs_regex_pattern regex("^[!=]([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const aprs_regex_pattern regex_time("^[\\/@](\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const aprs_regex_pattern regex_compressed("^[!=\\/@](.{13})(.*)$");
 
-	std::cmatch match;
+	aprs_regex_match_result match;
 
-	if (aprs_regex_match(match, regex, packet->content.c_str()))
+	if (aprs_regex_match(match, regex, packet->content))
 	{
 		float latitude;
-		float longitude;
+		auto& latitude_match  = match[1];
 
-		if (!aprs_decode_latitude(latitude, match[1].str().c_str(), *match[2].first))
+		float longitude;
+		auto& longitude_match = match[4];
+
+		if (!aprs_decode_latitude(latitude, std::string_view(latitude_match.first, latitude_match.length()), *match[2].first))
 			return false;
 
-		if (!aprs_decode_longitude(longitude, match[4].str().c_str(), *match[5].first))
+		if (!aprs_decode_longitude(longitude, std::string_view(longitude_match.first, longitude_match.length()), *match[5].first))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_POSITION;
@@ -1728,27 +1704,29 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 			.symbol_table_key = *match[6].first
 		};
 
-		// TODO: decode weather in comment
-		// TODO: decode position in comment
-
-		aprs_packet_decode_data_extensions(packet, packet->position->comment);
+		aprs_packet_decode_comment(packet, packet->position->comment);
 
 		return true;
 	}
 
-	if (aprs_regex_match(match, regex_time, packet->content.c_str()))
+	if (aprs_regex_match(match, regex_time, packet->content))
 	{
 		aprs_time time;
+		auto&     time_match      = match[1];
+
 		float     latitude;
+		auto&     latitude_match  = match[3];
+
 		float     longitude;
+		auto&     longitude_match = match[6];
 
-		if (!aprs_decode_time(time, match[1].str().c_str(), *match[2].first))
+		if (!aprs_decode_time(time, std::string_view(time_match.first, time_match.length()), *match[2].first))
 			return false;
 
-		if (!aprs_decode_latitude(latitude, match[3].str().c_str(), *match[4].first))
+		if (!aprs_decode_latitude(latitude, std::string_view(latitude_match.first, latitude_match.length()), *match[4].first))
 			return false;
 
-		if (!aprs_decode_longitude(longitude, match[6].str().c_str(), *match[7].first))
+		if (!aprs_decode_longitude(longitude, std::string_view(longitude_match.first, longitude_match.length()), *match[7].first))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_POSITION;
@@ -1764,19 +1742,17 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 			.symbol_table_key = *match[8].first,
 		};
 
-		// TODO: decode weather in comment
-		// TODO: decode position in comment
-
-		aprs_packet_decode_data_extensions(packet, packet->position->comment);
+		aprs_packet_decode_comment(packet, packet->position->comment);
 
 		return true;
 	}
 
-	if (aprs_regex_match(match, regex_compressed, packet->content.c_str()))
+	if (aprs_regex_match(match, regex_compressed, packet->content))
 	{
 		aprs_compressed_location location;
+		auto&                    location_match = match[1];
 
-		if (!aprs_decode_compressed_location(location, match[1].str().c_str()))
+		if (!aprs_decode_compressed_location(location, std::string_view(location_match.first, location_match.length())))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_POSITION;
@@ -1791,10 +1767,7 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 			.symbol_table_key = location.symbol_table_key
 		};
 
-		// TODO: decode weather in comment
-		// TODO: decode position in comment
-
-		aprs_packet_decode_data_extensions(packet, packet->position->comment);
+		aprs_packet_decode_comment(packet, packet->position->comment);
 
 		return true;
 	}
@@ -1819,60 +1792,66 @@ bool               aprs_packet_decode_position_messaging(aprs_packet* packet)
 }
 bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 {
-	static const std::regex regex("^T#(\\d{3}|)(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{8}))(.*)$");
+	static const aprs_regex_pattern regex("^T#(\\d{3}|)(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{8}))(.*)$");
 
-	std::cmatch match;
+	aprs_regex_match_result match;
 
-	if (!aprs_regex_match(match, regex, packet->content.c_str()))
+	if (!aprs_regex_match(match, regex, packet->content))
 		return false;
 
-	auto& analog_1 = match[3];
-	auto& analog_2 = match[5];
-	auto& analog_3 = match[7];
-	auto& analog_4 = match[9];
-	auto& analog_5 = match[11];
+	auto&            analog_1_match = match[3];
+	std::string_view analog_1(analog_1_match.first, analog_1_match.length());
+	auto&            analog_2_match = match[5];
+	std::string_view analog_2(analog_2_match.first, analog_2_match.length());
+	auto&            analog_3_match = match[7];
+	std::string_view analog_3(analog_3_match.first, analog_3_match.length());
+	auto&            analog_4_match = match[9];
+	std::string_view analog_4(analog_4_match.first, analog_4_match.length());
+	auto&            analog_5_match = match[11];
+	std::string_view analog_5(analog_5_match.first, analog_5_match.length());
+	auto&            digital_match  = match[13];
+	auto&            sequence_match = match[1];
 
 	packet->type      = APRS_PACKET_TYPE_TELEMETRY;
 	packet->telemetry = new aprs_packet_telemetry
 	{
-		.digital  = (uint8_t)strtoul(match[13].str().c_str(), nullptr, 10),
-		.sequence = (uint16_t)strtoul(match[1].str().c_str(), nullptr, 10),
-		.comment  = match[14].str()
+		.comment = match[14].str()
 	};
 
-	if (!aprs_string_contains(analog_1.first, analog_1.length(), '.') &&
-		!aprs_string_contains(analog_2.first, analog_1.length(), '.') &&
-		!aprs_string_contains(analog_3.first, analog_1.length(), '.') &&
-		!aprs_string_contains(analog_4.first, analog_1.length(), '.') &&
-		!aprs_string_contains(analog_5.first, analog_1.length(), '.'))
+	std::from_chars(digital_match.first, digital_match.first + digital_match.length(), packet->telemetry->digital);
+	std::from_chars(sequence_match.first, sequence_match.first + sequence_match.length(), packet->telemetry->sequence);
+
+	if (!aprs_string_contains(analog_1, '.') && !aprs_string_contains(analog_2, '.') && !aprs_string_contains(analog_3, '.') && !aprs_string_contains(analog_4, '.') && !aprs_string_contains(analog_5, '.'))
 	{
 		packet->telemetry->type           = APRS_TELEMETRY_TYPE_U8;
-		packet->telemetry->analog_u8[0]   = aprs_decode_int<uint8_t>(analog_1.first, analog_1.length());
-		packet->telemetry->analog_u8[1]   = aprs_decode_int<uint8_t>(analog_2.first, analog_2.length());
-		packet->telemetry->analog_u8[2]   = aprs_decode_int<uint8_t>(analog_3.first, analog_3.length());
-		packet->telemetry->analog_u8[3]   = aprs_decode_int<uint8_t>(analog_4.first, analog_4.length());
-		packet->telemetry->analog_u8[4]   = aprs_decode_int<uint8_t>(analog_5.first, analog_5.length());
 		packet->telemetry->analog_u8_c[0] = &packet->telemetry->analog_u8[0];
 		packet->telemetry->analog_u8_c[1] = &packet->telemetry->analog_u8[1];
 		packet->telemetry->analog_u8_c[2] = &packet->telemetry->analog_u8[2];
 		packet->telemetry->analog_u8_c[3] = &packet->telemetry->analog_u8[3];
 		packet->telemetry->analog_u8_c[4] = &packet->telemetry->analog_u8[4];
 		packet->telemetry->analog_u8_c[5] = nullptr;
+
+		std::from_chars(analog_1_match.first, analog_1_match.first + analog_1_match.length(), packet->telemetry->analog_u8[0]);
+		std::from_chars(analog_2_match.first, analog_2_match.first + analog_2_match.length(), packet->telemetry->analog_u8[1]);
+		std::from_chars(analog_3_match.first, analog_3_match.first + analog_3_match.length(), packet->telemetry->analog_u8[2]);
+		std::from_chars(analog_4_match.first, analog_4_match.first + analog_4_match.length(), packet->telemetry->analog_u8[3]);
+		std::from_chars(analog_5_match.first, analog_5_match.first + analog_5_match.length(), packet->telemetry->analog_u8[4]);
 	}
 	else
 	{
 		packet->telemetry->type              = APRS_TELEMETRY_TYPE_FLOAT;
-		packet->telemetry->analog_float[0]   = strtof(analog_1.str().c_str(), nullptr);
-		packet->telemetry->analog_float[1]   = strtof(analog_2.str().c_str(), nullptr);
-		packet->telemetry->analog_float[2]   = strtof(analog_3.str().c_str(), nullptr);
-		packet->telemetry->analog_float[3]   = strtof(analog_4.str().c_str(), nullptr);
-		packet->telemetry->analog_float[4]   = strtof(analog_5.str().c_str(), nullptr);
 		packet->telemetry->analog_float_c[0] = &packet->telemetry->analog_float[0];
 		packet->telemetry->analog_float_c[1] = &packet->telemetry->analog_float[1];
 		packet->telemetry->analog_float_c[2] = &packet->telemetry->analog_float[2];
 		packet->telemetry->analog_float_c[3] = &packet->telemetry->analog_float[3];
 		packet->telemetry->analog_float_c[4] = &packet->telemetry->analog_float[4];
 		packet->telemetry->analog_float_c[5] = nullptr;
+
+		std::from_chars(analog_1_match.first, analog_1_match.first + analog_1_match.length(), packet->telemetry->analog_float[0]);
+		std::from_chars(analog_2_match.first, analog_2_match.first + analog_2_match.length(), packet->telemetry->analog_float[1]);
+		std::from_chars(analog_3_match.first, analog_3_match.first + analog_3_match.length(), packet->telemetry->analog_float[2]);
+		std::from_chars(analog_4_match.first, analog_4_match.first + analog_4_match.length(), packet->telemetry->analog_float[3]);
+		std::from_chars(analog_5_match.first, analog_5_match.first + analog_5_match.length(), packet->telemetry->analog_float[4]);
 	}
 
 	return true;
@@ -2446,11 +2425,8 @@ struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_copy(struc
 
 	return p;
 }
-struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(const char* string)
+struct aprs_path*                                 aprs_path_init_from_string(std::string_view string)
 {
-	if (!string)
-		return nullptr;
-
 	auto path = new aprs_path
 	{
 		.size            = 0,
@@ -2458,9 +2434,7 @@ struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(con
 		.reference_count = 1
 	};
 
-	std::string buffer(string);
-
-	if (auto chunk = strtok(&buffer[0], ",")) do
+	if (auto chunk = strtok((char*)string.data(), ",")) do
 	{
 		if (path->size == path->chunks.max_size())
 		{
@@ -2483,6 +2457,16 @@ struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(con
 
 	return path;
 }
+struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(const char* string)
+{
+	if (!string)
+		return nullptr;
+
+	// TODO: remove copy
+	std::string buffer(string);
+
+	return aprs_path_init_from_string(buffer);
+}
 void                              APRSERVICE_CALL aprs_path_deinit(struct aprs_path* path)
 {
 	if (!--path->reference_count)
@@ -2502,6 +2486,9 @@ uint8_t                           APRSERVICE_CALL aprs_path_get_capacity(struct 
 }
 bool                              APRSERVICE_CALL aprs_path_set(struct aprs_path* path, uint8_t index, const char* station, bool repeated)
 {
+	if (!station)
+		return false;
+
 	if (index >= path->size)
 		return false;
 
@@ -2529,6 +2516,9 @@ bool                              APRSERVICE_CALL aprs_path_pop(struct aprs_path
 }
 bool                              APRSERVICE_CALL aprs_path_push(struct aprs_path* path, const char* station, bool repeated)
 {
+	if (!station)
+		return false;
+
 	if (!aprs_validate_station(station))
 		return false;
 
@@ -2706,7 +2696,7 @@ bool                                              aprs_packet_encode(aprs_packet
 
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_init(const char* sender, const char* tocall, struct aprs_path* path)
 {
-	if (!tocall || !path)
+	if (!sender || !tocall || !path)
 		return nullptr;
 
 	if (!aprs_validate_station(sender))
@@ -2727,6 +2717,9 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init(const char* s
 }
 struct aprs_packet*                               aprs_packet_init_ex(const char* sender, const char* tocall, struct aprs_path* path, enum APRS_PACKET_TYPES type)
 {
+	if (!sender || !tocall || !path)
+		return nullptr;
+
 	auto packet = new aprs_packet
 	{
 		.type            = type,
@@ -2958,27 +2951,31 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(str
 }
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_string(const char* string)
 {
-	static const std::regex regex("^([^>]{3,9})>([^,]+),([^:]+):(.*)$");
-	static const std::regex regex_path_is("(.*?),?(qA\\w),(\\S+)$");
+	if (!string)
+		return nullptr;
 
-	std::cmatch match;
+	static const aprs_regex_pattern regex("^([^>]{3,9})>([^,]+),([^:]+):(.*)$");
+	static const aprs_regex_pattern regex_path_is("(.*?),?(qA\\w),(\\S+)$");
+
+	aprs_regex_match_result match;
 
 	if (!aprs_regex_match(match, regex, string))
 		return nullptr;
 
-	aprs_path*  path;
-	std::cmatch path_match;
-	auto        path_string     = match[3].str();
-	std::string path_q_igate[2] = { "", "" };
+	aprs_path*              path;
+	aprs_regex_match_result path_match;
+	auto&                   path_match3 = match[3];
+	std::string_view        path_string(path_match3.first, path_match3.length());
+	std::string             path_q_igate[2] = { "", "" };
 
-	if (aprs_regex_match(path_match, regex_path_is, path_string.c_str()))
+	if (aprs_regex_match(path_match, regex_path_is, path_string))
 	{
 		path_q_igate[0] = path_match[2].str();
 		path_q_igate[1] = path_match[3].str();
 		path_string     = path_match[1].str();
 	}
 
-	if (!(path = aprs_path_init_from_string(path_string.c_str())))
+	if (!(path = aprs_path_init_from_string(path_string)))
 		return nullptr;
 
 	auto packet = new aprs_packet
@@ -3136,28 +3133,33 @@ bool                              APRSERVICE_CALL aprs_packet_set_path(struct ap
 }
 bool                              APRSERVICE_CALL aprs_packet_set_tocall(struct aprs_packet* packet, const char* value)
 {
-	if (auto length = aprs_validate_name(value))
-	{
-		packet->tocall.assign(value, length);
+	if (!value)
+		return false;
 
-		return true;
-	}
+	if (!aprs_validate_name(value))
+		return false;
 
-	return false;
+	packet->tocall.assign(value);
+
+	return true;
 }
 bool                              APRSERVICE_CALL aprs_packet_set_sender(struct aprs_packet* packet, const char* value)
 {
-	if (auto length = aprs_validate_station(value))
-	{
-		packet->sender.assign(value, length);
+	if (!value)
+		return false;
 
-		return true;
-	}
+	if (!aprs_validate_station(value))
+		return false;
 
-	return false;
+	packet->sender.assign(value);
+
+	return true;
 }
 bool                              APRSERVICE_CALL aprs_packet_set_content(struct aprs_packet* packet, const char* value)
 {
+	if (!value)
+		return false;
+
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_RAW)
 		return false;
 
@@ -3366,6 +3368,9 @@ void                              APRSERVICE_CALL aprs_packet_add_reference(stru
 
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_gps_init(const char* sender, const char* tocall, struct aprs_path* path, const char* nmea)
 {
+	if (!nmea)
+		return nullptr;
+
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_GPS))
 	{
 		packet->gps = new aprs_packet_gps {};
@@ -3398,31 +3403,37 @@ const char*                       APRSERVICE_CALL aprs_packet_gps_get_comment(st
 }
 bool                              APRSERVICE_CALL aprs_packet_gps_set_nmea(struct aprs_packet* packet, const char* value)
 {
-	if (!*value || (*value != '$'))
+	if (value && (*value != '$'))
 		return false;
 
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_GPS)
 		return false;
 
-	packet->gps->nmea = value;
+	if (!value)
+		packet->gps->nmea.clear();
+	else
+		packet->gps->nmea = value;
 
 	return true;
 }
 bool                              APRSERVICE_CALL aprs_packet_gps_set_comment(struct aprs_packet* packet, const char* value)
 {
-	if (!*value)
-		return false;
-
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_GPS)
 		return false;
 
-	packet->gps->comment = value;
+	if (!value)
+		packet->gps->comment.clear();
+	else
+		packet->gps->comment = value;
 
 	return true;
 }
 
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_item_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key)
 {
+	if (!name)
+		return nullptr;
+
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_ITEM))
 	{
 		packet->item = new aprs_packet_item
@@ -3543,17 +3554,18 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_compresse
 }
 bool                              APRSERVICE_CALL aprs_packet_item_set_name(struct aprs_packet* packet, const char* value)
 {
+	if (!value)
+		return false;
+
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	if (auto length = aprs_validate_name(value))
-	{
-		packet->item->name.assign(value, length);
+	if (!aprs_validate_name(value))
+		return false;
 
-		return true;
-	}
+	packet->item->name.assign(value);
 
-	return false;
+	return true;
 }
 bool                              APRSERVICE_CALL aprs_packet_item_set_comment(struct aprs_packet* packet, const char* value)
 {
@@ -3566,9 +3578,9 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_comment(s
 
 		return true;
 	}
-	else if (auto length = aprs_validate_comment(value, 36))
+	else if (aprs_validate_comment(value, 36))
 	{
-		packet->item->comment.assign(value, length);
+		packet->item->comment.assign(value);
 
 		return true;
 	}
@@ -3647,6 +3659,9 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_symbol_ta
 
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_object_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key)
 {
+	if (!name)
+		return nullptr;
+
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_OBJECT))
 	{
 		packet->object = new aprs_packet_object
@@ -3757,6 +3772,9 @@ char                              APRSERVICE_CALL aprs_packet_object_get_symbol_
 }
 bool                              APRSERVICE_CALL aprs_packet_object_set_time(struct aprs_packet* packet, const struct aprs_time* value)
 {
+	if (!value)
+		return false;
+
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
@@ -3787,17 +3805,18 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_compres
 }
 bool                              APRSERVICE_CALL aprs_packet_object_set_name(struct aprs_packet* packet, const char* value)
 {
+	if (!value)
+		return false;
+
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
 		return false;
 
-	if (auto length = aprs_validate_name(value))
-	{
-		packet->object->name.assign(value, length);
+	if (!aprs_validate_name(value))
+		return false;
 
-		return true;
-	}
+	packet->object->name.assign(value);
 
-	return false;
+	return true;
 }
 bool                              APRSERVICE_CALL aprs_packet_object_set_comment(struct aprs_packet* packet, const char* value)
 {
@@ -3810,9 +3829,9 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_comment
 
 		return true;
 	}
-	else if (auto length = aprs_validate_comment(value, 36))
+	else if (aprs_validate_comment(value, 36))
 	{
-		packet->object->comment.assign(value, length);
+		packet->object->comment.assign(value);
 
 		return true;
 	}
@@ -3895,8 +3914,7 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_status_init(const 
 	{
 		packet->status = new aprs_packet_status {};
 
-		if (!aprs_packet_status_set_time(packet, nullptr) ||
-			!aprs_packet_status_set_message(packet, message))
+		if (message && !aprs_packet_status_set_message(packet, message))
 		{
 			aprs_packet_deinit(packet);
 
@@ -3955,19 +3973,25 @@ bool                              APRSERVICE_CALL aprs_packet_status_set_message
 	if (!aprs_validate_status(value, packet->status->is_time_set ? 55 : 62))
 		return false;
 
-	packet->status->message = value;
+	if (!value)
+		packet->status->message.clear();
+	else
+		packet->status->message = value;
 
 	return true;
 }
 
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_message_init(const char* sender, const char* tocall, struct aprs_path* path, const char* destination, const char* content)
 {
+	if (!destination)
+		return nullptr;
+
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_MESSAGE))
 	{
 		packet->message = new aprs_packet_message {};
 
 		if (!aprs_packet_message_set_type(packet, APRS_MESSAGE_TYPE_MESSAGE) ||
-			!aprs_packet_message_set_content(packet, content) ||
+			(content && !aprs_packet_message_set_content(packet, content)) ||
 			!aprs_packet_message_set_destination(packet, destination))
 		{
 			aprs_packet_deinit(packet);
@@ -3982,6 +4006,9 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_message_init(const
 }
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_message_init_ack(const char* sender, const char* tocall, struct aprs_path* path, const char* destination, const char* id)
 {
+	if (!id || !destination)
+		return nullptr;
+
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_MESSAGE))
 	{
 		packet->message = new aprs_packet_message {};
@@ -4002,6 +4029,9 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_message_init_ack(c
 }
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_message_init_reject(const char* sender, const char* tocall, struct aprs_path* path, const char* destination, const char* id)
 {
+	if (!id || !destination)
+		return nullptr;
+
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_MESSAGE))
 	{
 		packet->message = new aprs_packet_message {};
@@ -4022,6 +4052,9 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_message_init_rejec
 }
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_message_init_bulletin(const char* sender, const char* tocall, struct aprs_path* path, const char* destination)
 {
+	if (!destination)
+		return nullptr;
+
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_MESSAGE))
 	{
 		packet->message = new aprs_packet_message {};
@@ -4094,7 +4127,7 @@ bool                              APRSERVICE_CALL aprs_packet_message_set_id(str
 			return value && (value != ' ');
 		};
 
-		if (!aprs_validate_string(value, length, is_string_valid))
+		if (!aprs_validate_string(value, is_string_valid))
 			return false;
 
 		packet->message->id.assign(value, length);
@@ -4160,21 +4193,25 @@ bool                              APRSERVICE_CALL aprs_packet_message_set_conten
 }
 bool                              APRSERVICE_CALL aprs_packet_message_set_destination(struct aprs_packet* packet, const char* value)
 {
+	if (!value)
+		return false;
+
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_MESSAGE)
 		return false;
 
-	if (auto length = aprs_validate_name(value))
-	{
-		packet->message->destination.assign(value, length);
+	if (!aprs_validate_name(value))
+		return false;
 
-		return true;
-	}
+	packet->message->destination.assign(value);
 
-	return false;
+	return true;
 }
 
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_weather_init(const char* sender, const char* tocall, struct aprs_path* path, const char* type, char software)
 {
+	if (!type)
+		return nullptr;
+
 	auto type_length = aprs_string_length(type, true);
 
 	if (!type_length || (type_length < 2) || (type_length > 4))
@@ -4430,7 +4467,7 @@ aprs_packet*                                      aprs_packet_position_init(cons
 
 		if (!aprs_packet_position_set_speed(packet, speed) ||
 			!aprs_packet_position_set_course(packet, course) ||
-			!aprs_packet_position_set_comment(packet, comment) ||
+			(comment && !aprs_packet_position_set_comment(packet, comment)) ||
 			!aprs_packet_position_set_altitude(packet, altitude) ||
 			!aprs_packet_position_set_latitude(packet, latitude) ||
 			!aprs_packet_position_set_longitude(packet, longitude) ||
@@ -4561,6 +4598,9 @@ int                               APRSERVICE_CALL aprs_packet_position_get_mic_e
 }
 bool                              APRSERVICE_CALL aprs_packet_position_set_time(struct aprs_packet* packet, const struct aprs_time* value)
 {
+	if (!value)
+		return false;
+
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
@@ -4592,9 +4632,9 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_comme
 
 		return true;
 	}
-	else if (auto length = aprs_validate_comment(value, 36))
+	else if (aprs_validate_comment(value, 36))
 	{
-		packet->position->comment.assign(value, length);
+		packet->position->comment.assign(value);
 
 		return true;
 	}
@@ -5049,9 +5089,15 @@ bool                              APRSERVICE_CALL aprs_packet_telemetry_set_comm
 		case APRS_TELEMETRY_TYPE_U8:
 		case APRS_TELEMETRY_TYPE_FLOAT:
 		case APRS_TELEMETRY_TYPE_BITS:
-			if (auto length = aprs_validate_comment(value, 67))
+			if (!value)
 			{
-				packet->telemetry->comment.assign(value, length);
+				packet->telemetry->comment.clear();
+
+				return true;
+			}
+			else if (aprs_validate_comment(value, 67))
+			{
+				packet->telemetry->comment.assign(value);
 
 				return true;
 			}
@@ -5063,6 +5109,9 @@ bool                              APRSERVICE_CALL aprs_packet_telemetry_set_comm
 
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_user_defined_init(const char* sender, const char* tocall, struct aprs_path* path, char id, char type, const char* data)
 {
+	if (!data)
+		return nullptr;
+
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_USER_DEFINED))
 	{
 		packet->user_defined = new aprs_packet_user_defined {};
@@ -5128,17 +5177,18 @@ bool                              APRSERVICE_CALL aprs_packet_user_defined_set_t
 }
 bool                              APRSERVICE_CALL aprs_packet_user_defined_set_data(struct aprs_packet* packet, const char* value)
 {
+	if (!value)
+		return false;
+
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_USER_DEFINED)
 		return false;
 
-	if (auto length = aprs_validate_user_defined_data(value))
-	{
-		packet->user_defined->data.assign(value, length);
+	if (!aprs_validate_user_defined_data(value))
+		return false;
 
-		return true;
-	}
+	packet->user_defined->data.assign(value);
 
-	return false;
+	return true;
 }
 
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_third_party_init(const char* sender, const char* tocall, struct aprs_path* path)
@@ -5164,7 +5214,10 @@ bool                              APRSERVICE_CALL aprs_packet_third_party_set_co
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_THIRD_PARTY)
 		return false;
 
-	packet->third_party->content = value;
+	if (!value)
+		packet->third_party->content.clear();
+	else
+		packet->third_party->content = value;
 
 	return true;
 }

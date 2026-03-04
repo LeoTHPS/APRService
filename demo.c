@@ -91,6 +91,22 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 				}
 				break;
 
+				case APRS_PACKET_TYPE_TEST:
+				{
+					const char* content = aprs_packet_get_content(packet);
+
+					printf("[Packet] [Test] [From: %s] %s\n", sender, content);
+				}
+				break;
+
+				case APRS_PACKET_TYPE_QUERY:
+				{
+					const char* content = aprs_packet_get_content(packet);
+
+					printf("[Packet] [Query] [From: %s] %s\n", sender, content);
+				}
+				break;
+
 				case APRS_PACKET_TYPE_OBJECT:
 				{
 					const char*             object_name      = aprs_packet_object_get_name(packet);
@@ -183,9 +199,13 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 						}
 					}
 
-					// TODO: add fields
-
-					printf("[From: %s] \n", sender);
+					printf("[From: %s] [Wind: %u/%u/%u] [Rainfall: %u/%u/%u] [Humidity: %u] [Temperature: %i] [Barometric Pressure: %lu]\n",
+							sender,
+							weather_wind_speed, weather_wind_speed_gust, weather_wind_direction,
+							weather_rainfall_last_hour, weather_rainfall_last_24_hours, weather_rainfall_since_midnight,
+							weather_humidity,
+							weather_temperature,
+							weather_rainfall_last_24_hours);
 				}
 				break;
 
@@ -348,6 +368,38 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 				}
 				break;
 
+				case APRS_PACKET_TYPE_MAP_FEATURE:
+				{
+					const char* content = aprs_packet_get_content(packet);
+
+					printf("[Packet] [Map Feature] [From: %s] %s\n", sender, content);
+				}
+				break;
+
+				case APRS_PACKET_TYPE_GRID_BEACON:
+				{
+					const char* content = aprs_packet_get_content(packet);
+
+					printf("[Packet] [Grid Beacon] [From: %s] %s\n", sender, content);
+				}
+				break;
+
+				case APRS_PACKET_TYPE_THIRD_PARTY:
+				{
+					const char* third_party_content = aprs_packet_third_party_get_content(packet);
+
+					printf("[Packet] [Third Party] [From: %s] %s\n", sender, third_party_content);
+				}
+				break;
+
+				case APRS_PACKET_TYPE_MICROFINDER:
+				{
+					const char* content = aprs_packet_get_content(packet);
+
+					printf("[Packet] [Microfinder] [From: %s] %s\n", sender, content);
+				}
+				break;
+
 				case APRS_PACKET_TYPE_USER_DEFINED:
 				{
 					char        user_defined_id   = aprs_packet_user_defined_get_id(packet);
@@ -358,11 +410,27 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 				}
 				break;
 
-				case APRS_PACKET_TYPE_THIRD_PARTY:
+				case APRS_PACKET_TYPE_SHELTER_TIME:
 				{
-					const char* third_party_content = aprs_packet_third_party_get_content(packet);
+					const char* content = aprs_packet_get_content(packet);
 
-					printf("[Packet] [Third Party] [From: %s] %s\n", sender, third_party_content);
+					printf("[Packet] [Shelter Time] [From: %s] %s\n", sender, content);
+				}
+				break;
+
+				case APRS_PACKET_TYPE_STATION_CAPABILITIES:
+				{
+					const char* content = aprs_packet_get_content(packet);
+
+					printf("[Packet] [Station Capabilities] [From: %s] %s\n", sender, content);
+				}
+				break;
+
+				case APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON:
+				{
+					const char* content = aprs_packet_get_content(packet);
+
+					printf("[Packet] [Maidenhead Grid Beacon] [From: %s] %s\n", sender, content);
 				}
 				break;
 			}

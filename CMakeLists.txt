@@ -1,8 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
 
-set(CMAKE_C_FLAGS_RELEASE      "${CMAKE_C_FLAGS_RELEASE} -s")
-set(CMAKE_C_FLAGS_MINSIZEREL   "${CMAKE_C_FLAGS_MINSIZEREL} -s")
-
 set(APRS_IS_HOST                  "noam.aprs2.net")
 set(APRS_IS_PORT                  14580)
 set(APRS_IS_PASSCODE              19371)

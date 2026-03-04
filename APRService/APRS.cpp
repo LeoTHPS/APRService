@@ -2005,6 +2005,14 @@ void               aprs_packet_encode_item(aprs_packet* packet, std::stringstrea
 
 	ss << packet->item->comment;
 }
+void               aprs_packet_encode_test(aprs_packet* packet, std::stringstream& ss)
+{
+	// TODO: encode test
+}
+void               aprs_packet_encode_query(aprs_packet* packet, std::stringstream& ss)
+{
+	// TODO: encode query
+}
 void               aprs_packet_encode_object(aprs_packet* packet, std::stringstream& ss)
 {
 	ss << ';';
@@ -2309,13 +2317,37 @@ void               aprs_packet_encode_telemetry(aprs_packet* packet, std::string
 			break;
 	}
 }
+void               aprs_packet_encode_map_feature(aprs_packet* packet, std::stringstream& ss)
+{
+	// TODO: encode map feature
+}
+void               aprs_packet_encode_grid_beacon(aprs_packet* packet, std::stringstream& ss)
+{
+	// TODO: encode grid beacon
+}
 void               aprs_packet_encode_third_party(aprs_packet* packet, std::stringstream& ss)
 {
 	ss << '}' << packet->third_party->content;
 }
+void               aprs_packet_encode_microfinder(aprs_packet* packet, std::stringstream& ss)
+{
+	// TODO: encode microfinder
+}
 void               aprs_packet_encode_user_defined(aprs_packet* packet, std::stringstream& ss)
 {
 	ss << '{' << packet->user_defined->id << packet->user_defined->type << packet->user_defined->data;
+}
+void               aprs_packet_encode_shelter_time(aprs_packet* packet, std::stringstream& ss)
+{
+	// TODO: encode shelter time
+}
+void               aprs_packet_encode_station_capabilities(aprs_packet* packet, std::stringstream& ss)
+{
+	// TODO: encode station capabilities
+}
+void               aprs_packet_encode_maidenhead_grid_beacon(aprs_packet* packet, std::stringstream& ss)
+{
+	// TODO: encode maidenhead grid beacon
 }
 
 constexpr const aprs_packet_decoder_context aprs_packet_decoders[] =
@@ -2354,22 +2386,22 @@ constexpr const aprs_packet_encoder_context aprs_packet_encoders[APRS_PACKET_TYP
 	{ APRS_PACKET_TYPE_GPS,                    &aprs_packet_encode_gps                    },
 	{ APRS_PACKET_TYPE_RAW,                    &aprs_packet_encode_raw                    },
 	{ APRS_PACKET_TYPE_ITEM,                   &aprs_packet_encode_item                   },
-	// { APRS_PACKET_TYPE_TEST,                   &aprs_packet_encode_test                   },
-	// { APRS_PACKET_TYPE_QUERY,                  &aprs_packet_encode_query                  },
+	{ APRS_PACKET_TYPE_TEST,                   &aprs_packet_encode_test                   },
+	{ APRS_PACKET_TYPE_QUERY,                  &aprs_packet_encode_query                  },
 	{ APRS_PACKET_TYPE_OBJECT,                 &aprs_packet_encode_object                 },
 	{ APRS_PACKET_TYPE_STATUS,                 &aprs_packet_encode_status                 },
 	{ APRS_PACKET_TYPE_MESSAGE,                &aprs_packet_encode_message                },
 	{ APRS_PACKET_TYPE_WEATHER,                &aprs_packet_encode_weather                },
 	{ APRS_PACKET_TYPE_POSITION,               &aprs_packet_encode_position               },
 	{ APRS_PACKET_TYPE_TELEMETRY,              &aprs_packet_encode_telemetry              },
-	// { APRS_PACKET_TYPE_MAP_FEATURE,            &aprs_packet_encode_map_feature            },
-	// { APRS_PACKET_TYPE_GRID_BEACON,            &aprs_packet_encode_grid_beacon            },
+	{ APRS_PACKET_TYPE_MAP_FEATURE,            &aprs_packet_encode_map_feature            },
+	{ APRS_PACKET_TYPE_GRID_BEACON,            &aprs_packet_encode_grid_beacon            },
 	{ APRS_PACKET_TYPE_THIRD_PARTY,            &aprs_packet_encode_third_party            },
-	// { APRS_PACKET_TYPE_MICROFINDER,            &aprs_packet_encode_microfinder            },
+	{ APRS_PACKET_TYPE_MICROFINDER,            &aprs_packet_encode_microfinder            },
 	{ APRS_PACKET_TYPE_USER_DEFINED,           &aprs_packet_encode_user_defined           },
-	// { APRS_PACKET_TYPE_SHELTER_TIME,           &aprs_packet_encode_shelter_time           },
-	// { APRS_PACKET_TYPE_STATION_CAPABILITIES,   &aprs_packet_encode_station_capabilities   },
-	// { APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON, &aprs_packet_encode_maidenhead_grid_beacon }
+	{ APRS_PACKET_TYPE_SHELTER_TIME,           &aprs_packet_encode_shelter_time           },
+	{ APRS_PACKET_TYPE_STATION_CAPABILITIES,   &aprs_packet_encode_station_capabilities   },
+	{ APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON, &aprs_packet_encode_maidenhead_grid_beacon }
 };
 
 template<size_t ... I>
@@ -2758,13 +2790,13 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(str
 			};
 			break;
 
-		// case APRS_PACKET_TYPE_TEST:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_TEST:
+			// TODO: copy test
+			break;
 
-		// case APRS_PACKET_TYPE_QUERY:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_QUERY:
+			// TODO: copy query
+			break;
 
 		case APRS_PACKET_TYPE_OBJECT:
 			p->object = new aprs_packet_object
@@ -2881,13 +2913,13 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(str
 				p->telemetry->analog_float_c[i] = &p->telemetry->analog_float[i];
 			break;
 
-		// case APRS_PACKET_TYPE_MAP_FEATURE:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_MAP_FEATURE:
+			// TODO: copy map feature
+			break;
 
-		// case APRS_PACKET_TYPE_GRID_BEACON:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_GRID_BEACON:
+			// TODO: copy grid beacon
+			break;
 
 		case APRS_PACKET_TYPE_THIRD_PARTY:
 			p->third_party = new aprs_packet_third_party
@@ -2896,9 +2928,9 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(str
 			};
 			break;
 
-		// case APRS_PACKET_TYPE_MICROFINDER:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_MICROFINDER:
+			// TODO: copy microfinder
+			break;
 
 		case APRS_PACKET_TYPE_USER_DEFINED:
 			p->user_defined = new aprs_packet_user_defined
@@ -2909,17 +2941,17 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(str
 			};
 			break;
 
-		// case APRS_PACKET_TYPE_SHELTER_TIME:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_SHELTER_TIME:
+			// TODO: copy shelter time
+			break;
 
-		// case APRS_PACKET_TYPE_STATION_CAPABILITIES:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_STATION_CAPABILITIES:
+			// TODO: copy station capabilities
+			break;
 
-		// case APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON:
+			// TODO: copy maidenhead grid beacon
+			break;
 	}
 
 	return p;
@@ -2993,13 +3025,13 @@ void                              APRSERVICE_CALL aprs_packet_deinit(struct aprs
 				delete packet->item;
 				break;
 
-			// case APRS_PACKET_TYPE_TEST:
-				// TODO: implement
-				// break;
+			case APRS_PACKET_TYPE_TEST:
+				// TODO: deinit test
+				break;
 
-			// case APRS_PACKET_TYPE_QUERY:
-				// TODO: implement
-				// break;
+			case APRS_PACKET_TYPE_QUERY:
+				// TODO: deinit query
+				break;
 
 			case APRS_PACKET_TYPE_OBJECT:
 				delete packet->object;
@@ -3025,37 +3057,37 @@ void                              APRSERVICE_CALL aprs_packet_deinit(struct aprs
 				delete packet->telemetry;
 				break;
 
-			// case APRS_PACKET_TYPE_MAP_FEATURE:
-				// TODO: implement
-				// break;
+			case APRS_PACKET_TYPE_MAP_FEATURE:
+				// TODO: deinit map feature
+				break;
 
-			// case APRS_PACKET_TYPE_GRID_BEACON:
-				// TODO: implement
-				// break;
+			case APRS_PACKET_TYPE_GRID_BEACON:
+				// TODO: deinit grid beacon
+				break;
 
 			case APRS_PACKET_TYPE_THIRD_PARTY:
 				delete packet->third_party;
 				break;
 
-			// case APRS_PACKET_TYPE_MICROFINDER:
-				// TODO: implement
-				// break;
+			case APRS_PACKET_TYPE_MICROFINDER:
+				// TODO: deinit microfinder
+				break;
 
 			case APRS_PACKET_TYPE_USER_DEFINED:
 				delete packet->user_defined;
 				break;
 
-			// case APRS_PACKET_TYPE_SHELTER_TIME:
-				// TODO: implement
-				// break;
+			case APRS_PACKET_TYPE_SHELTER_TIME:
+				// TODO: deinit shelter time
+				break;
 
-			// case APRS_PACKET_TYPE_STATION_CAPABILITIES:
-				// TODO: implement
-				// break;
+			case APRS_PACKET_TYPE_STATION_CAPABILITIES:
+				// TODO: deinit station capabilities
+				break;
 
-			// case APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON:
-				// TODO: implement
-				// break;
+			case APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON:
+				// TODO: deinit maidenhead grid beacon
+				break;
 		}
 
 		delete packet;
@@ -3188,13 +3220,13 @@ bool                              APRSERVICE_CALL aprs_packet_compare(struct apr
 			if (packet->item->symbol_table_key != packet2->item->symbol_table_key) return false;
 			break;
 
-		// case APRS_PACKET_TYPE_TEST:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_TEST:
+			// TODO: compare test
+			break;
 
-		// case APRS_PACKET_TYPE_QUERY:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_QUERY:
+			// TODO: compare query
+			break;
 
 		case APRS_PACKET_TYPE_OBJECT:
 			if (packet->object->is_alive         != packet2->object->is_alive)         return false;
@@ -3270,21 +3302,21 @@ bool                              APRSERVICE_CALL aprs_packet_compare(struct apr
 			}
 			break;
 
-		// case APRS_PACKET_TYPE_MAP_FEATURE:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_MAP_FEATURE:
+			// TODO: compare map feature
+			break;
 
-		// case APRS_PACKET_TYPE_GRID_BEACON:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_GRID_BEACON:
+			// TODO: compare grid beacon
+			break;
 
 		case APRS_PACKET_TYPE_THIRD_PARTY:
 			if (packet->third_party->content != packet2->third_party->content) return false;
 			break;
 
-		// case APRS_PACKET_TYPE_MICROFINDER:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_MICROFINDER:
+			// TODO: compare microfinder
+			break;
 
 		case APRS_PACKET_TYPE_USER_DEFINED:
 			if (packet->user_defined->id   != packet2->user_defined->id)   return false;
@@ -3292,17 +3324,17 @@ bool                              APRSERVICE_CALL aprs_packet_compare(struct apr
 			if (packet->user_defined->data != packet2->user_defined->data) return false;
 			break;
 
-		// case APRS_PACKET_TYPE_SHELTER_TIME:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_SHELTER_TIME:
+			// TODO: compare shelter time
+			break;
 
-		// case APRS_PACKET_TYPE_STATION_CAPABILITIES:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_STATION_CAPABILITIES:
+			// TODO: compare station capabilities
+			break;
 
-		// case APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON:
-			// TODO: implement
-			// break;
+		case APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON:
+			// TODO: compare maidenhead grid beacon
+			break;
 	}
 
 	return true;
@@ -4704,11 +4736,8 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init(con
 			.digital   = digital
 		};
 
-		packet->telemetry->analog_u8_c[0] = &packet->telemetry->analog_u8[0];
-		packet->telemetry->analog_u8_c[1] = &packet->telemetry->analog_u8[1];
-		packet->telemetry->analog_u8_c[2] = &packet->telemetry->analog_u8[2];
-		packet->telemetry->analog_u8_c[3] = &packet->telemetry->analog_u8[3];
-		packet->telemetry->analog_u8_c[4] = &packet->telemetry->analog_u8[4];
+		for (size_t i = 0; i < 5; ++i)
+			packet->telemetry->analog_u8_c[i] = &packet->telemetry->analog_u8[i];
 		packet->telemetry->analog_u8_c[5] = nullptr;
 
 		if (!aprs_packet_telemetry_set_sequence(packet, sequence))
@@ -4734,11 +4763,8 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_flo
 			.digital      = digital
 		};
 
-		packet->telemetry->analog_float_c[0] = &packet->telemetry->analog_float[0];
-		packet->telemetry->analog_float_c[1] = &packet->telemetry->analog_float[1];
-		packet->telemetry->analog_float_c[2] = &packet->telemetry->analog_float[2];
-		packet->telemetry->analog_float_c[3] = &packet->telemetry->analog_float[3];
-		packet->telemetry->analog_float_c[4] = &packet->telemetry->analog_float[4];
+		for (size_t i = 0; i < 5; ++i)
+			packet->telemetry->analog_float_c[i] = &packet->telemetry->analog_float[i];
 		packet->telemetry->analog_float_c[5] = nullptr;
 
 		if (!aprs_packet_telemetry_set_sequence(packet, sequence))
@@ -4747,6 +4773,81 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_flo
 
 			return nullptr;
 		}
+
+		return packet;
+	}
+
+	return nullptr;
+}
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_bits(const char* sender, const char* tocall, struct aprs_path* path, uint8_t value)
+{
+	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_TELEMETRY))
+	{
+		packet->telemetry = new aprs_packet_telemetry
+		{
+			.type    = APRS_TELEMETRY_TYPE_BITS,
+			.digital = value
+		};
+
+		return packet;
+	}
+
+	return nullptr;
+}
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_eqns(const char* sender, const char* tocall, struct aprs_path* path)
+{
+	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_TELEMETRY))
+	{
+		packet->telemetry = new aprs_packet_telemetry
+		{
+			.type = APRS_TELEMETRY_TYPE_EQNS
+		};
+
+		// TODO: init eqns
+
+		for (size_t i = 0; i < packet->telemetry->eqns_count; ++i)
+			packet->telemetry->eqns_c[i] = &packet->telemetry->eqns[i];
+		packet->telemetry->eqns_c[packet->telemetry->eqns_count] = nullptr;
+
+		return packet;
+	}
+
+	return nullptr;
+}
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_units(const char* sender, const char* tocall, struct aprs_path* path)
+{
+	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_TELEMETRY))
+	{
+		packet->telemetry = new aprs_packet_telemetry
+		{
+			.type = APRS_TELEMETRY_TYPE_UNITS
+		};
+
+		// TODO: init units
+
+		for (size_t i = 0; i < packet->telemetry->units_count; ++i)
+			packet->telemetry->units_c[i] = packet->telemetry->units[i].c_str();
+		packet->telemetry->units_c[packet->telemetry->units_count] = nullptr;
+
+		return packet;
+	}
+
+	return nullptr;
+}
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_params(const char* sender, const char* tocall, struct aprs_path* path)
+{
+	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_TELEMETRY))
+	{
+		packet->telemetry = new aprs_packet_telemetry
+		{
+			.type = APRS_TELEMETRY_TYPE_PARAMS
+		};
+
+		// TODO: init params
+
+		for (size_t i = 0; i < packet->telemetry->params_count; ++i)
+			packet->telemetry->params_c[i] = packet->telemetry->params[i].data();
+		packet->telemetry->params_c[packet->telemetry->params_count] = nullptr;
 
 		return packet;
 	}
@@ -4862,6 +4963,18 @@ const char*                       APRSERVICE_CALL aprs_packet_telemetry_get_comm
 	}
 
 	return nullptr;
+}
+bool                              APRSERVICE_CALL aprs_packet_telemetry_set_bits(struct aprs_packet* packet, uint8_t value)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_TELEMETRY)
+		return false;
+
+	if (aprs_packet_telemetry_get_type(packet) != APRS_TELEMETRY_TYPE_BITS)
+		return false;
+
+	packet->telemetry->digital = value;
+
+	return true;
 }
 bool                              APRSERVICE_CALL aprs_packet_telemetry_set_analog(struct aprs_packet* packet, uint8_t value, uint8_t index)
 {

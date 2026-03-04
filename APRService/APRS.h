@@ -29,22 +29,22 @@ enum APRS_PACKET_TYPES
 	APRS_PACKET_TYPE_GPS,
 	APRS_PACKET_TYPE_RAW,
 	APRS_PACKET_TYPE_ITEM,
-	// APRS_PACKET_TYPE_TEST,
-	// APRS_PACKET_TYPE_QUERY,
+	APRS_PACKET_TYPE_TEST,
+	APRS_PACKET_TYPE_QUERY,
 	APRS_PACKET_TYPE_OBJECT,
 	APRS_PACKET_TYPE_STATUS,
 	APRS_PACKET_TYPE_MESSAGE,
 	APRS_PACKET_TYPE_WEATHER,
 	APRS_PACKET_TYPE_POSITION,
 	APRS_PACKET_TYPE_TELEMETRY,
-	// APRS_PACKET_TYPE_MAP_FEATURE,
-	// APRS_PACKET_TYPE_GRID_BEACON,
+	APRS_PACKET_TYPE_MAP_FEATURE,
+	APRS_PACKET_TYPE_GRID_BEACON,
 	APRS_PACKET_TYPE_THIRD_PARTY,
-	// APRS_PACKET_TYPE_MICROFINDER,
+	APRS_PACKET_TYPE_MICROFINDER,
 	APRS_PACKET_TYPE_USER_DEFINED,
-	// APRS_PACKET_TYPE_SHELTER_TIME,
-	// APRS_PACKET_TYPE_STATION_CAPABILITIES,
-	// APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON,
+	APRS_PACKET_TYPE_SHELTER_TIME,
+	APRS_PACKET_TYPE_STATION_CAPABILITIES,
+	APRS_PACKET_TYPE_MAIDENHEAD_GRID_BEACON,
 
 	APRS_PACKET_TYPES_COUNT
 };
@@ -262,7 +262,7 @@ APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_weather_set_barometric_pressure(struct aprs_packet* packet, uint32_t value);
 
 APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key);
-// APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_mic_e(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, enum APRS_MIC_E_MESSAGES message);
+APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_mic_e(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, enum APRS_MIC_E_MESSAGES message);
 APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_compressed(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_is_mic_e(struct aprs_packet* packet);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_is_compressed(struct aprs_packet* packet);
@@ -295,10 +295,10 @@ APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_
 
 APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init(const char* sender, const char* tocall, struct aprs_path* path, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital, uint16_t sequence);
 APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_float(const char* sender, const char* tocall, struct aprs_path* path, float a1, float a2, float a3, float a4, float a5, uint8_t digital, uint16_t sequence);
-// APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_bits(const char* sender, const char* tocall, struct aprs_path* path);
-// APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_eqns(const char* sender, const char* tocall, struct aprs_path* path);
-// APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_units(const char* sender, const char* tocall, struct aprs_path* path);
-// APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_params(const char* sender, const char* tocall, struct aprs_path* path);
+APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_bits(const char* sender, const char* tocall, struct aprs_path* path, uint8_t value);
+APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_eqns(const char* sender, const char* tocall, struct aprs_path* path);
+APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_units(const char* sender, const char* tocall, struct aprs_path* path);
+APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_telemetry_init_params(const char* sender, const char* tocall, struct aprs_path* path);
 APRSERVICE_EXPORT enum APRS_TELEMETRY_TYPES         APRSERVICE_CALL aprs_packet_telemetry_get_type(struct aprs_packet* packet);
 APRSERVICE_EXPORT const uint8_t**                   APRSERVICE_CALL aprs_packet_telemetry_get_analog(struct aprs_packet* packet);
 APRSERVICE_EXPORT const float**                     APRSERVICE_CALL aprs_packet_telemetry_get_analog_float(struct aprs_packet* packet);
@@ -309,6 +309,7 @@ APRSERVICE_EXPORT const char**                      APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT uint8_t                           APRSERVICE_CALL aprs_packet_telemetry_get_digital(struct aprs_packet* packet);
 APRSERVICE_EXPORT uint16_t                          APRSERVICE_CALL aprs_packet_telemetry_get_sequence(struct aprs_packet* packet);
 APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_packet_telemetry_get_comment(struct aprs_packet* packet);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_telemetry_set_bits(struct aprs_packet* packet, uint8_t value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_telemetry_set_analog(struct aprs_packet* packet, uint8_t value, uint8_t index);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_telemetry_set_analog_float(struct aprs_packet* packet, float value, uint8_t index);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_telemetry_set_digital(struct aprs_packet* packet, uint8_t value);

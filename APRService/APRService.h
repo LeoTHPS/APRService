@@ -112,6 +112,7 @@ APRSERVICE_EXPORT const char*                APRSERVICE_CALL aprservice_get_comm
 APRSERVICE_EXPORT const char*                APRSERVICE_CALL aprservice_get_station(struct aprservice* service);
 APRSERVICE_EXPORT char                       APRSERVICE_CALL aprservice_get_symbol_table(struct aprservice* service);
 APRSERVICE_EXPORT char                       APRSERVICE_CALL aprservice_get_symbol_table_key(struct aprservice* service);
+APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_get_position(struct aprservice* service, float* latitude, float* longitude, int32_t* altitude, uint16_t* speed, uint16_t* course);
 APRSERVICE_EXPORT int                        APRSERVICE_CALL aprservice_get_position_type(struct aprservice* service);
 APRSERVICE_EXPORT uint32_t                   APRSERVICE_CALL aprservice_get_connection_timeout(struct aprservice* service);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_get_event_handler(struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler* handler, void** param);

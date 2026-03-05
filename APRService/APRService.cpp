@@ -1700,6 +1700,14 @@ char                       APRSERVICE_CALL aprservice_get_symbol_table_key(struc
 {
 	return aprs_packet_position_get_symbol_table_key(service->position.packet);
 }
+void                       APRSERVICE_CALL aprservice_get_position(struct aprservice* service, float* latitude, float* longitude, int32_t* altitude, uint16_t* speed, uint16_t* course)
+{
+	*speed     = aprs_packet_position_get_speed(service->position.packet);
+	*course    = aprs_packet_position_get_course(service->position.packet);
+	*altitude  = aprs_packet_position_get_altitude(service->position.packet);
+	*latitude  = aprs_packet_position_get_latitude(service->position.packet);
+	*longitude = aprs_packet_position_get_longitude(service->position.packet);
+}
 int                        APRSERVICE_CALL aprservice_get_position_type(struct aprservice* service)
 {
 	return service->position.type;

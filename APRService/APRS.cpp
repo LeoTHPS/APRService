@@ -179,16 +179,16 @@ struct aprs_packet_telemetry
 {
 	APRS_TELEMETRY_TYPES                      type;
 
-	std::array<aprs_telemetry_eqn, 15>        eqns;
-	std::array<const aprs_telemetry_eqn*, 16> eqns_c;
+	std::array<aprs_telemetry_eqn, 5>         eqns;
+	std::array<const aprs_telemetry_eqn*, 6>  eqns_c;
 	size_t                                    eqns_count;
 
-	std::array<std::string, 10>               units;
-	std::array<const char*, 11>               units_c;
+	std::array<std::string, 13>               units;
+	std::array<const char*, 14>               units_c;
 	size_t                                    units_count;
 
-	std::array<std::string, 10>               params;
-	std::array<const char*, 11>               params_c;
+	std::array<std::string, 13>               params;
+	std::array<const char*, 14>               params_c;
 	size_t                                    params_count;
 
 	std::array<uint8_t, 5>                    analog_u8;
@@ -1466,7 +1466,7 @@ bool               aprs_packet_decode_message_telemetry_params(aprs_packet* pack
 		packet->telemetry->params[packet->telemetry->params_count]   = param;
 		packet->telemetry->params_c[packet->telemetry->params_count] = packet->telemetry->params[packet->telemetry->params_count].c_str();
 	}
-	while ((++packet->telemetry->params_count < 10) && (param = strtok(nullptr, ",")));
+	while ((++packet->telemetry->params_count < 13) && (param = strtok(nullptr, ",")));
 
 	return true;
 }
@@ -1483,7 +1483,7 @@ bool               aprs_packet_decode_message_telemetry_units(aprs_packet* packe
 		packet->telemetry->units[packet->telemetry->units_count]   = unit;
 		packet->telemetry->units_c[packet->telemetry->units_count] = packet->telemetry->units[packet->telemetry->units_count].c_str();
 	}
-	while ((++packet->telemetry->units_count < 10) && (unit = strtok(nullptr, ",")));
+	while ((++packet->telemetry->units_count < 13) && (unit = strtok(nullptr, ",")));
 
 	return true;
 }

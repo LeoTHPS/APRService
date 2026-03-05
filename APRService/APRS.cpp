@@ -12,6 +12,8 @@
 #include <iostream>
 #include <type_traits>
 
+// TODO: replace strtok with something like std::views::split
+
 // make sure this is never changed
 // logic depends on DHM being a subset of MDHM
 static_assert(APRS_TIME_MDHM & APRS_TIME_DHM);
@@ -838,8 +840,8 @@ void               aprs_packet_decode_comment_data_extensions(aprs_packet* packe
 				auto& speed  = match[3];
 				auto& course = match[2];
 
-				std::from_chars(speed.first, speed.first + speed.length(), packet->extensions.speed);
-				std::from_chars(course.first, course.first + course.length(), packet->extensions.course);
+				std::from_chars(&*speed.first, &*speed.first + speed.length(), packet->extensions.speed);
+				std::from_chars(&*course.first, &*course.first + course.length(), packet->extensions.course);
 
 				string = string.substr(7);
 			}
@@ -857,10 +859,10 @@ void               aprs_packet_decode_comment_data_extensions(aprs_packet* packe
 				uint16_t directivity       = 0;
 				auto&    directivity_match = match[4];
 
-				std::from_chars(gain_match.first, gain_match.first + gain_match.length(), gain);
-				std::from_chars(power_match.first, power_match.first + power_match.length(), power);
-				std::from_chars(height_match.first, height_match.first + height_match.length(), height);
-				std::from_chars(directivity_match.first, directivity_match.first + directivity_match.length(), directivity);
+				std::from_chars(&*gain_match.first, &*gain_match.first + gain_match.length(), gain);
+				std::from_chars(&*power_match.first, &*power_match.first + power_match.length(), power);
+				std::from_chars(&*height_match.first, &*height_match.first + height_match.length(), height);
+				std::from_chars(&*directivity_match.first, &*directivity_match.first + directivity_match.length(), directivity);
 
 				if ((power < 10) && (height < 10) && (directivity < 10))
 				{
@@ -876,7 +878,7 @@ void               aprs_packet_decode_comment_data_extensions(aprs_packet* packe
 			{
 				auto& miles = match[1];
 
-				std::from_chars(miles.first, miles.first + miles.length(), packet->extensions.rng.miles);
+				std::from_chars(&*miles.first, &*miles.first + miles.length(), packet->extensions.rng.miles);
 
 				string = string.substr(7);
 			}
@@ -894,10 +896,10 @@ void               aprs_packet_decode_comment_data_extensions(aprs_packet* packe
 				uint16_t directivity       = 0;
 				auto&    directivity_match = match[4];
 
-				std::from_chars(gain_match.first, gain_match.first + gain_match.length(), gain);
-				std::from_chars(height_match.first, height_match.first + height_match.length(), height);
-				std::from_chars(strength_match.first, strength_match.first + strength_match.length(), strength);
-				std::from_chars(directivity_match.first, directivity_match.first + directivity_match.length(), directivity);
+				std::from_chars(&*gain_match.first, &*gain_match.first + gain_match.length(), gain);
+				std::from_chars(&*height_match.first, &*height_match.first + height_match.length(), height);
+				std::from_chars(&*strength_match.first, &*strength_match.first + strength_match.length(), strength);
+				std::from_chars(&*directivity_match.first, &*directivity_match.first + directivity_match.length(), directivity);
 
 				if ((height < 10) && (directivity < 10))
 				{
@@ -917,9 +919,9 @@ void               aprs_packet_decode_comment_data_extensions(aprs_packet* packe
 				int32_t altitude       = 0;
 				auto&   altitude_match = match[1];
 
-				std::from_chars(altitude_match.first, altitude_match.first + altitude_match.length(), packet->extensions.altitude);
+				std::from_chars(&*altitude_match.first, &*altitude_match.first + altitude_match.length(), packet->extensions.altitude);
 
-				if (auto i = string.find(match0.first, 0, match0.length()); i != std::string::npos)
+				if (auto i = string.find(&*match0.first, 0, match0.length()); i != std::string::npos)
 					string = string.erase(i, match0.length());
 			}
 		}
@@ -1225,10 +1227,10 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 		float longitude;
 		auto  longitude_match = match[6];
 
-		if (!aprs_decode_latitude(latitude, std::string_view(latitude_match.first, latitude_match.length()), *match[4].first))
+		if (!aprs_decode_latitude(latitude, std::string_view(&*latitude_match.first, latitude_match.length()), *match[4].first))
 			return false;
 
-		if (!aprs_decode_longitude(longitude, std::string_view(longitude_match.first, longitude_match.length()), *match[7].first))
+		if (!aprs_decode_longitude(longitude, std::string_view(&*longitude_match.first, longitude_match.length()), *match[7].first))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_ITEM;
@@ -1255,7 +1257,7 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 		aprs_compressed_location location;
 		auto&                    location_match = match[3];
 
-		if (!aprs_decode_compressed_location(location, std::string_view(location_match.first, location_match.length())))
+		if (!aprs_decode_compressed_location(location, std::string_view(&*location_match.first, location_match.length())))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_ITEM;
@@ -1313,13 +1315,13 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 		float longitude;
 		auto  longitude_match = match[8];
 
-		if (!aprs_decode_time(time, std::string_view(time_match.first, time_match.length()), *match[4].first))
+		if (!aprs_decode_time(time, std::string_view(&*time_match.first, time_match.length()), *match[4].first))
 			return false;
 
-		if (!aprs_decode_latitude(latitude, std::string_view(latitude_match.first, latitude_match.length()), *match[6].first))
+		if (!aprs_decode_latitude(latitude, std::string_view(&*latitude_match.first, latitude_match.length()), *match[6].first))
 			return false;
 
-		if (!aprs_decode_longitude(longitude, std::string_view(longitude_match.first, longitude_match.length()), *match[9].first))
+		if (!aprs_decode_longitude(longitude, std::string_view(&*longitude_match.first, longitude_match.length()), *match[9].first))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_OBJECT;
@@ -1349,10 +1351,10 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 		aprs_compressed_location location;
 		auto&                    location_match = match[5];
 
-		if (!aprs_decode_time(time, std::string_view(time_match.first, time_match.length()), *match[4].first))
+		if (!aprs_decode_time(time, std::string_view(&*time_match.first, time_match.length()), *match[4].first))
 			return false;
 
-		if (!aprs_decode_compressed_location(location, std::string_view(location_match.first, location_match.length())))
+		if (!aprs_decode_compressed_location(location, std::string_view(&*location_match.first, location_match.length())))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_OBJECT;
@@ -1401,7 +1403,7 @@ bool               aprs_packet_decode_status(aprs_packet* packet)
 	{
 		auto& time_match = match[1];
 
-		if (!aprs_decode_time(time, std::string_view(time_match.first, time_match.length()), *match[2].first))
+		if (!aprs_decode_time(time, std::string_view(&*time_match.first, time_match.length()), *match[2].first))
 			return false;
 
 		packet->type   = APRS_PACKET_TYPE_STATUS;
@@ -1506,10 +1508,10 @@ bool               aprs_packet_decode_message_telemetry_bits(aprs_packet* packet
 bool               aprs_packet_decode_message_telemetry(aprs_packet* packet, aprs_regex_match_result& match)
 {
 	auto&            type_match = match[2];
-	std::string_view type(type_match.first, type_match.length());
+	std::string_view type(&*type_match.first, type_match.length());
 
 	auto&            data_match = match[3];
-	std::string_view data(data_match.first, data_match.length());
+	std::string_view data(&*data_match.first, data_match.length());
 
 	     if (!type.compare("PARM")) return aprs_packet_decode_message_telemetry_params(packet, data);
 	else if (!type.compare("UNIT")) return aprs_packet_decode_message_telemetry_units(packet, data);
@@ -1542,14 +1544,14 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 		if (match_id.length() > 5)
 			return false;
 
-		id = std::string_view(match_id.first, match_id.length());
+		id = std::string_view(&*match_id.first, match_id.length());
 	}
 
 	auto&            content_match = match[2];
-	std::string_view content(content_match.first, content_match.length());
+	std::string_view content(&*content_match.first, content_match.length());
 
 	auto&            destination_match = match[1];
-	std::string_view destination(destination_match.first, destination_match.length());
+	std::string_view destination(&*destination_match.first, destination_match.length());
 
 	if (!aprs_validate_name(destination))
 		return false;
@@ -1686,10 +1688,10 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 		float longitude;
 		auto& longitude_match = match[4];
 
-		if (!aprs_decode_latitude(latitude, std::string_view(latitude_match.first, latitude_match.length()), *match[2].first))
+		if (!aprs_decode_latitude(latitude, std::string_view(&*latitude_match.first, latitude_match.length()), *match[2].first))
 			return false;
 
-		if (!aprs_decode_longitude(longitude, std::string_view(longitude_match.first, longitude_match.length()), *match[5].first))
+		if (!aprs_decode_longitude(longitude, std::string_view(&*longitude_match.first, longitude_match.length()), *match[5].first))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_POSITION;
@@ -1720,13 +1722,13 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 		float     longitude;
 		auto&     longitude_match = match[6];
 
-		if (!aprs_decode_time(time, std::string_view(time_match.first, time_match.length()), *match[2].first))
+		if (!aprs_decode_time(time, std::string_view(&*time_match.first, time_match.length()), *match[2].first))
 			return false;
 
-		if (!aprs_decode_latitude(latitude, std::string_view(latitude_match.first, latitude_match.length()), *match[4].first))
+		if (!aprs_decode_latitude(latitude, std::string_view(&*latitude_match.first, latitude_match.length()), *match[4].first))
 			return false;
 
-		if (!aprs_decode_longitude(longitude, std::string_view(longitude_match.first, longitude_match.length()), *match[7].first))
+		if (!aprs_decode_longitude(longitude, std::string_view(&*longitude_match.first, longitude_match.length()), *match[7].first))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_POSITION;
@@ -1752,7 +1754,7 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 		aprs_compressed_location location;
 		auto&                    location_match = match[1];
 
-		if (!aprs_decode_compressed_location(location, std::string_view(location_match.first, location_match.length())))
+		if (!aprs_decode_compressed_location(location, std::string_view(&*location_match.first, location_match.length())))
 			return false;
 
 		packet->type       = APRS_PACKET_TYPE_POSITION;
@@ -1800,15 +1802,15 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 		return false;
 
 	auto&            analog_1_match = match[3];
-	std::string_view analog_1(analog_1_match.first, analog_1_match.length());
+	std::string_view analog_1(&*analog_1_match.first, analog_1_match.length());
 	auto&            analog_2_match = match[5];
-	std::string_view analog_2(analog_2_match.first, analog_2_match.length());
+	std::string_view analog_2(&*analog_2_match.first, analog_2_match.length());
 	auto&            analog_3_match = match[7];
-	std::string_view analog_3(analog_3_match.first, analog_3_match.length());
+	std::string_view analog_3(&*analog_3_match.first, analog_3_match.length());
 	auto&            analog_4_match = match[9];
-	std::string_view analog_4(analog_4_match.first, analog_4_match.length());
+	std::string_view analog_4(&*analog_4_match.first, analog_4_match.length());
 	auto&            analog_5_match = match[11];
-	std::string_view analog_5(analog_5_match.first, analog_5_match.length());
+	std::string_view analog_5(&*analog_5_match.first, analog_5_match.length());
 	auto&            digital_match  = match[13];
 	auto&            sequence_match = match[1];
 
@@ -1818,8 +1820,8 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 		.comment = match[14].str()
 	};
 
-	std::from_chars(digital_match.first, digital_match.first + digital_match.length(), packet->telemetry->digital);
-	std::from_chars(sequence_match.first, sequence_match.first + sequence_match.length(), packet->telemetry->sequence);
+	std::from_chars(&*digital_match.first, &*digital_match.first + digital_match.length(), packet->telemetry->digital);
+	std::from_chars(&*sequence_match.first, &*sequence_match.first + sequence_match.length(), packet->telemetry->sequence);
 
 	if (!aprs_string_contains(analog_1, '.') && !aprs_string_contains(analog_2, '.') && !aprs_string_contains(analog_3, '.') && !aprs_string_contains(analog_4, '.') && !aprs_string_contains(analog_5, '.'))
 	{
@@ -1831,11 +1833,11 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 		packet->telemetry->analog_u8_c[4] = &packet->telemetry->analog_u8[4];
 		packet->telemetry->analog_u8_c[5] = nullptr;
 
-		std::from_chars(analog_1_match.first, analog_1_match.first + analog_1_match.length(), packet->telemetry->analog_u8[0]);
-		std::from_chars(analog_2_match.first, analog_2_match.first + analog_2_match.length(), packet->telemetry->analog_u8[1]);
-		std::from_chars(analog_3_match.first, analog_3_match.first + analog_3_match.length(), packet->telemetry->analog_u8[2]);
-		std::from_chars(analog_4_match.first, analog_4_match.first + analog_4_match.length(), packet->telemetry->analog_u8[3]);
-		std::from_chars(analog_5_match.first, analog_5_match.first + analog_5_match.length(), packet->telemetry->analog_u8[4]);
+		std::from_chars(&*analog_1_match.first, &*analog_1_match.first + analog_1_match.length(), packet->telemetry->analog_u8[0]);
+		std::from_chars(&*analog_2_match.first, &*analog_2_match.first + analog_2_match.length(), packet->telemetry->analog_u8[1]);
+		std::from_chars(&*analog_3_match.first, &*analog_3_match.first + analog_3_match.length(), packet->telemetry->analog_u8[2]);
+		std::from_chars(&*analog_4_match.first, &*analog_4_match.first + analog_4_match.length(), packet->telemetry->analog_u8[3]);
+		std::from_chars(&*analog_5_match.first, &*analog_5_match.first + analog_5_match.length(), packet->telemetry->analog_u8[4]);
 	}
 	else
 	{
@@ -1847,11 +1849,11 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 		packet->telemetry->analog_float_c[4] = &packet->telemetry->analog_float[4];
 		packet->telemetry->analog_float_c[5] = nullptr;
 
-		std::from_chars(analog_1_match.first, analog_1_match.first + analog_1_match.length(), packet->telemetry->analog_float[0]);
-		std::from_chars(analog_2_match.first, analog_2_match.first + analog_2_match.length(), packet->telemetry->analog_float[1]);
-		std::from_chars(analog_3_match.first, analog_3_match.first + analog_3_match.length(), packet->telemetry->analog_float[2]);
-		std::from_chars(analog_4_match.first, analog_4_match.first + analog_4_match.length(), packet->telemetry->analog_float[3]);
-		std::from_chars(analog_5_match.first, analog_5_match.first + analog_5_match.length(), packet->telemetry->analog_float[4]);
+		std::from_chars(&*analog_1_match.first, &*analog_1_match.first + analog_1_match.length(), packet->telemetry->analog_float[0]);
+		std::from_chars(&*analog_2_match.first, &*analog_2_match.first + analog_2_match.length(), packet->telemetry->analog_float[1]);
+		std::from_chars(&*analog_3_match.first, &*analog_3_match.first + analog_3_match.length(), packet->telemetry->analog_float[2]);
+		std::from_chars(&*analog_4_match.first, &*analog_4_match.first + analog_4_match.length(), packet->telemetry->analog_float[3]);
+		std::from_chars(&*analog_5_match.first, &*analog_5_match.first + analog_5_match.length(), packet->telemetry->analog_float[4]);
 	}
 
 	return true;
@@ -2965,7 +2967,7 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_string(c
 	aprs_path*              path;
 	aprs_regex_match_result path_match;
 	auto&                   path_match3 = match[3];
-	std::string_view        path_string(path_match3.first, path_match3.length());
+	std::string_view        path_string(&*path_match3.first, path_match3.length());
 	std::string             path_q_igate[2] = { "", "" };
 
 	if (aprs_regex_match(path_match, regex_path_is, path_string))

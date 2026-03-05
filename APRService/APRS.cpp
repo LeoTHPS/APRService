@@ -589,15 +589,15 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 		return isdigit(value);
 	};
 
-	if (!aprs_validate_string(string, string_is_valid))
-		return false;
-
 	tm time = {};
 
 	switch (type)
 	{
 		case 'h': // HMS
 		{
+			if (!aprs_validate_string(string.substr(0, 6), string_is_valid))
+				return false;
+
 			auto hour = string.substr(0, 2);
 			auto min  = string.substr(2, 2);
 			auto sec  = string.substr(4, 2);
@@ -613,6 +613,9 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 		case 'z': // DHM
 		case '/':
 		{
+			if (!aprs_validate_string(string.substr(0, 6), string_is_valid))
+				return false;
+
 			auto mday = string.substr(0, 2);
 			auto hour = string.substr(2, 2);
 			auto min  = string.substr(4, 2);
@@ -627,6 +630,9 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 
 		case 0: // MDHM
 		{
+			if (!aprs_validate_string(string.substr(0, 8), string_is_valid))
+				return false;
+
 			auto mon  = string.substr(0, 2);
 			auto mday = string.substr(2, 2);
 			auto hour = string.substr(4, 2);
@@ -1599,7 +1605,7 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 
 	static auto decode_next_chunk = [](std::string_view& string, char& key, int& value)
 	{
-		if (!isalpha(string[0]) || (!isdigit(string[1]) && (string[1] != '.') && (string[1] != ' ')))
+		if (string.empty() || !isalpha(string[0]) || (!isdigit(string[1]) && (string[1] != '.') && (string[1] != ' ')))
 			return false;
 
 		size_t i     = 1;
@@ -1612,7 +1618,7 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 			value = 0x8000;
 		}
 
-		for (; string[i] && (isdigit(string[i]) || (string[i] == '.') || (string[i] == ' ')); ++i)
+		for (; (i < string.length()) && (isdigit(string[i]) || (string[i] == '.') || (string[i] == ' ')); ++i)
 			switch (string[i])
 			{
 				case '.':
@@ -1624,7 +1630,7 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 					break;
 			}
 
-		string = string.substr(0, i);
+		string = string.substr(i);
 
 		return true;
 	};

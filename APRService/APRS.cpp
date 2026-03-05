@@ -1466,7 +1466,7 @@ bool               aprs_packet_decode_message_telemetry_params(aprs_packet* pack
 		packet->telemetry->params[packet->telemetry->params_count]   = param;
 		packet->telemetry->params_c[packet->telemetry->params_count] = packet->telemetry->params[packet->telemetry->params_count].c_str();
 	}
-	while ((++packet->telemetry->params_count < 13) && (param = strtok(nullptr, ",")));
+	while ((++packet->telemetry->params_count < packet->telemetry->params.max_size()) && (param = strtok(nullptr, ",")));
 
 	return true;
 }
@@ -1483,7 +1483,7 @@ bool               aprs_packet_decode_message_telemetry_units(aprs_packet* packe
 		packet->telemetry->units[packet->telemetry->units_count]   = unit;
 		packet->telemetry->units_c[packet->telemetry->units_count] = packet->telemetry->units[packet->telemetry->units_count].c_str();
 	}
-	while ((++packet->telemetry->units_count < 13) && (unit = strtok(nullptr, ",")));
+	while ((++packet->telemetry->units_count < packet->telemetry->units.max_size()) && (unit = strtok(nullptr, ",")));
 
 	return true;
 }

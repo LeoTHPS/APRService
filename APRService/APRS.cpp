@@ -381,8 +381,12 @@ bool               aprs_validate_string(std::string_view value, bool(*is_char_va
 	size_t i = 0;
 
 	for (auto c : value)
+	{
 		if (!is_char_valid(i, c))
 			return false;
+
+		++i;
+	}
 
 	return true;
 }
@@ -693,7 +697,7 @@ bool               aprs_decode_longitude(float& value, std::string_view string, 
 			case 4:
 			case 6:
 			case 7:
-				return isdigit(value);
+				return (value == ' ') || ((value >= '0') && (value <= '9'));
 
 			case 5:
 				return value == '.';

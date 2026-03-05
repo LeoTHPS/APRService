@@ -1828,7 +1828,7 @@ bool               aprs_packet_decode_position_messaging(aprs_packet* packet)
 }
 bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 {
-	static const aprs_regex_pattern regex("^T#(\\d{3}|)(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{0,3}\\.?\\d{0,3}))(,(\\d{8}))(.*)$");
+	static const aprs_regex_pattern regex("^T#(\\d+?)(,(\\d*\\.?\\d*))(,(\\d*\\.?\\d*))(,(\\d*\\.?\\d*))(,(\\d*\\.?\\d*))(,(\\d*\\.?\\d*))(,(\\d{8}))(.*)$");
 
 	aprs_regex_match_result match;
 

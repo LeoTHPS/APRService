@@ -1605,7 +1605,7 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 
 	static auto decode_next_chunk = [](std::string_view& string, char& key, int& value)
 	{
-		if (string.empty() || !isalpha(string[0]) || (!isdigit(string[1]) && (string[1] != '.') && (string[1] != ' ')))
+		if ((string.length() < 2) || !isalpha(string[0]) || (!isdigit(string[1]) && (string[1] != '.') && (string[1] != ' ')))
 			return false;
 
 		size_t i     = 1;

@@ -150,6 +150,7 @@ APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_wait_for
 
 APRSERVICE_EXPORT struct aprservice_task*    APRSERVICE_CALL aprservice_task_schedule(struct aprservice* service, uint32_t seconds, aprservice_task_handler handler, void* param);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_task_cancel(struct aprservice_task* task);
+APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_task_get_handler(struct aprservice_task* task, aprservice_task_handler* handler, void** param);
 APRSERVICE_EXPORT struct aprservice*         APRSERVICE_CALL aprservice_task_get_service(struct aprservice_task* task);
 
 APRSERVICE_EXPORT struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course);
@@ -197,6 +198,8 @@ APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_object_a
 APRSERVICE_EXPORT struct aprservice_command* APRSERVICE_CALL aprservice_command_register(struct aprservice* service, const char* name, const char* help, aprservice_command_handler handler, void* param);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_command_unregister(struct aprservice_command* command);
 APRSERVICE_EXPORT const char*                APRSERVICE_CALL aprservice_command_get_help(struct aprservice_command* command);
+APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_command_get_filter(struct aprservice_command* command, aprservice_command_filter_handler* handler, void** param);
+APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_command_get_handler(struct aprservice_command* command, aprservice_command_handler* handler, void** param);
 APRSERVICE_EXPORT struct aprservice*         APRSERVICE_CALL aprservice_command_get_service(struct aprservice_command* command);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_command_set_help(struct aprservice_command* command, const char* value);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_command_set_filter(struct aprservice_command* command, aprservice_command_filter_handler handler, void* param);

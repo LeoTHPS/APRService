@@ -2924,6 +2924,11 @@ void                       APRSERVICE_CALL aprservice_task_cancel(struct aprserv
 		}
 	}
 }
+void                       APRSERVICE_CALL aprservice_task_get_handler(struct aprservice_task* task, aprservice_task_handler* handler, void** param)
+{
+	*param   = task->handler_param;
+	*handler = task->handler;
+}
 struct aprservice*         APRSERVICE_CALL aprservice_task_get_service(struct aprservice_task* task)
 {
 	return task->service;
@@ -3490,6 +3495,16 @@ void                       APRSERVICE_CALL aprservice_command_unregister(struct 
 const char*                APRSERVICE_CALL aprservice_command_get_help(struct aprservice_command* command)
 {
 	return command->help.c_str();
+}
+void                       APRSERVICE_CALL aprservice_command_get_filter(struct aprservice_command* command, aprservice_command_filter_handler* handler, void** param)
+{
+	*param   = command->filter_param;
+	*handler = command->filter;
+}
+void                       APRSERVICE_CALL aprservice_command_get_handler(struct aprservice_command* command, aprservice_command_handler* handler, void** param)
+{
+	*param   = command->handler_param;
+	*handler = command->handler;
 }
 struct aprservice*         APRSERVICE_CALL aprservice_command_get_service(struct aprservice_command* command)
 {

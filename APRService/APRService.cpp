@@ -1708,6 +1708,25 @@ uint32_t                   APRSERVICE_CALL aprservice_get_connection_timeout(str
 {
 	return service->connection_timeout;
 }
+bool                       APRSERVICE_CALL aprservice_get_event_handler(struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler* handler, void** param)
+{
+	if (event >= APRSERVICE_EVENTS_COUNT)
+		return false;
+
+	auto context = &service->events[event];
+
+	*handler = context->handler;
+	*param   = context->handler_param;
+
+	return true;
+}
+void                       APRSERVICE_CALL aprservice_get_default_event_handler(struct aprservice* service, aprservice_event_handler* handler, void** param)
+{
+	auto context = &service->events[APRSERVICE_EVENTS_COUNT];
+
+	*handler = context->handler;
+	*param   = context->handler_param;
+}
 bool                       APRSERVICE_CALL aprservice_set_path(struct aprservice* service, struct aprs_path* value)
 {
 	if (!value)
@@ -1831,10 +1850,14 @@ bool                       APRSERVICE_CALL aprservice_set_position_type(struct a
 
 	return false;
 }
-void                       APRSERVICE_CALL aprservice_set_event_handler(struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler handler, void* param)
+bool                       APRSERVICE_CALL aprservice_set_event_handler(struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler handler, void* param)
 {
-	if (event < APRSERVICE_EVENTS_COUNT)
-		service->events[event] = { .handler = handler, .handler_param = param };
+	if (event >= APRSERVICE_EVENTS_COUNT)
+		return false;
+
+	service->events[event] = { .handler = handler, .handler_param = param };
+
+	return true;
 }
 void                       APRSERVICE_CALL aprservice_set_default_event_handler(struct aprservice* service, aprservice_event_handler handler, void* param)
 {

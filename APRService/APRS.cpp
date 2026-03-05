@@ -1828,7 +1828,7 @@ bool               aprs_packet_decode_position_messaging(aprs_packet* packet)
 }
 bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 {
-	static const aprs_regex_pattern regex("^T#(\\d+?)(,(\\d*\\.?\\d*))(,(\\d*\\.?\\d*))(,(\\d*\\.?\\d*))(,(\\d*\\.?\\d*))(,(\\d*\\.?\\d*))(,(\\d{8}))(.*)$");
+	static const aprs_regex_pattern regex("^T#(\\d+?)(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(\\d{8}))(.*)$");
 
 	aprs_regex_match_result match;
 
@@ -1857,7 +1857,8 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 	std::from_chars(&*digital_match.first, &*digital_match.first + digital_match.length(), packet->telemetry->digital);
 	std::from_chars(&*sequence_match.first, &*sequence_match.first + sequence_match.length(), packet->telemetry->sequence);
 
-	if (!aprs_string_contains(analog_1, '.') && !aprs_string_contains(analog_2, '.') && !aprs_string_contains(analog_3, '.') && !aprs_string_contains(analog_4, '.') && !aprs_string_contains(analog_5, '.'))
+	if (!analog_1.starts_with('-') && !analog_2.starts_with('.') && !analog_3.starts_with('.') && !analog_4.starts_with('.') && !analog_5.starts_with('.') &&
+		!aprs_string_contains(analog_1, '.') && !aprs_string_contains(analog_2, '.') && !aprs_string_contains(analog_3, '.') && !aprs_string_contains(analog_4, '.') && !aprs_string_contains(analog_5, '.'))
 	{
 		packet->telemetry->type           = APRS_TELEMETRY_TYPE_U8;
 		packet->telemetry->analog_u8_c[0] = &packet->telemetry->analog_u8[0];

@@ -136,7 +136,7 @@ APRSERVICE_EXPORT void                              APRSERVICE_CALL aprs_path_ad
 
 APRSERVICE_EXPORT struct aprs_time*                 APRSERVICE_CALL aprs_time_now();
 APRSERVICE_EXPORT int                               APRSERVICE_CALL aprs_time_get_type(const struct aprs_time* time);
-APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_get_dms(const struct aprs_time* time, uint8_t* day, uint8_t* minute, uint8_t* second);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_get_dhm(const struct aprs_time* time, uint8_t* day, uint8_t* hour, uint8_t* minute);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_get_hms(const struct aprs_time* time, uint8_t* hour, uint8_t* minute, uint8_t* second);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_get_mdhm(const struct aprs_time* time, uint8_t* month, uint8_t* day, uint8_t* hour, uint8_t* minute);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_compare(const struct aprs_time* time, const struct aprs_time* time2);

@@ -2643,14 +2643,14 @@ int                               APRSERVICE_CALL aprs_time_get_type(const struc
 {
 	return time->type;
 }
-bool                              APRSERVICE_CALL aprs_time_get_dms(const struct aprs_time* time, uint8_t* day, uint8_t* minute, uint8_t* second)
+bool                              APRSERVICE_CALL aprs_time_get_dhm(const struct aprs_time* time, uint8_t* day, uint8_t* hour, uint8_t* minute)
 {
 	if (!(time->type & APRS_TIME_DHM))
 		return false;
 
 	*day    = time->tm_mday;
+	*hour   = time->tm_hour;
 	*minute = time->tm_min;
-	*second = time->tm_sec;
 
 	return true;
 }

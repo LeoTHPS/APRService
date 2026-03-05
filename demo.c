@@ -10,6 +10,7 @@
 
 struct demo
 {
+	FILE*              file;
 	struct aprs_path*  path;
 	struct aprservice* service;
 };
@@ -74,9 +75,14 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 
 				case APRS_PACKET_TYPE_RAW:
 				{
+					const char* string  = aprs_packet_to_string(packet);
 					const char* content = aprs_packet_get_content(packet);
 
 					printf("[Packet] [From: %s] %s\n", sender, content);
+
+					fwrite(string, 1, strlen(string), d->file);
+					fwrite("\n", 1, 1, d->file);
+					fflush(d->file);
 				}
 				break;
 
@@ -121,7 +127,7 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 					{
 						uint8_t object_time_value[3] = {};
 
-						if (aprs_time_get_dms(object_time, &object_time_value[0], &object_time_value[1], &object_time_value[2]))
+						if (aprs_time_get_dhm(object_time, &object_time_value[0], &object_time_value[1], &object_time_value[2]))
 							printf("[Time.DMS: %u:%02u:%02u] ", object_time_value[0], object_time_value[1], object_time_value[2]);
 						else if (aprs_time_get_hms(object_time, &object_time_value[0], &object_time_value[1], &object_time_value[2]))
 							printf("[Time.HMS: %u:%02u:%02u] ", object_time_value[0], object_time_value[1], object_time_value[2]);
@@ -142,7 +148,7 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 					{
 						uint8_t status_time_value[3];
 
-						if (aprs_time_get_dms(status_time, &status_time_value[0], &status_time_value[1], &status_time_value[2]))
+						if (aprs_time_get_dhm(status_time, &status_time_value[0], &status_time_value[1], &status_time_value[2]))
 							printf("[Time.DMS: %u:%02u:%02u] ", status_time_value[0], status_time_value[1], status_time_value[2]);
 						else if (aprs_time_get_hms(status_time, &status_time_value[0], &status_time_value[1], &status_time_value[2]))
 							printf("[Time.HMS: %u:%02u:%02u] ", status_time_value[0], status_time_value[1], status_time_value[2]);
@@ -224,7 +230,7 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 						const struct aprs_time* position_time          = aprs_packet_position_get_time(packet);
 						uint8_t                 position_time_value[3] = {};
 
-						if (aprs_time_get_dms(position_time, &position_time_value[0], &position_time_value[1], &position_time_value[2]))
+						if (aprs_time_get_dhm(position_time, &position_time_value[0], &position_time_value[1], &position_time_value[2]))
 							printf("[Time.DMS: %u:%02u:%02u] ", position_time_value[0], position_time_value[1], position_time_value[2]);
 						else if (aprs_time_get_hms(position_time, &position_time_value[0], &position_time_value[1], &position_time_value[2]))
 							printf("[Time.HMS: %u:%02u:%02u] ", position_time_value[0], position_time_value[1], position_time_value[2]);
@@ -457,9 +463,18 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 
 bool    demo_init(struct demo* d)
 {
+	if ((d->file = fopen("demo.log", "w+")) == NULL)
+	{
+		printf("Error opening demo.log\n");
+
+		return false;
+	}
+
 	if (!(d->path = aprs_path_init_from_string(APRS_STATION_PATH)))
 	{
 		printf("Error initializing path \"" APRS_STATION_PATH "\"\n");
+
+		fclose(d->file);
 
 		return false;
 	}
@@ -469,6 +484,7 @@ bool    demo_init(struct demo* d)
 		printf("Error initializing service\n");
 
 		aprs_path_deinit(d->path);
+		fclose(d->file);
 
 		return false;
 	}
@@ -479,6 +495,7 @@ bool    demo_init(struct demo* d)
 
 		aprservice_deinit(d->service);
 		aprs_path_deinit(d->path);
+		fclose(d->file);
 
 		return false;
 	}
@@ -489,6 +506,7 @@ bool    demo_init(struct demo* d)
 
 		aprservice_deinit(d->service);
 		aprs_path_deinit(d->path);
+		fclose(d->file);
 
 		return false;
 	}
@@ -499,6 +517,7 @@ bool    demo_init(struct demo* d)
 
 		aprservice_deinit(d->service);
 		aprs_path_deinit(d->path);
+		fclose(d->file);
 
 		return false;
 	}
@@ -518,6 +537,7 @@ void    demo_deinit(struct demo* d)
 {
 	aprservice_deinit(d->service);
 	aprs_path_deinit(d->path);
+	fclose(d->file);
 }
 
 #define demo_connect                       demo_connect_aprs_is

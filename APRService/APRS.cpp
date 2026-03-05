@@ -1224,18 +1224,21 @@ bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 }
 bool               aprs_packet_decode_item(aprs_packet* packet)
 {
-	static const aprs_regex_pattern regex("^\\)([^ !_]{3,9}) *([!_])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static const aprs_regex_pattern regex_compressed("^\\)([^ !_]{3,9}) *([!_])(.{13})(.*)$");
+	static const aprs_regex_pattern regex("^\\)([^!_]{3,9})([!_])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const aprs_regex_pattern regex_compressed("^\\)([^!_]{3,9})([!_])(.{13})(.*)$");
 
 	aprs_regex_match_result match;
 
 	if (aprs_regex_match(match, regex, packet->content))
 	{
-		float latitude;
-		auto  latitude_match = match[3];
+		auto&            name_match = match[1];
+		std::string_view name(&*name_match.first, name_match.length());
 
-		float longitude;
-		auto  longitude_match = match[6];
+		float            latitude;
+		auto&            latitude_match = match[3];
+
+		float            longitude;
+		auto&            longitude_match = match[6];
 
 		if (!aprs_decode_latitude(latitude, std::string_view(&*latitude_match.first, latitude_match.length()), *match[4].first))
 			return false;
@@ -1243,13 +1246,16 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 		if (!aprs_decode_longitude(longitude, std::string_view(&*longitude_match.first, longitude_match.length()), *match[7].first))
 			return false;
 
+		if (auto i = name.find_last_not_of(' '); i != std::string_view::npos)
+			name = name.substr(0, i + 1);
+
 		packet->type       = APRS_PACKET_TYPE_ITEM;
 		packet->extensions = {};
 		packet->item       = new aprs_packet_item
 		{
 			.is_alive         = *match[2].first == '!',
 			.is_compressed    = false,
-			.name             = match[1].str(),
+			.name             = std::string(name.data(), name.length()),
 			.comment          = match[9].str(),
 			.latitude         = latitude,
 			.longitude        = longitude,
@@ -1264,8 +1270,14 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 
 	if (aprs_regex_match(match, regex_compressed, packet->content))
 	{
+		auto&                    name_match = match[1];
+		std::string_view         name(&*name_match.first, name_match.length());
+
 		aprs_compressed_location location;
 		auto&                    location_match = match[3];
+
+		if (auto i = name.find_last_not_of(' '); i != std::string_view::npos)
+			name = name.substr(0, i + 1);
 
 		if (!aprs_decode_compressed_location(location, std::string_view(&*location_match.first, location_match.length())))
 			return false;
@@ -1276,7 +1288,7 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 		{
 			.is_alive         = *match[2].first == '!',
 			.is_compressed    = true,
-			.name             = match[1].str(),
+			.name             = std::string(name.data(), name.length()),
 			.comment          = match[4].str(),
 			.latitude         = location.latitude,
 			.longitude        = location.longitude,
@@ -1309,21 +1321,27 @@ bool               aprs_packet_decode_query(aprs_packet* packet)
 }
 bool               aprs_packet_decode_object(aprs_packet* packet)
 {
-	static const aprs_regex_pattern regex("^;([^ *_]{3,9}) *([*_])(\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static const aprs_regex_pattern regex_compressed("^;([^ *_]{3,9}) *([*_])(\\d{6})([z\\/h])(.{13})(.*)$");
+	static const aprs_regex_pattern regex("^;(.{9})([*_])(\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const aprs_regex_pattern regex_compressed("^;(.{9})([*_])(\\d{6})([z\\/h])(.{13})(.*)$");
 
 	aprs_time               time;
 	aprs_regex_match_result match;
 
 	if (aprs_regex_match(match, regex, packet->content))
 	{
-		auto  time_match = match[3];
+		auto&            name_match = match[1];
+		std::string_view name(&*name_match.first, name_match.length());
 
-		float latitude;
-		auto  latitude_match = match[5];
+		auto             time_match = match[3];
 
-		float longitude;
-		auto  longitude_match = match[8];
+		float            latitude;
+		auto&            latitude_match = match[5];
+
+		float            longitude;
+		auto&            longitude_match = match[8];
+
+		if (auto i = name.find_last_not_of(' '); i != std::string_view::npos)
+			name = name.substr(0, i + 1);
 
 		if (!aprs_decode_time(time, std::string_view(&*time_match.first, time_match.length()), *match[4].first))
 			return false;
@@ -1341,7 +1359,7 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 			.is_alive         = *match[2].first == '*',
 			.is_compressed    = false,
 			.time             = time,
-			.name             = match[1].str(),
+			.name             = std::string(name.data(), name.length()),
 			.comment          = match[11].str(),
 			.latitude         = latitude,
 			.longitude        = longitude,
@@ -1356,10 +1374,16 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 
 	if (aprs_regex_match(match, regex_compressed, packet->content))
 	{
+		auto&                    name_match = match[1];
+		std::string_view         name(&*name_match.first, name_match.length());
+
 		auto&                    time_match = match[3];
 
 		aprs_compressed_location location;
 		auto&                    location_match = match[5];
+
+		if (auto i = name.find_last_not_of(' '); i != std::string_view::npos)
+			name = name.substr(0, i + 1);
 
 		if (!aprs_decode_time(time, std::string_view(&*time_match.first, time_match.length()), *match[4].first))
 			return false;
@@ -1374,7 +1398,7 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 			.is_alive         = *match[2].first == '*',
 			.is_compressed    = true,
 			.time             = time,
-			.name             = match[1].str(),
+			.name             = std::string(name.data(), name.length()),
 			.comment          = match[6].str(),
 			.latitude         = location.latitude,
 			.longitude        = location.longitude,

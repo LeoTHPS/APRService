@@ -125,7 +125,8 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 
 					if (object_time)
 					{
-						uint8_t object_time_value[3] = {};
+						uint8_t object_time_value[3];
+						memset(object_time_value, 0, 3);
 
 						if (aprs_time_get_dhm(object_time, &object_time_value[0], &object_time_value[1], &object_time_value[2]))
 							printf("[Time.DMS: %u:%02u:%02u] ", object_time_value[0], object_time_value[1], object_time_value[2]);
@@ -227,8 +228,10 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 
 					if (position_flags & APRS_POSITION_FLAG_TIME)
 					{
-						const struct aprs_time* position_time          = aprs_packet_position_get_time(packet);
-						uint8_t                 position_time_value[3] = {};
+						const struct aprs_time* position_time = aprs_packet_position_get_time(packet);
+						uint8_t                 position_time_value[3];
+
+						memset(position_time_value, 0, 3);
 
 						if (aprs_time_get_dhm(position_time, &position_time_value[0], &position_time_value[1], &position_time_value[2]))
 							printf("[Time.DMS: %u:%02u:%02u] ", position_time_value[0], position_time_value[1], position_time_value[2]);

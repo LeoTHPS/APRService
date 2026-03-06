@@ -1858,11 +1858,11 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 		.comment = match[14].str()
 	};
 
-	for (size_t i = 0, length = digital_match.length(); (i < 8) && (i < length); ++i)
+	for (size_t i = 0, length = digital_match.length(); (i < length); ++i)
 	{
 		auto c = digital_match.first[i];
 
-		packet->telemetry->digital |= (c - '0') << (7 - i);
+		packet->telemetry->digital |= (c - '0') << (length - i - 1);
 	}
 
 	std::from_chars(sequence_match.first, sequence_match.first + sequence_match.length(), packet->telemetry->sequence);

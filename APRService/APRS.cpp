@@ -2526,10 +2526,7 @@ struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(con
 	if (!string)
 		return nullptr;
 
-	// TODO: remove copy
-	std::string buffer(string);
-
-	return aprs_path_init_from_string(buffer);
+	return aprs_path_init_from_string(std::string_view(string));
 }
 void                              APRSERVICE_CALL aprs_path_deinit(struct aprs_path* path)
 {

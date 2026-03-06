@@ -4,6 +4,7 @@
 #include <cmath>
 #include <ctime>
 #include <regex>
+#include <ranges>
 #include <string>
 #include <cstring>
 #include <iomanip>
@@ -11,8 +12,6 @@
 #include <charconv>
 #include <iostream>
 #include <type_traits>
-
-// TODO: replace strtok with something like std::views::split
 
 // make sure this is never changed
 // logic depends on DHM being a subset of MDHM
@@ -456,19 +455,19 @@ bool               aprs_validate_user_defined_data(std::string_view value)
 	return true;
 }
 
-bool               aprs_extract_path_node(std::string& station, bool& repeated, const char* value)
+bool               aprs_extract_path_node(std::string& station, bool& repeated, std::string_view value)
 {
 	size_t length      = 0;
 	       repeated    = false;
 	int    ssid_offset = -1;
 
-	for (int i = 0; *value && (length < 10); ++i, ++length, ++value)
-		if ((*value == '-') && (ssid_offset == -1))
+	for (int i = 0; (i < value.length()) && (length < 10); ++i, ++length)
+		if ((value[i] == '-') && (ssid_offset == -1))
 			ssid_offset = i;
-		else if ((*value < '0') || (*value > '9'))
-			if ((*value < 'A') || (*value > 'Z'))
+		else if ((value[i] < '0') || (value[i] > '9'))
+			if ((value[i] < 'A') || (value[i] > 'Z'))
 			{
-				if ((*value == '*') && !value[1])
+				if ((value[i] == '*') && (value.length() - i - 1) && !value[i + 1])
 				{
 					repeated = true;
 
@@ -484,7 +483,7 @@ bool               aprs_extract_path_node(std::string& station, bool& repeated, 
 	if ((ssid_offset != -1) && (ssid_offset < (length - 3)))
 		return false;
 
-	station.assign(&value[-length], length);
+	station.assign(value.data(), length);
 
 	return true;
 }
@@ -1464,12 +1463,14 @@ bool               aprs_packet_decode_message_telemetry_params(aprs_packet* pack
 		.type = APRS_TELEMETRY_TYPE_PARAMS
 	};
 
-	if (auto param = strtok((char*)content.data(), ",")) do
+	for (auto param : std::views::split(content, ','))
 	{
-		packet->telemetry->params[packet->telemetry->params_count]   = param;
+		packet->telemetry->params[packet->telemetry->params_count].assign(param.begin(), param.end());
 		packet->telemetry->params_c[packet->telemetry->params_count] = packet->telemetry->params[packet->telemetry->params_count].c_str();
+
+		if (++packet->telemetry->params_count == packet->telemetry->params.max_size())
+			break;
 	}
-	while ((++packet->telemetry->params_count < packet->telemetry->params.max_size()) && (param = strtok(nullptr, ",")));
 
 	return true;
 }
@@ -1481,12 +1482,14 @@ bool               aprs_packet_decode_message_telemetry_units(aprs_packet* packe
 		.type = APRS_TELEMETRY_TYPE_UNITS
 	};
 
-	if (auto unit = strtok((char*)content.data(), ",")) do
+	for (auto unit : std::views::split(content, ','))
 	{
-		packet->telemetry->units[packet->telemetry->units_count]   = unit;
+		packet->telemetry->units[packet->telemetry->units_count].assign(unit.begin(), unit.end());
 		packet->telemetry->units_c[packet->telemetry->units_count] = packet->telemetry->units[packet->telemetry->units_count].c_str();
+
+		if (++packet->telemetry->units_count == packet->telemetry->units.max_size())
+			break;
 	}
-	while ((++packet->telemetry->units_count < packet->telemetry->units.max_size()) && (unit = strtok(nullptr, ",")));
 
 	return true;
 }
@@ -1498,25 +1501,40 @@ bool               aprs_packet_decode_message_telemetry_eqns(aprs_packet* packet
 		.type = APRS_TELEMETRY_TYPE_EQNS
 	};
 
-	const char* chunks[15]   = {};
-	size_t      chunks_count = 0;
+	float  values[3];
+	size_t values_count = 0;
 
-	if (auto chunk = strtok((char*)content.data(), ",")) do
-		chunks[chunks_count] = chunk;
-	while ((++chunks_count < 15) && (chunk = strtok(nullptr, ",")));
-
-	for (size_t i = 0; i < 5; ++i, ++packet->telemetry->eqns_count)
+	for (auto chunk : std::views::split(content, ','))
 	{
-		if (auto chunk = chunks[i * 3])
-			packet->telemetry->eqns[i].a = strtof(chunk, nullptr);
+		std::from_chars(chunk.begin(), chunk.end(), values[values_count % 3]);
 
-		if (auto chunk = chunks[(i * 3) + 1])
-			packet->telemetry->eqns[i].b = strtof(chunk, nullptr);
+		switch (++values_count)
+		{
+			case 3:
+				packet->telemetry->eqns[0]  = { values[0], values[1], values[2] };
+				packet->telemetry->eqns_c[0] = &packet->telemetry->eqns[0];
+				break;
 
-		if (auto chunk = chunks[(i * 3) + 2])
-			packet->telemetry->eqns[i].c = strtof(chunk, nullptr);
+			case 6:
+				packet->telemetry->eqns[1]  = { values[0], values[1], values[2] };
+				packet->telemetry->eqns_c[1] = &packet->telemetry->eqns[1];
+				break;
 
-		packet->telemetry->eqns_c[i] = &packet->telemetry->eqns[i];
+			case 9:
+				packet->telemetry->eqns[2]  = { values[0], values[1], values[2] };
+				packet->telemetry->eqns_c[2] = &packet->telemetry->eqns[2];
+				break;
+
+			case 12:
+				packet->telemetry->eqns[3]  = { values[0], values[1], values[2] };
+				packet->telemetry->eqns_c[3] = &packet->telemetry->eqns[3];
+				break;
+
+			case 15:
+				packet->telemetry->eqns[4]  = { values[0], values[1], values[2] };
+				packet->telemetry->eqns_c[4] = &packet->telemetry->eqns[4];
+				return true;
+		}
 	}
 
 	return true;
@@ -1530,14 +1548,16 @@ bool               aprs_packet_decode_message_telemetry_bits(aprs_packet* packet
 		.digital = 0
 	};
 
-	if (auto bits = strtok((char*)content.data(), ","))
+	if (auto i = content.find_first_of(','); i != std::string_view::npos)
 	{
+		auto bits = content.substr(0, i);
+
 		for (size_t i = 0; i < 8; ++i)
 			if (bits[i] != '0')
 				packet->telemetry->digital |= 1 << i;
 
-		if (auto comment = strtok(nullptr, ""))
-			packet->telemetry->comment = comment;
+		if (auto comment = content.substr(i + 1); !comment.empty())
+			packet->telemetry->comment.assign(comment.begin(), comment.end());
 	}
 
 	return true;
@@ -1859,11 +1879,8 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 	};
 
 	for (size_t i = 0, length = digital_match.length(); (i < length); ++i)
-	{
-		auto c = digital_match.first[i];
-
-		packet->telemetry->digital |= (c - '0') << (length - i - 1);
-	}
+		if (digital_match.first[i] != '0')
+			packet->telemetry->digital |= 1 << (length - i - 1);
 
 	std::from_chars(sequence_match.first, sequence_match.first + sequence_match.length(), packet->telemetry->sequence);
 
@@ -2481,7 +2498,7 @@ struct aprs_path*                                 aprs_path_init_from_string(std
 		.reference_count = 1
 	};
 
-	if (auto chunk = strtok((char*)string.data(), ",")) do
+	for (auto chunk : std::views::split(string, ','))
 	{
 		if (path->size == path->chunks.max_size())
 		{
@@ -2490,7 +2507,7 @@ struct aprs_path*                                 aprs_path_init_from_string(std
 			return nullptr;
 		}
 
-		if (!aprs_extract_path_node(path->chunks_stations[path->size], path->chunks[path->size].repeated, chunk))
+		if (!aprs_extract_path_node(path->chunks_stations[path->size], path->chunks[path->size].repeated, std::string_view(chunk.begin(), chunk.end())))
 		{
 			delete path;
 
@@ -2500,7 +2517,7 @@ struct aprs_path*                                 aprs_path_init_from_string(std
 		path->chunks[path->size].station = path->chunks_stations[path->size].c_str();
 
 		++path->size;
-	} while (chunk = strtok(nullptr, ","));
+	}
 
 	return path;
 }

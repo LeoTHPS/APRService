@@ -1832,7 +1832,7 @@ bool               aprs_packet_decode_position_messaging(aprs_packet* packet)
 }
 bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 {
-	static const aprs_regex_pattern regex("^T#(\\d+)(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(\\d{8}))(.*)$");
+	static const aprs_regex_pattern regex("^T#(\\d+)(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(\\d{1,8}))(.*)$");
 
 	aprs_regex_match_result match;
 
@@ -1858,7 +1858,13 @@ bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 		.comment = match[14].str()
 	};
 
-	std::from_chars(digital_match.first, digital_match.first + digital_match.length(), packet->telemetry->digital);
+	for (size_t i = 0, length = digital_match.length(); (i < 8) && (i < length); ++i)
+	{
+		auto c = digital_match.first[i];
+
+		packet->telemetry->digital |= (c - '0') << (7 - i);
+	}
+
 	std::from_chars(sequence_match.first, sequence_match.first + sequence_match.length(), packet->telemetry->sequence);
 
 	if (!analog_1.starts_with('-') && !analog_2.starts_with('.') && !analog_3.starts_with('.') && !analog_4.starts_with('.') && !analog_5.starts_with('.') &&

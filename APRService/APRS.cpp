@@ -1506,7 +1506,7 @@ bool               aprs_packet_decode_message_telemetry_eqns(aprs_packet* packet
 
 	for (auto chunk : std::views::split(content, ','))
 	{
-		std::from_chars(chunk.begin(), chunk.end(), values[values_count % 3]);
+		std::from_chars(chunk.data(), chunk.data() + chunk.size(), values[values_count % 3]);
 
 		switch (++values_count)
 		{

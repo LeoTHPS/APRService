@@ -2545,6 +2545,10 @@ uint8_t                           APRSERVICE_CALL aprs_path_get_capacity(struct 
 {
 	return path->chunks.max_size();
 }
+size_t                            APRSERVICE_CALL aprs_path_get_reference_count(struct aprs_path* path)
+{
+	return path->reference_count;
+}
 bool                              APRSERVICE_CALL aprs_path_set(struct aprs_path* path, uint8_t index, const char* station, bool repeated)
 {
 	if (!station)
@@ -3178,6 +3182,10 @@ const char*                       APRSERVICE_CALL aprs_packet_get_sender(struct 
 const char*                       APRSERVICE_CALL aprs_packet_get_content(struct aprs_packet* packet)
 {
 	return packet->content.c_str();
+}
+size_t                            APRSERVICE_CALL aprs_packet_get_reference_count(struct aprs_packet* packet)
+{
+	return packet->reference_count;
 }
 bool                              APRSERVICE_CALL aprs_packet_set_path(struct aprs_packet* packet, struct aprs_path* value)
 {

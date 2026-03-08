@@ -126,6 +126,7 @@ APRSERVICE_EXPORT void                              APRSERVICE_CALL aprs_path_de
 APRSERVICE_EXPORT const struct aprs_path_node*      APRSERVICE_CALL aprs_path_get(struct aprs_path* path);
 APRSERVICE_EXPORT uint8_t                           APRSERVICE_CALL aprs_path_get_length(struct aprs_path* path);
 APRSERVICE_EXPORT uint8_t                           APRSERVICE_CALL aprs_path_get_capacity(struct aprs_path* path);
+APRSERVICE_EXPORT size_t                            APRSERVICE_CALL aprs_path_get_reference_count(struct aprs_path* path);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_path_set(struct aprs_path* path, uint8_t index, const char* station, bool repeated);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_path_pop(struct aprs_path* path);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_path_push(struct aprs_path* path, const char* station, bool repeated);
@@ -152,6 +153,7 @@ APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_packet_get_tocall(struct aprs_packet* packet);
 APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_packet_get_sender(struct aprs_packet* packet);
 APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_packet_get_content(struct aprs_packet* packet);
+APRSERVICE_EXPORT size_t                            APRSERVICE_CALL aprs_packet_get_reference_count(struct aprs_packet* packet);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_set_path(struct aprs_packet* packet, struct aprs_path* value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_set_tocall(struct aprs_packet* packet, const char* value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_set_sender(struct aprs_packet* packet, const char* value);

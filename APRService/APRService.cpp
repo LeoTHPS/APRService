@@ -966,7 +966,10 @@ int                                        aprservice_connection_read(aprservice
 					return 0;
 
 				case -1:
-					switch (errno)
+				{
+					auto error = errno;
+
+					switch (error)
 					{
 						case EAGAIN:
 	#if EAGAIN != EWOULDBLOCK
@@ -974,11 +977,15 @@ int                                        aprservice_connection_read(aprservice
 	#endif
 							return -1;
 
-						default:
+						case ECONNRESET:
 							aprservice_connection_close(connection);
-							break;
+							return 0;
 					}
-					return 0;
+
+					aprservice_log_error_ex(recv, error);
+					aprservice_connection_close(connection);
+				}
+				return 0;
 
 				default:
 					*number_of_bytes_received = bytes_received;
@@ -994,14 +1001,24 @@ int                                        aprservice_connection_read(aprservice
 					return 0;
 
 				case SOCKET_ERROR:
-					switch (WSAGetLastError())
+				{
+					auto error = WSAGetLastError();
+
+					switch (error)
 					{
 						case WSAEINPROGRESS:
 						case WSAEWOULDBLOCK:
 							return -1;
+
+						case WSAECONNRESET:
+							aprservice_connection_close(connection);
+							return 0;
 					}
+
+					aprservice_log_error_ex(recv, error);
 					aprservice_connection_close(connection);
-					return 0;
+				}
+				return 0;
 
 				default:
 					*number_of_bytes_received = bytes_received;
@@ -1075,15 +1092,22 @@ int                                        aprservice_connection_write(aprservic
 
 			if ((bytes_sent = send(connection->socket, buffer, size, 0)) == -1)
 			{
-				switch (errno)
+				auto error = errno;
+
+				switch (error)
 				{
 					case EAGAIN:
 	#if EAGAIN != EWOULDBLOCK
 					case EWOULDBLOCK:
 	#endif
 						return -1;
+
+					case ECONNRESET:
+						aprservice_connection_close(connection);
+						return 0;
 				}
 
+				aprservice_log_error_ex(send, error);
 				aprservice_connection_close(connection);
 
 				return 0;
@@ -1095,14 +1119,21 @@ int                                        aprservice_connection_write(aprservic
 
 			if ((bytes_sent = send(connection->socket, reinterpret_cast<const char*>(buffer), static_cast<int>(size), 0)) == SOCKET_ERROR)
 			{
-				switch (WSAGetLastError())
+				auto error = WSAGetLastError();
+
+				switch (error)
 				{
 					case WSAENOBUFS:
 					case WSAEINPROGRESS:
 					case WSAEWOULDBLOCK:
 						return -1;
+
+					case WSAECONNRESET:
+						aprservice_connection_close(connection);
+						return 0;
 				}
 
+				aprservice_log_error_ex(send, error);
 				aprservice_connection_close(connection);
 
 				return 0;

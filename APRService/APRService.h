@@ -81,6 +81,7 @@ struct aprservice_event_information_receive_message
 {
 	enum APRSERVICE_EVENTS type;
 	struct aprs_packet*    packet;
+	const char*            id;
 	const char*            sender;
 	const char*            content;
 	const char*            destination;

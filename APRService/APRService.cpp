@@ -2045,7 +2045,7 @@ bool                                       aprservice_poll_connection(struct apr
 					if (stricmp(aprservice_get_station(service), packet_message_destination))
 					{
 						if (aprservice_is_monitoring_enabled(service))
-							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
+							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .id = packet_message_id, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
 					}
 					else
 					{
@@ -2071,7 +2071,7 @@ bool                                       aprservice_poll_connection(struct apr
 						};
 
 						if (!execute_command(service, packet, packet_sender, packet_message_content))
-							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
+							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .id = packet_message_id, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
 					}
 					break;
 			}

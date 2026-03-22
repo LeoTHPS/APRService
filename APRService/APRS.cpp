@@ -2537,6 +2537,13 @@ const struct aprs_path_node*      APRSERVICE_CALL aprs_path_get(struct aprs_path
 {
 	return path->chunks.data();
 }
+const struct aprs_path_node*      APRSERVICE_CALL aprs_path_get_at(struct aprs_path* path, uint8_t index)
+{
+	if (index >= path->size)
+		return nullptr;
+
+	return &path->chunks[index];
+}
 uint8_t                           APRSERVICE_CALL aprs_path_get_length(struct aprs_path* path)
 {
 	return path->size;

@@ -124,6 +124,7 @@ APRSERVICE_EXPORT struct aprs_path*                 APRSERVICE_CALL aprs_path_in
 APRSERVICE_EXPORT struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(const char* string);
 APRSERVICE_EXPORT void                              APRSERVICE_CALL aprs_path_deinit(struct aprs_path* path);
 APRSERVICE_EXPORT const struct aprs_path_node*      APRSERVICE_CALL aprs_path_get(struct aprs_path* path);
+APRSERVICE_EXPORT const struct aprs_path_node*      APRSERVICE_CALL aprs_path_get_at(struct aprs_path* path, uint8_t index);
 APRSERVICE_EXPORT uint8_t                           APRSERVICE_CALL aprs_path_get_length(struct aprs_path* path);
 APRSERVICE_EXPORT uint8_t                           APRSERVICE_CALL aprs_path_get_capacity(struct aprs_path* path);
 APRSERVICE_EXPORT size_t                            APRSERVICE_CALL aprs_path_get_reference_count(struct aprs_path* path);

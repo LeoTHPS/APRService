@@ -155,33 +155,6 @@ struct aprservice_message_callback_context
 	void*                       callback_param;
 };
 
-struct aprservice
-{
-	bool                                                                            is_connected;
-	bool                                                                            is_monitoring;
-
-	std::string                                                                     line;
-	int64_t                                                                         time;
-
-	aprs_path*                                                                      path;
-	const std::string                                                               station;
-	aprservice_position                                                             position;
-	aprservice_connection*                                                          connection;
-	uint32_t                                                                        connection_timeout;
-
-	std::list<aprservice_item*>                                                     items;
-	std::map<uint64_t, std::list<aprservice_task*>>                                 tasks;
-	aprservice_event                                                                events[APRSERVICE_EVENTS_COUNT + 1];
-	std::list<aprservice_object*>                                                   objects;
-	std::unordered_map<std::string, aprservice_command*>                            commands;
-
-	uint16_t                                                                        message_count;
-	std::list<aprservice_message_callback_context*>                                 message_callbacks;
-	std::unordered_map<std::string, std::list<aprservice_message_callback_context>> message_callbacks_index;
-
-	uint16_t                                                                        telemetry_count;
-};
-
 struct aprservice_item
 {
 	aprservice*  service;
@@ -217,6 +190,35 @@ struct aprservice_command
 
 	aprservice_command_handler        handler;
 	void*                             handler_param;
+};
+
+struct aprservice
+{
+	bool                                                                            is_connected;
+	bool                                                                            is_monitoring;
+
+	std::string                                                                     line;
+	int64_t                                                                         time;
+
+	aprs_path*                                                                      path;
+	const std::string                                                               station;
+	aprservice_position                                                             position;
+	aprservice_connection*                                                          connection;
+	uint32_t                                                                        connection_timeout;
+
+	std::list<aprservice_item>                                                      items;
+	std::map<uint64_t, std::list<aprservice_task*>>                                 tasks;
+	aprservice_event                                                                events[APRSERVICE_EVENTS_COUNT + 1];
+	std::list<aprservice_object>                                                    objects;
+	std::list<aprservice_command>                                                   commands;
+
+	std::string                                                                     command_prefix;
+
+	uint16_t                                                                        message_count;
+	std::list<aprservice_message_callback_context*>                                 message_callbacks;
+	std::unordered_map<std::string, std::list<aprservice_message_callback_context>> message_callbacks_index;
+
+	uint16_t                                                                        telemetry_count;
 };
 
 template<APRSERVICE_EVENTS EVENT>
@@ -1578,7 +1580,7 @@ bool                                       aprservice_poll_messages(struct aprse
 bool                                       aprservice_poll_connection(struct aprservice* service);
 bool                                       aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id);
 bool                                       aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id);
-bool                                       aprservice_execute_command(struct aprservice* service, struct aprs_packet* packet, const char* sender, const char* name, const char* args);
+bool                                       aprservice_execute_command(struct aprservice* service, struct aprs_packet* packet, const char* sender, std::string_view name, const char* args);
 
 struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, struct aprs_path* path, char symbol_table, char symbol_table_key)
 {
@@ -1598,6 +1600,8 @@ struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, 
 		.connection_timeout = 2 * 60,
 
 		.events             = {},
+
+		.command_prefix     = ".",
 
 		.message_count      = 0,
 
@@ -1644,20 +1648,20 @@ void                       APRSERVICE_CALL aprservice_deinit(struct aprservice* 
 		service->tasks.erase(it++);
 	}
 
-	service->items.remove_if([](aprservice_item* item) {
-		aprservice_item_destroy(item);
+	service->items.remove_if([](aprservice_item& item) {
+		aprs_packet_deinit(item.packet);
 
 		return true;
 	});
 
-	service->objects.remove_if([](aprservice_object* object) {
-		aprservice_object_destroy(object);
+	service->objects.remove_if([](aprservice_object& object) {
+		aprs_packet_deinit(object.packet);
 
 		return true;
 	});
 
 	for (auto it = service->commands.begin(); it != service->commands.end(); )
-		aprservice_command_unregister((it++)->second);
+		aprservice_command_unregister(&*it++);
 
 	aprs_packet_deinit(service->position.packet);
 
@@ -1742,6 +1746,10 @@ void                       APRSERVICE_CALL aprservice_get_position(struct aprser
 int                        APRSERVICE_CALL aprservice_get_position_type(struct aprservice* service)
 {
 	return service->position.type;
+}
+const char*                APRSERVICE_CALL aprservice_get_command_prefix(struct aprservice* service)
+{
+	return service->command_prefix.c_str();
 }
 uint32_t                   APRSERVICE_CALL aprservice_get_connection_timeout(struct aprservice* service)
 {
@@ -1902,6 +1910,13 @@ void                       APRSERVICE_CALL aprservice_set_default_event_handler(
 {
 	service->events[APRSERVICE_EVENTS_COUNT] = { .handler = handler, .handler_param = param };
 }
+void                       APRSERVICE_CALL aprservice_set_command_prefix(struct aprservice* service, const char* value)
+{
+	if (!value)
+		service->command_prefix.clear();
+	else
+		service->command_prefix = value;
+}
 void                       APRSERVICE_CALL aprservice_set_connection_timeout(struct aprservice* service, uint32_t seconds)
 {
 	service->connection_timeout = seconds;
@@ -2052,26 +2067,22 @@ bool                                       aprservice_poll_connection(struct apr
 						if (packet_message_id)
 							aprservice_send_message_ack(service, packet_sender, packet_message_id);
 
-						static auto execute_command = [](aprservice* service, aprs_packet* packet, const char* sender, const char* content)
+						if (std::string_view packet_message_content_view(packet_message_content); packet_message_content_view.starts_with(service->command_prefix))
 						{
-							for (size_t i = 0; content[i]; ++i)
-								if (content[i] == ' ')
-								{
-									if (i == 0)
-										break;
+							std::string_view command_name = packet_message_content_view.substr(service->command_prefix.length());
+							std::string_view command_args;
 
-									std::string command(content, i);
+							if (auto i = packet_message_content_view.find_first_of(' '); i != packet_message_content_view.npos)
+							{
+								command_name = command_name.substr(0, i);
 
-									aprservice_execute_command(service, packet, sender, command.c_str(), &content[i + 1]);
+								if ((i = packet_message_content_view.find_first_not_of(' ', i)) != packet_message_content_view.npos)
+									command_args = packet_message_content_view.substr(i);
+							}
 
-									return true;
-								}
-
-							return false;
-						};
-
-						if (!execute_command(service, packet, packet_sender, packet_message_content))
-							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .id = packet_message_id, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
+							if (!command_name.empty() || !aprservice_execute_command(service, packet, packet_sender, command_name.data(), command_args.data()))
+								aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .id = packet_message_id, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
+						}
 					}
 					break;
 			}
@@ -2908,19 +2919,16 @@ bool                       APRSERVICE_CALL aprservice_wait_for_io(struct aprserv
 
 	return true;
 }
-bool                                       aprservice_execute_command(struct aprservice* service, struct aprs_packet* packet, const char* sender, const char* name, const char* args)
+bool                                       aprservice_execute_command(struct aprservice* service, struct aprs_packet* packet, const char* sender, std::string_view name, const char* args)
 {
-	if (auto it = service->commands.find(name); it != service->commands.end())
-	{
-		auto command = it->second;
-
-		if (!command->filter || command->filter(service, command, packet, sender, command->name.c_str(), args, command->filter_param))
+	for (auto& command : service->commands)
+		if (!command.name.compare(name))
 		{
-			command->handler(command->service, command, packet, sender, command->name.c_str(), args, command->handler_param);
+			if (!command.filter || command.filter(service, &command, packet, sender, command.name.c_str(), args, command.filter_param))
+				return command.handler(service, &command, packet, sender, command.name.c_str(), args, command.handler_param), true;
 
-			return true;
+			break;
 		}
-	}
 
 	return false;
 }
@@ -2975,120 +2983,100 @@ struct aprservice*         APRSERVICE_CALL aprservice_task_get_service(struct ap
 
 struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
 {
-	auto item = new aprservice_item
+	aprservice_item item =
 	{
 		.service = service
 	};
 
-	if (!(item->packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
-	{
-		delete item;
-
+	if (!(item.packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
 		return nullptr;
-	}
 
-	if (!aprs_packet_item_set_alive(item->packet, true))
+	if (!aprs_packet_item_set_alive(item.packet, true))
 	{
 		aprservice_log_error_ex(aprs_packet_item_set_alive, false);
 
-		aprs_packet_deinit(item->packet);
-
-		delete item;
+		aprs_packet_deinit(item.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_item_set_speed(item->packet, speed))
+	if (!aprs_packet_item_set_speed(item.packet, speed))
 	{
 		aprservice_log_error_ex(aprs_packet_item_set_speed, false);
 
-		aprs_packet_deinit(item->packet);
-
-		delete item;
+		aprs_packet_deinit(item.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_item_set_course(item->packet, course))
+	if (!aprs_packet_item_set_course(item.packet, course))
 	{
 		aprservice_log_error_ex(aprs_packet_item_set_course, false);
 
-		aprs_packet_deinit(item->packet);
-
-		delete item;
+		aprs_packet_deinit(item.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_item_set_comment(item->packet, comment))
+	if (!aprs_packet_item_set_comment(item.packet, comment))
 	{
 		aprservice_log_error_ex(aprs_packet_item_set_comment, false);
 
-		aprs_packet_deinit(item->packet);
-
-		delete item;
+		aprs_packet_deinit(item.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_item_set_altitude(item->packet, altitude))
+	if (!aprs_packet_item_set_altitude(item.packet, altitude))
 	{
 		aprservice_log_error_ex(aprs_packet_item_set_altitude, false);
 
-		aprs_packet_deinit(item->packet);
-
-		delete item;
+		aprs_packet_deinit(item.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_item_set_latitude(item->packet, latitude))
+	if (!aprs_packet_item_set_latitude(item.packet, latitude))
 	{
 		aprservice_log_error_ex(aprs_packet_item_set_latitude, false);
 
-		aprs_packet_deinit(item->packet);
-
-		delete item;
+		aprs_packet_deinit(item.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_item_set_longitude(item->packet, longitude))
+	if (!aprs_packet_item_set_longitude(item.packet, longitude))
 	{
 		aprservice_log_error_ex(aprs_packet_item_set_longitude, false);
 
-		aprs_packet_deinit(item->packet);
-
-		delete item;
+		aprs_packet_deinit(item.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_item_set_compressed(item->packet, aprservice_is_compression_enabled(service)))
+	if (!aprs_packet_item_set_compressed(item.packet, aprservice_is_compression_enabled(service)))
 	{
 		aprservice_log_error_ex(aprs_packet_item_set_compressed, false);
 
-		aprs_packet_deinit(item->packet);
-
-		delete item;
+		aprs_packet_deinit(item.packet);
 
 		return nullptr;
 	};
 
-	service->items.push_back(item);
-
-	return item;
+	return &service->items.emplace_back(std::move(item));
 }
 void                       APRSERVICE_CALL aprservice_item_destroy(struct aprservice_item* item)
 {
 	if (auto service = aprservice_item_get_service(item))
-	{
-		service->items.remove(item);
+		for (auto it = service->items.begin(); it != service->items.end(); ++it)
+			if (&*it == item)
+			{
+				aprs_packet_deinit(item->packet);
 
-		aprs_packet_deinit(item->packet);
+				service->items.erase(it);
 
-		delete item;
-	}
+				break;
+			}
 }
 bool                       APRSERVICE_CALL aprservice_item_is_alive(struct aprservice_item* item)
 {
@@ -3231,120 +3219,100 @@ bool                       APRSERVICE_CALL aprservice_item_announce(struct aprse
 
 struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
 {
-	auto object = new aprservice_object
+	aprservice_object object =
 	{
 		.service = service
 	};
 
-	if (!(object->packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
-	{
-		delete object;
-
+	if (!(object.packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
 		return nullptr;
-	}
 
-	if (!aprs_packet_object_set_alive(object->packet, true))
+	if (!aprs_packet_object_set_alive(object.packet, true))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_alive, false);
 
-		aprs_packet_deinit(object->packet);
-
-		delete object;
+		aprs_packet_deinit(object.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_object_set_speed(object->packet, speed))
+	if (!aprs_packet_object_set_speed(object.packet, speed))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_speed, false);
 
-		aprs_packet_deinit(object->packet);
-
-		delete object;
+		aprs_packet_deinit(object.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_object_set_course(object->packet, course))
+	if (!aprs_packet_object_set_course(object.packet, course))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_course, false);
 
-		aprs_packet_deinit(object->packet);
-
-		delete object;
+		aprs_packet_deinit(object.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_object_set_comment(object->packet, comment))
+	if (!aprs_packet_object_set_comment(object.packet, comment))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_comment, false);
 
-		aprs_packet_deinit(object->packet);
-
-		delete object;
+		aprs_packet_deinit(object.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_object_set_altitude(object->packet, altitude))
+	if (!aprs_packet_object_set_altitude(object.packet, altitude))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_altitude, false);
 
-		aprs_packet_deinit(object->packet);
-
-		delete object;
+		aprs_packet_deinit(object.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_object_set_latitude(object->packet, latitude))
+	if (!aprs_packet_object_set_latitude(object.packet, latitude))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_latitude, false);
 
-		aprs_packet_deinit(object->packet);
-
-		delete object;
+		aprs_packet_deinit(object.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_object_set_longitude(object->packet, longitude))
+	if (!aprs_packet_object_set_longitude(object.packet, longitude))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_longitude, false);
 
-		aprs_packet_deinit(object->packet);
-
-		delete object;
+		aprs_packet_deinit(object.packet);
 
 		return nullptr;
 	}
 
-	if (!aprs_packet_object_set_compressed(object->packet, aprservice_is_compression_enabled(service)))
+	if (!aprs_packet_object_set_compressed(object.packet, aprservice_is_compression_enabled(service)))
 	{
 		aprservice_log_error_ex(aprs_packet_object_set_compressed, false);
 
-		aprs_packet_deinit(object->packet);
-
-		delete object;
+		aprs_packet_deinit(object.packet);
 
 		return nullptr;
 	};
 
-	service->objects.push_back(object);
-
-	return object;
+	return &service->objects.emplace_back(std::move(object));
 }
 void                       APRSERVICE_CALL aprservice_object_destroy(struct aprservice_object* object)
 {
 	if (auto service = aprservice_object_get_service(object))
-	{
-		service->objects.remove(object);
+		for (auto it = service->objects.begin(); it != service->objects.end(); ++it)
+			if (&*it == object)
+			{
+				aprs_packet_deinit(object->packet);
 
-		aprs_packet_deinit(object->packet);
+				service->objects.erase(it);
 
-		delete object;
-	}
+				break;
+			}
 }
 bool                       APRSERVICE_CALL aprservice_object_is_alive(struct aprservice_object* object)
 {
@@ -3494,21 +3462,18 @@ bool                       APRSERVICE_CALL aprservice_object_announce(struct apr
 
 struct aprservice_command* APRSERVICE_CALL aprservice_command_register(struct aprservice* service, const char* name, const char* help, aprservice_command_handler handler, void* param)
 {
-	if (auto it = service->commands.find(name); it != service->commands.end())
-	{
-		auto command = it->second;
+	for (auto& command : service->commands)
+		if (!command.name.compare(name))
+		{
+			command.help          = help;
+			command.filter        = nullptr;
+			command.handler       = handler;
+			command.handler_param = param;
 
-		command->name          = name;
-		command->help          = help;
-		command->filter        = nullptr;
-		command->handler       = handler;
-		command->handler_param = param;
+			return &command;
+		}
 
-		return command;
-	}
-
-	auto command = new aprservice_command
-	{
+	return &service->commands.emplace_back(aprservice_command {
 		.service       = service,
 
 		.name          = name,
@@ -3516,20 +3481,18 @@ struct aprservice_command* APRSERVICE_CALL aprservice_command_register(struct ap
 
 		.handler       = handler,
 		.handler_param = param
-	};
-
-	service->commands.emplace(name, command);
-
-	return command;
+	});
 }
 void                       APRSERVICE_CALL aprservice_command_unregister(struct aprservice_command* command)
 {
 	if (auto service = aprservice_command_get_service(command))
-	{
-		service->commands.erase(command->name);
+		for (auto it = service->commands.begin(); it != service->commands.end(); ++it)
+			if (&*it == command)
+			{
+				service->commands.erase(it);
 
-		delete command;
-	}
+				break;
+			}
 }
 const char*                APRSERVICE_CALL aprservice_command_get_help(struct aprservice_command* command)
 {

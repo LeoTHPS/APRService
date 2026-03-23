@@ -115,6 +115,7 @@ APRSERVICE_EXPORT char                       APRSERVICE_CALL aprservice_get_symb
 APRSERVICE_EXPORT char                       APRSERVICE_CALL aprservice_get_symbol_table_key(struct aprservice* service);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_get_position(struct aprservice* service, float* latitude, float* longitude, int32_t* altitude, uint16_t* speed, uint16_t* course);
 APRSERVICE_EXPORT int                        APRSERVICE_CALL aprservice_get_position_type(struct aprservice* service);
+APRSERVICE_EXPORT const char*                APRSERVICE_CALL aprservice_get_command_prefix(struct aprservice* service);
 APRSERVICE_EXPORT uint32_t                   APRSERVICE_CALL aprservice_get_connection_timeout(struct aprservice* service);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_get_event_handler(struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler* handler, void** param);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_get_default_event_handler(struct aprservice* service, aprservice_event_handler* handler, void** param);
@@ -125,6 +126,7 @@ APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_set_posi
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_set_position_type(struct aprservice* service, enum APRSERVICE_POSITION_TYPES value);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_set_event_handler(struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler handler, void* param);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_set_default_event_handler(struct aprservice* service, aprservice_event_handler handler, void* param);
+APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_set_command_prefix(struct aprservice* service, const char* value);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_set_connection_timeout(struct aprservice* service, uint32_t seconds);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_enable_monitoring(struct aprservice* service, bool value);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_poll(struct aprservice* service);

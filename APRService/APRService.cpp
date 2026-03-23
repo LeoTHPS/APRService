@@ -3468,7 +3468,7 @@ struct aprservice_command* APRSERVICE_CALL aprservice_command_register(struct ap
 	for (auto& command : service->commands)
 		if (!command.name.compare(name))
 		{
-			command.help          = help;
+			command.help          = help ? help : "";
 			command.filter        = nullptr;
 			command.handler       = handler;
 			command.handler_param = param;
@@ -3480,7 +3480,7 @@ struct aprservice_command* APRSERVICE_CALL aprservice_command_register(struct ap
 		.service       = service,
 
 		.name          = name,
-		.help          = help,
+		.help          = help ? help : "",
 
 		.handler       = handler,
 		.handler_param = param

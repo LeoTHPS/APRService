@@ -284,7 +284,7 @@ bool               aprs_regex_match(aprs_regex_match_result& match, const aprs_r
 
 	try
 	{
-		if (!std::regex_match(string.data(), string.data() + string.length() - 1, match, regex))
+		if (!std::regex_match(string.data(), string.data() + string.length(), match, regex))
 			return false;
 	}
 	catch (const std::regex_error& exception)
@@ -467,7 +467,7 @@ bool               aprs_extract_path_node(std::string& station, bool& repeated, 
 		else if ((value[i] < '0') || (value[i] > '9'))
 			if ((value[i] < 'A') || (value[i] > 'Z'))
 			{
-				if ((value[i] == '*') && (value.length() - i - 1) && !value[i + 1])
+				if ((value[i] == '*') && (i == (value.length() - 1)))
 				{
 					repeated = true;
 
@@ -1580,8 +1580,8 @@ bool               aprs_packet_decode_message_telemetry(aprs_packet* packet, apr
 bool               aprs_packet_decode_message(aprs_packet* packet)
 {
 	static const aprs_regex_pattern regex("^:([^ :]+) *:(.+?)(\\{(.+))?$");
-	static const aprs_regex_pattern regex_ack("^ack\\S{1,5}$");
-	static const aprs_regex_pattern regex_rej("^rej\\S{1,5}$");
+	static const aprs_regex_pattern regex_ack("^ack(\\S{1,5})$");
+	static const aprs_regex_pattern regex_rej("^rej(\\S{1,5})$");
 	static const aprs_regex_pattern regex_bln("^BLN(\\S{1,6})$");
 	static const aprs_regex_pattern regex_telemetry("^:([^:]+):(PARM|UNIT|EQNS|BITS).(.*)$");
 
@@ -1589,21 +1589,15 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 
 	if (aprs_regex_match(match, regex_telemetry, packet->content))
 		return aprs_packet_decode_message_telemetry(packet, match);
-	else if (!aprs_regex_match(match, regex, packet->content))
+
+	if (!aprs_regex_match(match, regex, packet->content))
 		return false;
 
 	std::string_view id;
 
 	if (match.size() >= 4)
-	{
-		auto& match_id = match[4];
-
-		if (match_id.length() > 5)
-			return false;
-
-		if (!id.empty())
+		if (auto& match_id = match[4]; match_id.length() <= 5)
 			id = std::string_view(match_id.first, match_id.length());
-	}
 
 	auto&            content_match = match[2];
 	std::string_view content(content_match.first, content_match.length());
@@ -1629,11 +1623,13 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 	if (aprs_regex_match(match, regex_ack, packet->message->content))
 	{
 		packet->message->type = APRS_MESSAGE_TYPE_ACK;
+		packet->message->id   = match[1].str();
 		packet->message->content.clear();
 	}
 	else if (aprs_regex_match(match, regex_rej, packet->message->content))
 	{
 		packet->message->type = APRS_MESSAGE_TYPE_REJECT;
+		packet->message->id   = match[1].str();
 		packet->message->content.clear();
 	}
 	else if (aprs_regex_match(match, regex_bln, packet->message->destination))
@@ -3027,7 +3023,7 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_string(c
 		return nullptr;
 
 	static const aprs_regex_pattern regex("^([^>]{3,9})>([^,]+),([^:]+):(.*)$");
-	static const aprs_regex_pattern regex_path_is("(.*?),?(qA\\w),(\\S+)$");
+	static const aprs_regex_pattern regex_path_is("^(.*?),?(qA\\w),(\\S+)$");
 
 	aprs_regex_match_result match;
 
@@ -3042,9 +3038,10 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_string(c
 
 	if (aprs_regex_match(path_match, regex_path_is, path_string))
 	{
-		path_q_igate[0] = path_match[2].str();
-		path_q_igate[1] = path_match[3].str();
-		path_string     = path_match[1].str();
+		auto& path_match1 = path_match[1];
+		path_q_igate[0]   = path_match[2].str();
+		path_q_igate[1]   = path_match[3].str();
+		path_string       = std::string_view(path_match1.first, path_match1.length());
 	}
 
 	if (!(path = aprs_path_init_from_string(path_string)))

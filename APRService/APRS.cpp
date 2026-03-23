@@ -1549,7 +1549,7 @@ bool               aprs_packet_decode_message_telemetry_bits(aprs_packet* packet
 	};
 
 	if (auto i = content.find_first_of(','); i != std::string_view::npos)
-		if (auto bits = content.substr(0, i); bits.length() <= 8)
+		if (auto bits = content.substr(0, i); bits.length() && (bits.length() <= 8))
 		{
 			for (size_t i = 0; i < 8; ++i)
 				if (bits[i] != '0')

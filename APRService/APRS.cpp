@@ -1549,16 +1549,15 @@ bool               aprs_packet_decode_message_telemetry_bits(aprs_packet* packet
 	};
 
 	if (auto i = content.find_first_of(','); i != std::string_view::npos)
-	{
-		auto bits = content.substr(0, i);
+		if (auto bits = content.substr(0, i); bits.length() <= 8)
+		{
+			for (size_t i = 0; i < 8; ++i)
+				if (bits[i] != '0')
+					packet->telemetry->digital |= 1 << i;
 
-		for (size_t i = 0; (i < 8) && (i < bits.length()); ++i)
-			if (bits[i] != '0')
-				packet->telemetry->digital |= 1 << i;
-
-		if (auto comment = content.substr(i + 1); !comment.empty())
-			packet->telemetry->comment.assign(comment.begin(), comment.end());
-	}
+			if (auto comment = content.substr(i + 1); !comment.empty())
+				packet->telemetry->comment.assign(comment.begin(), comment.end());
+		}
 
 	return true;
 }

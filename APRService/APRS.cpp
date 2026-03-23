@@ -1552,7 +1552,7 @@ bool               aprs_packet_decode_message_telemetry_bits(aprs_packet* packet
 	{
 		auto bits = content.substr(0, i);
 
-		for (size_t i = 0; i < 8; ++i)
+		for (size_t i = 0; (i < 8) && (i < bits.length()); ++i)
 			if (bits[i] != '0')
 				packet->telemetry->digital |= 1 << i;
 

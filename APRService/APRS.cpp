@@ -296,6 +296,25 @@ bool               aprs_regex_match(aprs_regex_match_result& match, const aprs_r
 
 	return true;
 }
+bool               aprs_regex_search(aprs_regex_match_result& match, const aprs_regex_pattern& regex, std::string_view string)
+{
+	if (string.empty())
+		return false;
+
+	try
+	{
+		if (!std::regex_search(string.data(), string.data() + string.length(), match, regex))
+			return false;
+	}
+	catch (const std::regex_error& exception)
+	{
+		std::cerr << exception.what() << std::endl;
+
+		return false;
+	}
+
+	return true;
+}
 
 size_t             aprs_string_length(std::string_view string, bool stop_at_whitespace = false)
 {
@@ -610,6 +629,7 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 
 			value = { time, APRS_TIME_HMS };
 		}
+		// TODO: some stations appear to be using the hms format for a dhm time
 		return (value.tm_hour < 24) && (value.tm_min < 60) && (value.tm_sec < 60);
 
 		case 'z': // DHM
@@ -673,6 +693,8 @@ bool               aprs_decode_latitude(float& value, std::string_view string, c
 		return false;
 	};
 
+	// TODO: 2638750
+	// TODO: 5101418
 	if (!aprs_validate_string(string, string_is_valid))
 		return false;
 
@@ -836,8 +858,8 @@ void               aprs_packet_decode_comment_data_extensions(aprs_packet* packe
 	static const aprs_regex_pattern regex_dfs("DFS(\\d)(\\d)(\\d)(\\d)");
 	static const aprs_regex_pattern regex_phg("PHG(\\d)(\\d)(\\d)(\\d)");
 	static const aprs_regex_pattern regex_rng("RNG(\\d{4})");
-	static const aprs_regex_pattern regex_altitude("\\/A=(-?\\d{1,6})");
-	static const aprs_regex_pattern regex_course_speed("^((\\d{3})\\/(\\d{3}))");
+	static const aprs_regex_pattern regex_altitude("/A=(-?\\d{1,6})");
+	static const aprs_regex_pattern regex_course_speed("^((\\d{3})/(\\d{3}))");
 
 	switch (packet->type)
 	{
@@ -847,7 +869,7 @@ void               aprs_packet_decode_comment_data_extensions(aprs_packet* packe
 		{
 			aprs_regex_match_result match;
 
-			if (aprs_regex_match(match, regex_course_speed, string))
+			if (aprs_regex_search(match, regex_course_speed, string))
 			{
 				auto& speed  = match[3];
 				auto& course = match[2];
@@ -857,7 +879,7 @@ void               aprs_packet_decode_comment_data_extensions(aprs_packet* packe
 
 				string = string.substr(7);
 			}
-			else if (aprs_regex_match(match, regex_phg, string))
+			else if (aprs_regex_search(match, regex_phg, string))
 			{
 				uint8_t  gain              = 0;
 				auto&    gain_match        = match[3];
@@ -886,7 +908,7 @@ void               aprs_packet_decode_comment_data_extensions(aprs_packet* packe
 					string = string.substr(7);
 				}
 			}
-			else if (aprs_regex_match(match, regex_rng, string))
+			else if (aprs_regex_search(match, regex_rng, string))
 			{
 				auto& miles = match[1];
 
@@ -894,7 +916,7 @@ void               aprs_packet_decode_comment_data_extensions(aprs_packet* packe
 
 				string = string.substr(7);
 			}
-			else if (aprs_regex_match(match, regex_dfs, string))
+			else if (aprs_regex_search(match, regex_dfs, string))
 			{
 				uint8_t  gain              = 0;
 				auto&    gain_match        = match[3];
@@ -924,7 +946,7 @@ void               aprs_packet_decode_comment_data_extensions(aprs_packet* packe
 				}
 			}
 
-			if (aprs_regex_match(match, regex_altitude, string))
+			if (aprs_regex_search(match, regex_altitude, string))
 			{
 				auto& match0 = match[0];
 
@@ -1808,6 +1830,7 @@ bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 		return true;
 	}
 
+	// TODO: "260730 Power Supply = 14.0V" should not match..
 	if (aprs_regex_match(match, regex_compressed, packet->content))
 	{
 		aprs_compressed_location location;

@@ -406,6 +406,8 @@ resolve_host:
 
 	if (auto error = getaddrinfo(connection->host_or_device.c_str(), "", &dns_hint, &dns_result))
 	{
+		aprservice_log_error_ex(getaddrinfo, error);
+
 		switch (error)
 		{
 			case EAI_FAIL:
@@ -413,8 +415,6 @@ resolve_host:
 			case EAI_NONAME:
 				return false;
 		}
-
-		aprservice_log_error_ex(getaddrinfo, error);
 
 		return false;
 	}

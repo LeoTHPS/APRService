@@ -12,6 +12,7 @@
 #include <cassert>
 #include <cstring>
 #include <sstream>
+#include <utility>
 #include <iostream>
 #include <unordered_map>
 
@@ -120,6 +121,7 @@ struct aprservice_connection
 	aprservice*                              service;
 
 	bool                                     is_open;
+	bool                                     is_blocking;
 
 	aprservice_connection_auth               auth;
 	int                                      type;
@@ -194,7 +196,6 @@ struct aprservice_command
 
 struct aprservice
 {
-	bool                                                                            is_connected;
 	bool                                                                            is_monitoring;
 
 	std::string                                                                     line;
@@ -214,7 +215,7 @@ struct aprservice
 
 	std::string                                                                     command_prefix;
 
-	uint16_t                                                                        message_count;
+	uint32_t                                                                        message_count;
 	std::list<aprservice_message_callback_context*>                                 message_callbacks;
 	std::unordered_map<std::string, std::list<aprservice_message_callback_context>> message_callbacks_index;
 
@@ -254,13 +255,7 @@ struct aprservice_get_event_information<APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE>
 	typedef aprservice_event_information_receive_server_message type;
 };
 
-#define                                    aprservice_log(...)                      std::cerr << __VA_ARGS__ << std::endl
-#if defined(APRSERVICE_UNIX)
-	#define                                aprservice_log_error(function)           aprservice_log_error_ex(function, errno)
-#elif defined(APRSERVICE_WIN32)
-	#define                                aprservice_log_error(function)           aprservice_log_error_ex(function, GetLastError())
-#endif
-#define                                    aprservice_log_error_ex(function, error) std::cerr << #function " returned " << error << std::endl
+#define                                    aprservice_log_error(function, error) std::cerr << #function " returned " << error << std::endl
 
 template<typename T>
 T                                          aprservice_parse_uint(const char* string)
@@ -309,7 +304,7 @@ bool                                       aprservice_regex_match(std::cmatch& m
 	}
 	catch (const std::regex_error& exception)
 	{
-		aprservice_log_error_ex(std::regex_match, exception.what());
+		aprservice_log_error(std::regex_match, exception.what());
 
 		return false;
 	}
@@ -339,8 +334,11 @@ bool                                       aprservice_connection_auth_from_strin
 aprservice_connection*                     aprservice_connection_init(aprservice* service, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode);
 void                                       aprservice_connection_deinit(aprservice_connection* connection);
 bool                                       aprservice_connection_is_open(aprservice_connection* connection);
+bool                                       aprservice_connection_is_blocking(aprservice_connection* connection);
+bool                                       aprservice_connection_set_blocking(aprservice_connection* connection, bool value);
 bool                                       aprservice_connection_open(aprservice_connection* connection);
 void                                       aprservice_connection_close(aprservice_connection* connection);
+// @return false on connection closed
 bool                                       aprservice_connection_poll(aprservice_connection* connection);
 // @return 0 on disconnect
 // @return -1 on would block
@@ -349,7 +347,9 @@ int                                        aprservice_connection_read(aprservice
 // @return -1 on would block
 int                                        aprservice_connection_write(aprservice_connection* connection, const void* buffer, size_t size, size_t* number_of_bytes_sent);
 bool                                       aprservice_connection_read_string(aprservice_connection* connection, std::string& value);
+// @return false on connection closed
 bool                                       aprservice_connection_write_packet(aprservice_connection* connection, aprs_packet* value);
+// @return false on connection closed
 bool                                       aprservice_connection_write_aprs_is(aprservice_connection* connection, std::string&& value);
 
 aprservice_connection*                     aprservice_connection_init(aprservice* service, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode)
@@ -359,6 +359,7 @@ aprservice_connection*                     aprservice_connection_init(aprservice
 		.service        = service,
 
 		.is_open        = false,
+		.is_blocking    = false,
 
 		.type           = type,
 
@@ -373,7 +374,7 @@ aprservice_connection*                     aprservice_connection_init(aprservice
 #if defined(APRSERVICE_WIN32)
 	if (auto error = WSAStartup(MAKEWORD(2, 2), &connection->winsock))
 	{
-		aprservice_log_error_ex(WSAStartup, error);
+		aprservice_log_error(WSAStartup, error);
 
 		delete connection;
 
@@ -398,6 +399,114 @@ bool                                       aprservice_connection_is_open(aprserv
 {
 	return connection->is_open;
 }
+bool                                       aprservice_connection_is_blocking(aprservice_connection* connection)
+{
+	return connection->is_blocking;
+}
+bool                                       aprservice_connection_set_blocking(aprservice_connection* connection, bool value)
+{
+	if (aprservice_connection_is_open(connection))
+		switch (connection->type)
+		{
+			case APRSERVICE_CONNECTION_TYPE_APRS_IS:
+			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
+			{
+#if defined(APRSERVICE_UNIX)
+				int flags;
+
+				if ((flags = fcntl(connection->socket, F_GETFL, 0)) == -1)
+				{
+					auto error = errno;
+
+					aprservice_log_error(fcntl, error);
+
+					return false;
+				}
+
+				if (value)
+					flags |= O_NONBLOCK;
+				else
+					flags &= ~O_NONBLOCK;
+
+				if (fcntl(connection->socket, F_SETFL, flags) == -1)
+				{
+					auto error = errno;
+
+					aprservice_log_error(fcntl, error);
+
+					return false;
+				}
+#elif defined(APRSERVICE_WIN32)
+				u_long arg = value ? 0 : 1;
+
+				if (ioctlsocket(connection->socket, FIONBIO, &arg))
+				{
+					auto error = WSAGetLastError();
+
+					aprservice_log_error(ioctlsocket, error);
+
+					return false;
+				}
+#endif
+			}
+			break;
+
+			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
+			{
+#if defined(APRSERVICE_UNIX)
+				int flags;
+
+				if ((flags = fcntl(connection->serial, F_GETFL, 0)) == -1)
+				{
+					auto error = errno;
+
+					aprservice_log_error(fcntl, error);
+
+					return false;
+				}
+
+				if (value)
+					flags |= O_NONBLOCK;
+				else
+					flags &= ~O_NONBLOCK;
+
+				if (fcntl(connection->serial, F_SETFL, flags) == -1)
+				{
+					auto error = errno;
+
+					aprservice_log_error(fcntl, error);
+
+					return false;
+				}
+#elif defined(APRSERVICE_WIN32)
+				COMMTIMEOUTS timeouts        = {};
+				timeouts.ReadIntervalTimeout = MAXDWORD;
+
+				if (value)
+				{
+					timeouts.WriteTotalTimeoutConstant   = 50;
+					timeouts.WriteTotalTimeoutMultiplier = 10;
+				}
+
+				if (!SetCommTimeouts(connection->serial, &timeouts))
+				{
+					auto error = GetLastError();
+
+					aprservice_log_error(SetCommTimeouts, error);
+
+					aprservice_connection_close(connection);
+
+					return false;
+				}
+#endif
+			}
+			break;
+		}
+
+	connection->is_blocking = value;
+
+	return true;
+}
 bool                                       aprservice_connection_open_tcp(aprservice_connection* connection)
 {
 resolve_host:
@@ -406,14 +515,16 @@ resolve_host:
 
 	if (auto error = getaddrinfo(connection->host_or_device.c_str(), "", &dns_hint, &dns_result))
 	{
-		aprservice_log_error_ex(getaddrinfo, error);
-
 		switch (error)
 		{
 			case EAI_FAIL:
 			case EAI_AGAIN:
 			case EAI_NONAME:
-				return false;
+				break;
+
+			default:
+				aprservice_log_error(getaddrinfo, error);
+				break;
 		}
 
 		return false;
@@ -454,14 +565,18 @@ socket_open:
 #if defined(APRSERVICE_UNIX)
 	if ((connection->socket = socket(dns_result_address->sa_family, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		aprservice_log_error(socket);
+		auto error = errno;
+
+		aprservice_log_error(socket, error);
 
 		return false;
 	}
 #elif defined(APRSERVICE_WIN32)
 	if ((connection->socket = WSASocketW(dns_result_address->sa_family, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, 0)) == INVALID_SOCKET)
 	{
-		aprservice_log_error(WSASocketW);
+		auto error = WSAGetLastError();
+
+		aprservice_log_error(WSASocketW, error);
 
 		return false;
 	}
@@ -471,27 +586,9 @@ socket_connect:
 #if defined(APRSERVICE_UNIX)
 	if (connect(connection->socket, dns_result_address, dns_result_address_length) == -1)
 	{
-		aprservice_log_error(connect);
+		auto error = errno;
 
-		close(connection->socket);
-
-		return false;
-	}
-
-	int flags;
-
-	if ((flags = fcntl(connection->socket, F_GETFL, 0)) == -1)
-	{
-		aprservice_log_error(fcntl);
-
-		close(connection->socket);
-
-		return false;
-	}
-
-	if (fcntl(connection->socket, F_SETFL, flags | O_NONBLOCK) == -1)
-	{
-		aprservice_log_error(fcntl);
+		aprservice_log_error(connect, error);
 
 		close(connection->socket);
 
@@ -500,18 +597,9 @@ socket_connect:
 #elif defined(APRSERVICE_WIN32)
 	if (connect(connection->socket, dns_result_address, dns_result_address_length) == SOCKET_ERROR)
 	{
-		aprservice_log_error(connect);
+		auto error = WSAGetLastError();
 
-		closesocket(connection->socket);
-
-		return false;
-	}
-
-	u_long arg = 1;
-
-	if (ioctlsocket(connection->socket, FIONBIO, &arg) == SOCKET_ERROR)
-	{
-		aprservice_log_error(ioctlsocket);
+		aprservice_log_error(connect, error);
 
 		closesocket(connection->socket);
 
@@ -530,7 +618,7 @@ bool                                       aprservice_connection_open_serial(apr
 	{
 		auto error = errno;
 
-		aprservice_log_error_ex(open, error);
+		aprservice_log_error(open, error);
 
 		return false;
 	}
@@ -561,7 +649,7 @@ bool                                       aprservice_connection_open_serial(apr
 	{
 		auto error = GetLastError();
 
-		aprservice_log_error_ex(CreateFileA, error);
+		aprservice_log_error(CreateFileA, error);
 
 		return false;
 	}
@@ -573,7 +661,7 @@ bool                                       aprservice_connection_open_serial(apr
 	{
 		auto error = GetLastError();
 
-		aprservice_log_error_ex(GetCommState, error);
+		aprservice_log_error(GetCommState, error);
 
 		CloseHandle(connection->serial);
 
@@ -590,25 +678,7 @@ bool                                       aprservice_connection_open_serial(apr
 	{
 		auto error = GetLastError();
 
-		aprservice_log_error_ex(SetCommState, error);
-
-		CloseHandle(connection->serial);
-
-		return false;
-	}
-
-	COMMTIMEOUTS timeouts                = {};
-	timeouts.ReadIntervalTimeout         = MAXWORD;
-	timeouts.ReadTotalTimeoutConstant    = 0;
-	timeouts.ReadTotalTimeoutMultiplier  = 0;
-	timeouts.WriteTotalTimeoutConstant   = 50;
-	timeouts.WriteTotalTimeoutMultiplier = 10;
-
-	if (!SetCommTimeouts(connection->serial, &timeouts))
-	{
-		auto error = GetLastError();
-
-		aprservice_log_error_ex(SetCommTimeouts, error);
+		aprservice_log_error(SetCommState, error);
 
 		CloseHandle(connection->serial);
 
@@ -625,13 +695,15 @@ bool                                       aprservice_connection_open(aprservice
 	if (aprservice_connection_is_open(connection))
 		return false;
 
+	bool is_blocking = aprservice_connection_is_blocking(connection);
+
 	switch (connection->type)
 	{
 		case APRSERVICE_CONNECTION_TYPE_APRS_IS:
 		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
 			if (!aprservice_connection_open_tcp(connection))
 			{
-				aprservice_log_error_ex(aprservice_connection_open_tcp, false);
+				aprservice_log_error(aprservice_connection_open_tcp, false);
 
 				return false;
 			}
@@ -640,11 +712,22 @@ bool                                       aprservice_connection_open(aprservice
 		case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
 			if (!aprservice_connection_open_serial(connection))
 			{
-				aprservice_log_error_ex(aprservice_connection_open_serial, false);
+				aprservice_log_error(aprservice_connection_open_serial, false);
 
 				return false;
 			}
 			break;
+	}
+
+	connection->is_blocking = true;
+
+	if (!is_blocking && !aprservice_connection_set_blocking(connection, false))
+	{
+		aprservice_log_error(aprservice_connection_set_blocking, false);
+
+		aprservice_connection_close(connection);
+
+		return false;
 	}
 
 	aprservice_event_execute(connection->service, APRSERVICE_EVENT_CONNECT, { });
@@ -664,7 +747,7 @@ bool                                       aprservice_connection_open(aprservice
 		case APRSERVICE_CONNECTION_TYPE_APRS_IS:
 			if (auto auth_request = generate_auth_request(connection->service, connection->passcode); !aprservice_connection_write_aprs_is(connection, std::move(auth_request)))
 			{
-				aprservice_log_error_ex(aprservice_connection_write_aprs_is, false);
+				aprservice_log_error(aprservice_connection_write_aprs_is, false);
 
 				aprservice_connection_close(connection);
 
@@ -901,7 +984,6 @@ read_once:
 
 	return true;
 }
-// @return false on connection closed
 bool                                       aprservice_connection_poll(aprservice_connection* connection)
 {
 	if (!aprservice_connection_is_open(connection))
@@ -946,8 +1028,6 @@ bool                                       aprservice_connection_poll(aprservice
 
 	return true;
 }
-// @return 0 on disconnect
-// @return -1 on would block
 int                                        aprservice_connection_read(aprservice_connection* connection, void* buffer, size_t size, size_t* number_of_bytes_received)
 {
 	if (!aprservice_connection_is_open(connection))
@@ -984,7 +1064,7 @@ int                                        aprservice_connection_read(aprservice
 							return 0;
 					}
 
-					aprservice_log_error_ex(recv, error);
+					aprservice_log_error(recv, error);
 					aprservice_connection_close(connection);
 				}
 				return 0;
@@ -1017,7 +1097,7 @@ int                                        aprservice_connection_read(aprservice
 							return 0;
 					}
 
-					aprservice_log_error_ex(recv, error);
+					aprservice_log_error(recv, error);
 					aprservice_connection_close(connection);
 				}
 				return 0;
@@ -1039,7 +1119,7 @@ int                                        aprservice_connection_read(aprservice
 			{
 				auto error = errno;
 
-				aprservice_log_error_ex(read, error);
+				aprservice_log_error(read, error);
 
 				aprservice_connection_close(connection);
 
@@ -1057,7 +1137,7 @@ int                                        aprservice_connection_read(aprservice
 			{
 				auto error = GetLastError();
 
-				aprservice_log_error_ex(ReadFile, error);
+				aprservice_log_error(ReadFile, error);
 
 				aprservice_connection_close(connection);
 
@@ -1077,8 +1157,6 @@ int                                        aprservice_connection_read(aprservice
 
 	return 1;
 }
-// @return 0 on disconnect
-// @return -1 on would block
 int                                        aprservice_connection_write(aprservice_connection* connection, const void* buffer, size_t size, size_t* number_of_bytes_sent)
 {
 	if (!aprservice_connection_is_open(connection))
@@ -1109,7 +1187,7 @@ int                                        aprservice_connection_write(aprservic
 						return 0;
 				}
 
-				aprservice_log_error_ex(send, error);
+				aprservice_log_error(send, error);
 				aprservice_connection_close(connection);
 
 				return 0;
@@ -1135,7 +1213,7 @@ int                                        aprservice_connection_write(aprservic
 						return 0;
 				}
 
-				aprservice_log_error_ex(send, error);
+				aprservice_log_error(send, error);
 				aprservice_connection_close(connection);
 
 				return 0;
@@ -1155,7 +1233,7 @@ int                                        aprservice_connection_write(aprservic
 			{
 				auto error = errno;
 
-				aprservice_log_error_ex(write, error);
+				aprservice_log_error(write, error);
 
 				aprservice_connection_close(connection);
 
@@ -1173,7 +1251,7 @@ int                                        aprservice_connection_write(aprservic
 			{
 				auto error = GetLastError();
 
-				aprservice_log_error_ex(WriteFile, error);
+				aprservice_log_error(WriteFile, error);
 
 				aprservice_connection_close(connection);
 
@@ -1354,229 +1432,53 @@ bool                                       aprservice_connection_wait_for_io(apr
 	if (!aprservice_connection_is_open(connection))
 		return false;
 
-	if (connection->tx_queue.empty())
+	if (!connection->tx_queue.empty())
+		return true;
+
+	bool is_blocking = aprservice_connection_is_blocking(connection);
+
+	if (!is_blocking && !aprservice_connection_set_blocking(connection, true))
 	{
-		char buffer;
+		aprservice_log_error(aprservice_connection_set_blocking, false);
 
-		switch (connection->type)
-		{
-			case APRSERVICE_CONNECTION_TYPE_APRS_IS:
-			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP:
-			{
-#if defined(APRSERVICE_UNIX)
-				int flags;
+		aprservice_connection_close(connection);
 
-				if ((flags = fcntl(connection->socket, F_GETFL, 0)) == -1)
-				{
-					auto error = errno;
+		return false;
+	}
 
-					aprservice_log_error_ex(fcntl, error);
+	char   buffer;
+	size_t number_of_bytes_received;
 
-					aprservice_connection_close(connection);
+	switch (aprservice_connection_read(connection, &buffer, sizeof(buffer), &number_of_bytes_received))
+	{
+		case 0:
+			if (!is_blocking)
+				aprservice_connection_set_blocking(connection, false);
+			return false;
 
-					return false;
-				}
-
-				flags &= ~O_NONBLOCK;
-
-				if (fcntl(connection->socket, F_SETFL, flags) == -1)
-				{
-					auto error = errno;
-
-					aprservice_log_error_ex(fcntl, error);
-
-					aprservice_connection_close(connection);
-
-					return false;
-				}
-
-				ssize_t bytes_received;
-
-				switch (bytes_received = recv(connection->socket, &buffer, sizeof(char), 0))
-				{
-					case 0:
-						aprservice_connection_close(connection);
-						return false;
-
-					case -1:
-						if (auto error = errno)
-							aprservice_log_error_ex(recv, error);
-						aprservice_connection_close(connection);
-						return false;
-				}
-
-				flags |= O_NONBLOCK;
-
-				if (fcntl(connection->socket, F_SETFL, flags) == -1)
-				{
-					auto error = errno;
-
-					aprservice_log_error_ex(fcntl, error);
-
-					aprservice_connection_close(connection);
-
-					return false;
-				}
-#elif defined(APRSERVICE_WIN32)
-				u_long arg = 0;
-
-				if (ioctlsocket(connection->socket, FIONBIO, &arg))
-				{
-					auto error = WSAGetLastError();
-
-					aprservice_log_error_ex(ioctlsocket, error);
-
-					aprservice_connection_close(connection);
-
-					return false;
-				}
-
-				int bytes_received;
-
-				switch (bytes_received = recv(connection->socket, &buffer, sizeof(char), 0))
-				{
-					case 0:
-						aprservice_connection_close(connection);
-						return false;
-
-					case SOCKET_ERROR:
-						if (auto error = WSAGetLastError())
-							aprservice_log_error_ex(recv, error);
-						aprservice_connection_close(connection);
-						return false;
-				}
-
-				arg = 1;
-
-				if (ioctlsocket(connection->socket, FIONBIO, &arg))
-				{
-					auto error = WSAGetLastError();
-
-					aprservice_log_error_ex(ioctlsocket, error);
-
-					aprservice_connection_close(connection);
-
-					return false;
-				}
-#endif
-			}
+		case -1:
 			break;
 
-			case APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL:
-			{
-#if defined(APRSERVICE_UNIX)
-				int flags;
-
-				if ((flags = fcntl(connection->serial, F_GETFL, 0)) == -1)
-				{
-					auto error = errno;
-
-					aprservice_log_error_ex(fcntl, error);
-
-					aprservice_connection_close(connection);
-
-					return false;
-				}
-
-				flags &= ~O_NONBLOCK;
-
-				if (fcntl(connection->serial, F_SETFL, flags) == -1)
-				{
-					auto error = errno;
-
-					aprservice_log_error_ex(fcntl, error);
-
-					aprservice_connection_close(connection);
-
-					return false;
-				}
-
-				int bytes_received;
-
-				if ((bytes_received = read(connection->serial, &buffer, sizeof(char))) == -1)
-				{
-					auto error = errno;
-
-					aprservice_log_error_ex(read, error);
-
-					aprservice_connection_close(connection);
-
-					return false;
-				}
-
-				flags |= O_NONBLOCK;
-
-				if (fcntl(connection->serial, F_SETFL, flags) == -1)
-				{
-					auto error = errno;
-
-					aprservice_log_error_ex(fcntl, error);
-
-					aprservice_connection_close(connection);
-
-					return false;
-				}
-#elif defined(APRSERVICE_WIN32)
-				COMMTIMEOUTS timeouts[2] = {};
-
-				if (!GetCommTimeouts(connection->serial, &timeouts[0]))
-				{
-					auto error = GetLastError();
-
-					aprservice_log_error_ex(GetCommTimeouts, error);
-
-					aprservice_connection_close(connection);
-
-					return false;
-				}
-
-				if (!SetCommTimeouts(connection->serial, &timeouts[1]))
-				{
-					auto error = GetLastError();
-
-					aprservice_log_error_ex(SetCommTimeouts, error);
-
-					aprservice_connection_close(connection);
-
-					return false;
-				}
-
-				DWORD bytes_received;
-
-				if (!ReadFile(connection->serial, &buffer, sizeof(char), &bytes_received, nullptr))
-				{
-					auto error = GetLastError();
-
-					aprservice_log_error_ex(ReadFile, error);
-
-					aprservice_connection_close(connection);
-
-					return false;
-				}
-
-				if (!SetCommTimeouts(connection->serial, &timeouts[0]))
-				{
-					auto error = GetLastError();
-
-					aprservice_log_error_ex(SetCommTimeouts, error);
-
-					aprservice_connection_close(connection);
-
-					return false;
-				}
-#endif
-			}
+		default:
+			if (number_of_bytes_received == sizeof(buffer))
+				connection->rx_buffer.push_back(buffer);
 			break;
-		}
+	}
 
-		connection->rx_buffer.push_back(buffer);
+	if (!is_blocking && !aprservice_connection_set_blocking(connection, false))
+	{
+		aprservice_log_error(aprservice_connection_set_blocking, false);
+
+		aprservice_connection_close(connection);
+
+		return false;
 	}
 
 	return true;
 }
 
-bool                                       aprservice_poll_tasks(struct aprservice* service);
-bool                                       aprservice_poll_messages(struct aprservice* service);
+void                                       aprservice_poll_tasks(struct aprservice* service);
+void                                       aprservice_poll_messages(struct aprservice* service);
 bool                                       aprservice_poll_connection(struct aprservice* service);
 bool                                       aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id);
 bool                                       aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id);
@@ -1589,7 +1491,6 @@ struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, 
 
 	auto service = new aprservice
 	{
-		.is_connected       = false,
 		.is_monitoring      = false,
 
 		.time               = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
@@ -1599,18 +1500,12 @@ struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, 
 		.position           = { .type = APRSERVICE_POSITION_TYPE_POSITION },
 		.connection_timeout = 2 * 60,
 
-		.events             = {},
-
-		.command_prefix     = ".",
-
-		.message_count      = 0,
-
-		.telemetry_count    = 0
+		.command_prefix     = "."
 	};
 
 	if (!(service->position.packet = aprs_packet_position_init(station, APRSERVICE_TOCALL, path, 0, 0, 0, 0, 0, "", symbol_table, symbol_table_key)))
 	{
-		aprservice_log_error_ex(aprs_packet_position_init, nullptr);
+		aprservice_log_error(aprs_packet_position_init, nullptr);
 
 		delete service;
 
@@ -1679,7 +1574,7 @@ bool                       APRSERVICE_CALL aprservice_is_read_only(struct aprser
 }
 bool                       APRSERVICE_CALL aprservice_is_connected(struct aprservice* service)
 {
-	return service->is_connected;
+	return service->connection != nullptr;
 }
 bool                       APRSERVICE_CALL aprservice_is_authenticated(struct aprservice* service)
 {
@@ -1791,7 +1686,7 @@ bool                       APRSERVICE_CALL aprservice_set_symbol(struct aprservi
 {
 	if (!aprs_packet_position_set_symbol(service->position.packet, table, key))
 	{
-		aprservice_log_error_ex(aprs_packet_position_set_symbol, false);
+		aprservice_log_error(aprs_packet_position_set_symbol, false);
 
 		return false;
 	}
@@ -1802,7 +1697,7 @@ bool                       APRSERVICE_CALL aprservice_set_comment(struct aprserv
 {
 	if (!aprs_packet_position_set_comment(service->position.packet, value))
 	{
-		aprservice_log_error_ex(aprs_packet_position_set_comment, false);
+		aprservice_log_error(aprs_packet_position_set_comment, false);
 
 		return false;
 	}
@@ -1813,35 +1708,35 @@ bool                       APRSERVICE_CALL aprservice_set_position(struct aprser
 {
 	if (!aprs_packet_position_set_speed(service->position.packet, speed))
 	{
-		aprservice_log_error_ex(aprs_packet_position_set_speed, false);
+		aprservice_log_error(aprs_packet_position_set_speed, false);
 
 		return false;
 	}
 
 	if (!aprs_packet_position_set_course(service->position.packet, course))
 	{
-		aprservice_log_error_ex(aprs_packet_position_set_course, false);
+		aprservice_log_error(aprs_packet_position_set_course, false);
 
 		return false;
 	}
 
 	if (!aprs_packet_position_set_altitude(service->position.packet, altitude))
 	{
-		aprservice_log_error_ex(aprs_packet_position_set_altitude, false);
+		aprservice_log_error(aprs_packet_position_set_altitude, false);
 
 		return false;
 	}
 
 	if (!aprs_packet_position_set_latitude(service->position.packet, latitude))
 	{
-		aprservice_log_error_ex(aprs_packet_position_set_latitude, false);
+		aprservice_log_error(aprs_packet_position_set_latitude, false);
 
 		return false;
 	}
 
 	if (!aprs_packet_position_set_longitude(service->position.packet, longitude))
 	{
-		aprservice_log_error_ex(aprs_packet_position_set_longitude, false);
+		aprservice_log_error(aprs_packet_position_set_longitude, false);
 
 		return false;
 	}
@@ -1865,7 +1760,7 @@ bool                       APRSERVICE_CALL aprservice_set_position_type(struct a
 
 				return true;
 			}
-			aprservice_log_error_ex(aprs_packet_position_init_mic_e, nullptr);
+			aprservice_log_error(aprs_packet_position_init_mic_e, nullptr);
 			return false;
 
 		case APRSERVICE_POSITION_TYPE_POSITION:
@@ -1878,7 +1773,7 @@ bool                       APRSERVICE_CALL aprservice_set_position_type(struct a
 
 				return true;
 			}
-			aprservice_log_error_ex(aprs_packet_position_init, nullptr);
+			aprservice_log_error(aprs_packet_position_init, nullptr);
 			return false;
 
 		case APRSERVICE_POSITION_TYPE_POSITION_COMPRESSED:
@@ -1891,7 +1786,7 @@ bool                       APRSERVICE_CALL aprservice_set_position_type(struct a
 
 				return true;
 			}
-			aprservice_log_error_ex(aprs_packet_position_init_compressed, nullptr);
+			aprservice_log_error(aprs_packet_position_init_compressed, nullptr);
 			return false;
 	}
 
@@ -1927,30 +1822,15 @@ void                       APRSERVICE_CALL aprservice_enable_monitoring(struct a
 }
 bool                       APRSERVICE_CALL aprservice_poll(struct aprservice* service)
 {
-	if (!aprservice_poll_tasks(service))
-	{
-		aprservice_log_error_ex(aprservice_poll_tasks, false);
+	aprservice_poll_tasks(service);
+	aprservice_poll_messages(service);
 
-		return false;
-	}
-
-	if (!aprservice_poll_messages(service))
-	{
-		aprservice_log_error_ex(aprservice_poll_messages, false);
-
-		return false;
-	}
-
-	if (aprservice_is_connected(service) && !aprservice_poll_connection(service) && aprservice_is_connected(service))
-	{
-		aprservice_log_error_ex(aprservice_poll_connection, false);
-
-		return false;
-	}
+	if (aprservice_is_connected(service) && !aprservice_poll_connection(service))
+		;
 
 	return true;
 }
-bool                                       aprservice_poll_tasks(struct aprservice* service)
+void                                       aprservice_poll_tasks(struct aprservice* service)
 {
 	for (auto it = service->tasks.begin(); it != service->tasks.end(); )
 	{
@@ -1980,10 +1860,8 @@ bool                                       aprservice_poll_tasks(struct aprservi
 
 		service->tasks.erase(it++);
 	}
-
-	return true;
 }
-bool                                       aprservice_poll_messages(struct aprservice* service)
+void                                       aprservice_poll_messages(struct aprservice* service)
 {
 	service->message_callbacks.remove_if([service](aprservice_message_callback_context* context) {
 		if (context->timeout < aprservice_get_time(service))
@@ -2009,8 +1887,6 @@ bool                                       aprservice_poll_messages(struct aprse
 
 		return true;
 	});
-
-	return true;
 }
 bool                                       aprservice_poll_connection(struct aprservice* service)
 {
@@ -2127,13 +2003,20 @@ bool                                       aprservice_poll_connection(struct apr
 			break;
 	}
 
+	if (!aprservice_connection_is_open(service->connection))
+	{
+		aprservice_disconnect(service);
+
+		return false;
+	}
+
 	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, struct aprs_packet* packet)
 {
 	if (!aprservice_connection_write_packet(service->connection, packet))
 	{
-		aprservice_log_error_ex(aprservice_connection_write_packet, false);
+		aprservice_log_error(aprservice_connection_write_packet, false);
 
 		return false;
 	}
@@ -2148,23 +2031,27 @@ bool                       APRSERVICE_CALL aprservice_send_raw(struct aprservice
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service)))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service))))
 	{
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
+		aprservice_log_error(aprs_packet_init, nullptr);
 
-			aprs_packet_deinit(packet);
+		return false;
+	}
 
-			return false;
-		}
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_item(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live)
 {
@@ -2174,95 +2061,99 @@ bool                       APRSERVICE_CALL aprservice_send_item(struct aprservic
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_item_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_item_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
 	{
-		if (!aprs_packet_item_set_alive(packet, live))
-		{
-			aprservice_log_error_ex(aprs_packet_item_set_alive, false);
+		aprservice_log_error(aprs_packet_item_init, nullptr);
 
-			aprs_packet_deinit(packet);
+		return false;
+	}
 
-			return false;
-		}
-
-		if (!aprs_packet_item_set_speed(packet, speed))
-		{
-			aprservice_log_error_ex(aprs_packet_item_set_speed, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_item_set_course(packet, course))
-		{
-			aprservice_log_error_ex(aprs_packet_item_set_course, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_item_set_comment(packet, comment))
-		{
-			aprservice_log_error_ex(aprs_packet_item_set_comment, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_item_set_altitude(packet, altitude))
-		{
-			aprservice_log_error_ex(aprs_packet_item_set_altitude, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_item_set_latitude(packet, latitude))
-		{
-			aprservice_log_error_ex(aprs_packet_item_set_latitude, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_item_set_longitude(packet, longitude))
-		{
-			aprservice_log_error_ex(aprs_packet_item_set_longitude, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_item_set_compressed(packet, aprservice_is_compression_enabled(service)))
-		{
-			aprservice_log_error_ex(aprs_packet_item_set_compressed, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
+	if (!aprs_packet_item_set_alive(packet, live))
+	{
+		aprservice_log_error(aprs_packet_item_set_alive, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	if (!aprs_packet_item_set_speed(packet, speed))
+	{
+		aprservice_log_error(aprs_packet_item_set_speed, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_item_set_course(packet, course))
+	{
+		aprservice_log_error(aprs_packet_item_set_course, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_item_set_comment(packet, comment))
+	{
+		aprservice_log_error(aprs_packet_item_set_comment, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_item_set_altitude(packet, altitude))
+	{
+		aprservice_log_error(aprs_packet_item_set_altitude, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_item_set_latitude(packet, latitude))
+	{
+		aprservice_log_error(aprs_packet_item_set_latitude, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_item_set_longitude(packet, longitude))
+	{
+		aprservice_log_error(aprs_packet_item_set_longitude, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_item_set_compressed(packet, aprservice_is_compression_enabled(service)))
+	{
+		aprservice_log_error(aprs_packet_item_set_compressed, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_object(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live)
 {
@@ -2272,104 +2163,108 @@ bool                       APRSERVICE_CALL aprservice_send_object(struct aprserv
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
 	{
-		if (!aprs_packet_object_set_time(packet, aprs_time_now()))
-		{
-			aprservice_log_error_ex(aprs_packet_object_set_time, false);
+		aprservice_log_error(aprs_packet_object_init, nullptr);
 
-			aprs_packet_deinit(packet);
+		return false;
+	}
 
-			return false;
-		}
-
-		if (!aprs_packet_object_set_alive(packet, live))
-		{
-			aprservice_log_error_ex(aprs_packet_object_set_alive, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_object_set_speed(packet, speed))
-		{
-			aprservice_log_error_ex(aprs_packet_object_set_speed, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_object_set_course(packet, course))
-		{
-			aprservice_log_error_ex(aprs_packet_object_set_course, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_object_set_comment(packet, comment))
-		{
-			aprservice_log_error_ex(aprs_packet_object_set_comment, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_object_set_altitude(packet, altitude))
-		{
-			aprservice_log_error_ex(aprs_packet_object_set_altitude, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_object_set_latitude(packet, latitude))
-		{
-			aprservice_log_error_ex(aprs_packet_object_set_latitude, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_object_set_longitude(packet, longitude))
-		{
-			aprservice_log_error_ex(aprs_packet_object_set_longitude, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_object_set_compressed(packet, aprservice_is_compression_enabled(service)))
-		{
-			aprservice_log_error_ex(aprs_packet_object_set_compressed, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
+	if (!aprs_packet_object_set_time(packet, aprs_time_now()))
+	{
+		aprservice_log_error(aprs_packet_object_set_time, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	if (!aprs_packet_object_set_alive(packet, live))
+	{
+		aprservice_log_error(aprs_packet_object_set_alive, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_object_set_speed(packet, speed))
+	{
+		aprservice_log_error(aprs_packet_object_set_speed, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_object_set_course(packet, course))
+	{
+		aprservice_log_error(aprs_packet_object_set_course, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_object_set_comment(packet, comment))
+	{
+		aprservice_log_error(aprs_packet_object_set_comment, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_object_set_altitude(packet, altitude))
+	{
+		aprservice_log_error(aprs_packet_object_set_altitude, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_object_set_latitude(packet, latitude))
+	{
+		aprservice_log_error(aprs_packet_object_set_latitude, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_object_set_longitude(packet, longitude))
+	{
+		aprservice_log_error(aprs_packet_object_set_longitude, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_object_set_compressed(packet, aprservice_is_compression_enabled(service)))
+	{
+		aprservice_log_error(aprs_packet_object_set_compressed, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_status(struct aprservice* service, const char* message)
 {
@@ -2379,42 +2274,68 @@ bool                       APRSERVICE_CALL aprservice_send_status(struct aprserv
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_status_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), message))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_status_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), message)))
 	{
-		if (!aprs_packet_status_set_time(packet, aprs_time_now()))
-		{
-			aprservice_log_error_ex(aprs_packet_status_set_time, false);
+		aprservice_log_error(aprs_packet_status_init, nullptr);
 
-			aprs_packet_deinit(packet);
+		return false;
+	}
 
-			return false;
-		}
-
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
+	if (!aprs_packet_status_set_time(packet, aprs_time_now()))
+	{
+		aprservice_log_error(aprs_packet_status_set_time, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_message(struct aprservice* service, const char* destination, const char* content, uint32_t timeout, aprservice_message_callback callback, void* param)
 {
-	if (service->message_count++ == 0xFFFFF)
+	char id[6] = {};
+
+	if (service->message_count == 0)
+		id[0] = '0';
+	else
+	{
+		static constexpr char BASE62[] =
+		{
+			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+			'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+			'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
+		};
+
+		size_t i = 0;
+
+		for (size_t count = service->message_count; count; ++i, count /= 62)
+			id[i] = BASE62[count % 62];
+
+		for (size_t j = 0, l = i - 1; j < l; ++j, --l)
+			std::swap(id[j], id[l]);
+	}
+
+	if (!aprservice_send_message_ex(service, destination, content, id, timeout, callback, param))
+		return false;
+
+	if (++service->message_count == 0x369B13E0)
 		service->message_count = 0;
 
-	char id[6] = {};
-	snprintf(id, sizeof(id), "%05X", service->message_count);
-
-	return aprservice_send_message_ex(service, destination, content, id, timeout, callback, param);
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_message_ex(struct aprservice* service, const char* destination, const char* content, const char* id, uint32_t timeout, aprservice_message_callback callback, void* param)
 {
@@ -2424,41 +2345,45 @@ bool                       APRSERVICE_CALL aprservice_send_message_ex(struct apr
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_message_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, content))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_message_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, content)))
 	{
-		if (id && !aprs_packet_message_set_id(packet, id))
-		{
-			aprservice_log_error_ex(aprs_packet_message_set_id, false);
+		aprservice_log_error(aprs_packet_message_init, nullptr);
 
-			aprs_packet_deinit(packet);
+		return false;
+	}
 
-			return false;
-		}
-
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (id && callback && (aprs_packet_message_get_type(packet) == APRS_MESSAGE_TYPE_MESSAGE))
-			service->message_callbacks.push_back(&service->message_callbacks_index[destination].emplace_back(aprservice_message_callback_context {
-				.id             = id,
-				.station        = destination,
-				.timeout        = aprservice_get_time(service) + timeout,
-				.callback       = callback,
-				.callback_param = param
-			}));
+	if (id && !aprs_packet_message_set_id(packet, id))
+	{
+		aprservice_log_error(aprs_packet_message_set_id, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (id && callback && (aprs_packet_message_get_type(packet) == APRS_MESSAGE_TYPE_MESSAGE))
+		service->message_callbacks.push_back(&service->message_callbacks_index[destination].emplace_back(aprservice_message_callback_context {
+			.id             = id,
+			.station        = destination,
+			.timeout        = aprservice_get_time(service) + timeout,
+			.callback       = callback,
+			.callback_param = param
+		}));
+
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id)
 {
@@ -2468,23 +2393,27 @@ bool                       APRSERVICE_CALL aprservice_send_message_ack(struct ap
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_message_init_ack(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, id))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_message_init_ack(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, id)))
 	{
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
+		aprservice_log_error(aprs_packet_message_init_ack, nullptr);
 
-			aprs_packet_deinit(packet);
+		return false;
+	}
 
-			return false;
-		}
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id)
 {
@@ -2494,23 +2423,27 @@ bool                       APRSERVICE_CALL aprservice_send_message_reject(struct
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_message_init_reject(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, id))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_message_init_reject(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), destination, id)))
 	{
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
+		aprservice_log_error(aprs_packet_message_init_reject, nullptr);
 
-			aprs_packet_deinit(packet);
+		return false;
+	}
 
-			return false;
-		}
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_weather(struct aprservice* service, uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const char* type, char software)
 {
@@ -2520,113 +2453,117 @@ bool                       APRSERVICE_CALL aprservice_send_weather(struct aprser
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_weather_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), type, software))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_weather_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), type, software)))
 	{
-		if (!aprs_packet_weather_set_time(packet, aprs_time_now()))
-		{
-			aprservice_log_error_ex(aprs_packet_weather_set_time, false);
+		aprservice_log_error(aprs_packet_weather_init, nullptr);
 
-			aprs_packet_deinit(packet);
+		return false;
+	}
 
-			return false;
-		}
-
-		if (!aprs_packet_weather_set_wind_speed(packet, wind_speed))
-		{
-			aprservice_log_error_ex(aprs_packet_weather_set_wind_speed, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_weather_set_wind_speed_gust(packet, wind_speed_gust))
-		{
-			aprservice_log_error_ex(aprs_packet_weather_set_wind_speed_gust, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_weather_set_wind_direction(packet, wind_direction))
-		{
-			aprservice_log_error_ex(aprs_packet_weather_set_wind_direction, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_weather_set_rainfall_last_hour(packet, rainfall_last_hour))
-		{
-			aprservice_log_error_ex(aprs_packet_weather_set_rainfall_last_hour, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_weather_set_rainfall_last_24_hours(packet, rainfall_last_24_hours))
-		{
-			aprservice_log_error_ex(aprs_packet_weather_set_rainfall_last_24_hours, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_weather_set_rainfall_since_midnight(packet, rainfall_since_midnight))
-		{
-			aprservice_log_error_ex(aprs_packet_weather_set_rainfall_since_midnight, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_weather_set_humidity(packet, humidity))
-		{
-			aprservice_log_error_ex(aprs_packet_weather_set_humidity, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_weather_set_temperature(packet, temperature))
-		{
-			aprservice_log_error_ex(aprs_packet_weather_set_temperature, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprs_packet_weather_set_barometric_pressure(packet, barometric_pressure))
-		{
-			aprservice_log_error_ex(aprs_packet_weather_set_barometric_pressure, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
-
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
+	if (!aprs_packet_weather_set_time(packet, aprs_time_now()))
+	{
+		aprservice_log_error(aprs_packet_weather_set_time, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	if (!aprs_packet_weather_set_wind_speed(packet, wind_speed))
+	{
+		aprservice_log_error(aprs_packet_weather_set_wind_speed, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_weather_set_wind_speed_gust(packet, wind_speed_gust))
+	{
+		aprservice_log_error(aprs_packet_weather_set_wind_speed_gust, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_weather_set_wind_direction(packet, wind_direction))
+	{
+		aprservice_log_error(aprs_packet_weather_set_wind_direction, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_weather_set_rainfall_last_hour(packet, rainfall_last_hour))
+	{
+		aprservice_log_error(aprs_packet_weather_set_rainfall_last_hour, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_weather_set_rainfall_last_24_hours(packet, rainfall_last_24_hours))
+	{
+		aprservice_log_error(aprs_packet_weather_set_rainfall_last_24_hours, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_weather_set_rainfall_since_midnight(packet, rainfall_since_midnight))
+	{
+		aprservice_log_error(aprs_packet_weather_set_rainfall_since_midnight, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_weather_set_humidity(packet, humidity))
+	{
+		aprservice_log_error(aprs_packet_weather_set_humidity, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_weather_set_temperature(packet, temperature))
+	{
+		aprservice_log_error(aprs_packet_weather_set_temperature, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_weather_set_barometric_pressure(packet, barometric_pressure))
+	{
+		aprservice_log_error(aprs_packet_weather_set_barometric_pressure, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_position(struct aprservice* service)
 {
@@ -2638,7 +2575,7 @@ bool                       APRSERVICE_CALL aprservice_send_position(struct aprse
 
 	if (!aprservice_send(service, service->position.packet))
 	{
-		aprservice_log_error_ex(aprservice_send, false);
+		aprservice_log_error(aprservice_send, false);
 
 		return false;
 	}
@@ -2653,26 +2590,30 @@ bool                       APRSERVICE_CALL aprservice_send_position_ex(struct ap
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_position_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), latitude, longitude, altitude, speed, course, comment, aprservice_get_symbol_table(service), aprservice_get_symbol_table_key(service)))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_position_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), latitude, longitude, altitude, speed, course, comment, aprservice_get_symbol_table(service), aprservice_get_symbol_table_key(service))))
 	{
-		aprs_packet_position_enable_messaging(packet, true);
-		aprs_packet_position_enable_compression(packet, aprs_packet_position_is_compressed(service->position.packet));
+		aprservice_log_error(aprs_packet_position_init, nullptr);
 
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
+		return false;
+	}
 
-			aprs_packet_deinit(packet);
+	aprs_packet_position_enable_messaging(packet, true);
+	aprs_packet_position_enable_compression(packet, aprs_packet_position_is_compressed(service->position.packet));
 
-			return false;
-		}
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_telemetry(struct aprservice* service, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital)
 {
@@ -2689,32 +2630,36 @@ bool                       APRSERVICE_CALL aprservice_send_telemetry_ex(struct a
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_telemetry_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), a1, a2, a3, a4, a5, digital, sequence))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_telemetry_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), a1, a2, a3, a4, a5, digital, sequence)))
 	{
-		if (comment && !aprs_packet_telemetry_set_comment(packet, comment))
-		{
-			aprservice_log_error_ex(aprs_packet_telemetry_set_comment, false);
+		aprservice_log_error(aprs_packet_telemetry_init, nullptr);
 
-			aprs_packet_deinit(packet);
+		return false;
+	}
 
-			return false;
-		}
-
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
+	if (comment && !aprs_packet_telemetry_set_comment(packet, comment))
+	{
+		aprservice_log_error(aprs_packet_telemetry_set_comment, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_telemetry_float(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital)
 {
@@ -2731,32 +2676,36 @@ bool                       APRSERVICE_CALL aprservice_send_telemetry_float_ex(st
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_telemetry_init_float(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), a1, a2, a3, a4, a5, digital, sequence))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_telemetry_init_float(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), a1, a2, a3, a4, a5, digital, sequence)))
 	{
-		if (comment && !aprs_packet_telemetry_set_comment(packet, comment))
-		{
-			aprservice_log_error_ex(aprs_packet_telemetry_set_comment, false);
+		aprservice_log_error(aprs_packet_telemetry_init_float, nullptr);
 
-			aprs_packet_deinit(packet);
+		return false;
+	}
 
-			return false;
-		}
-
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
+	if (comment && !aprs_packet_telemetry_set_comment(packet, comment))
+	{
+		aprservice_log_error(aprs_packet_telemetry_set_comment, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_user_defined(struct aprservice* service, char id, char type, const char* data)
 {
@@ -2766,23 +2715,27 @@ bool                       APRSERVICE_CALL aprservice_send_user_defined(struct a
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_user_defined_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), id, type, data))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_user_defined_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), id, type, data)))
 	{
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
+		aprservice_log_error(aprs_packet_user_defined_init, nullptr);
 
-			aprs_packet_deinit(packet);
+		return false;
+	}
 
-			return false;
-		}
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_send_third_party(struct aprservice* service, const char* content)
 {
@@ -2792,32 +2745,36 @@ bool                       APRSERVICE_CALL aprservice_send_third_party(struct ap
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (auto packet = aprs_packet_third_party_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service)))
+	aprs_packet* packet;
+
+	if (!(packet = aprs_packet_third_party_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service))))
 	{
-		if (!aprs_packet_third_party_set_content(packet, content))
-		{
-			aprservice_log_error_ex(aprs_packet_third_party_set_content, false);
+		aprservice_log_error(aprs_packet_third_party_init, nullptr);
 
-			aprs_packet_deinit(packet);
+		return false;
+	}
 
-			return false;
-		}
-
-		if (!aprservice_send(service, packet))
-		{
-			aprservice_log_error_ex(aprservice_send, false);
-
-			aprs_packet_deinit(packet);
-
-			return false;
-		}
+	if (!aprs_packet_third_party_set_content(packet, content))
+	{
+		aprservice_log_error(aprs_packet_third_party_set_content, false);
 
 		aprs_packet_deinit(packet);
 
-		return true;
+		return false;
 	}
 
-	return false;
+	if (!aprservice_send(service, packet))
+	{
+		aprservice_log_error(aprservice_send, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	aprs_packet_deinit(packet);
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_connect_aprs_is(struct aprservice* service, const char* hostname, uint16_t port, uint16_t passcode)
 {
@@ -2826,19 +2783,21 @@ bool                       APRSERVICE_CALL aprservice_connect_aprs_is(struct apr
 
 	if (!(service->connection = aprservice_connection_init(service, APRSERVICE_CONNECTION_TYPE_APRS_IS, hostname, port, 0, passcode)))
 	{
-		aprservice_log_error_ex(aprservice_connection_init, nullptr);
+		aprservice_log_error(aprservice_connection_init, nullptr);
 
 		return false;
 	}
 
 	if (!aprservice_connection_open(service->connection))
 	{
-		aprservice_log_error_ex(aprservice_connection_open, false);
+		aprservice_log_error(aprservice_connection_open, false);
+
+		aprservice_connection_deinit(service->connection);
+
+		service->connection = nullptr;
 
 		return false;
 	}
-
-	service->is_connected = true;
 
 	return true;
 }
@@ -2849,19 +2808,21 @@ bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc_tcp(struc
 
 	if (!(service->connection = aprservice_connection_init(service, APRSERVICE_CONNECTION_TYPE_KISS_TNC_TCP, hostname, port, 0, 0)))
 	{
-		aprservice_log_error_ex(aprservice_connection_init, nullptr);
+		aprservice_log_error(aprservice_connection_init, nullptr);
 
 		return false;
 	}
 
 	if (!aprservice_connection_open(service->connection))
 	{
-		aprservice_log_error_ex(aprservice_connection_open, false);
+		aprservice_log_error(aprservice_connection_open, false);
+
+		aprservice_connection_deinit(service->connection);
+
+		service->connection = nullptr;
 
 		return false;
 	}
-
-	service->is_connected = true;
 
 	return true;
 }
@@ -2872,19 +2833,21 @@ bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc_serial(st
 
 	if (!(service->connection = aprservice_connection_init(service, APRSERVICE_CONNECTION_TYPE_KISS_TNC_SERIAL, device, 0, speed, 0)))
 	{
-		aprservice_log_error_ex(aprservice_connection_init, nullptr);
+		aprservice_log_error(aprservice_connection_init, nullptr);
 
 		return false;
 	}
 
 	if (!aprservice_connection_open(service->connection))
 	{
-		aprservice_log_error_ex(aprservice_connection_open, false);
+		aprservice_log_error(aprservice_connection_open, false);
+
+		aprservice_connection_deinit(service->connection);
+
+		service->connection = nullptr;
 
 		return false;
 	}
-
-	service->is_connected = true;
 
 	return true;
 }
@@ -2893,6 +2856,7 @@ void                       APRSERVICE_CALL aprservice_disconnect(struct aprservi
 	if (aprservice_is_connected(service))
 	{
 		aprservice_connection_deinit(service->connection);
+		service->connection = nullptr;
 
 		service->message_callbacks.remove_if([service](aprservice_message_callback_context* context) {
 			context->callback(service, APRSERVICE_MESSAGE_ERROR_DISCONNECTED, context->callback_param);
@@ -2901,8 +2865,6 @@ void                       APRSERVICE_CALL aprservice_disconnect(struct aprservi
 		});
 
 		service->message_callbacks_index.clear();
-
-		service->is_connected = false;
 	}
 }
 bool                       APRSERVICE_CALL aprservice_wait_for_io(struct aprservice* service)
@@ -2989,11 +2951,15 @@ struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprserv
 	};
 
 	if (!(item.packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
+	{
+		aprservice_log_error(aprs_packet_object_init, nullptr);
+
 		return nullptr;
+	}
 
 	if (!aprs_packet_item_set_alive(item.packet, true))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_alive, false);
+		aprservice_log_error(aprs_packet_item_set_alive, false);
 
 		aprs_packet_deinit(item.packet);
 
@@ -3002,7 +2968,7 @@ struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprserv
 
 	if (!aprs_packet_item_set_speed(item.packet, speed))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_speed, false);
+		aprservice_log_error(aprs_packet_item_set_speed, false);
 
 		aprs_packet_deinit(item.packet);
 
@@ -3011,7 +2977,7 @@ struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprserv
 
 	if (!aprs_packet_item_set_course(item.packet, course))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_course, false);
+		aprservice_log_error(aprs_packet_item_set_course, false);
 
 		aprs_packet_deinit(item.packet);
 
@@ -3020,7 +2986,7 @@ struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprserv
 
 	if (!aprs_packet_item_set_comment(item.packet, comment))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_comment, false);
+		aprservice_log_error(aprs_packet_item_set_comment, false);
 
 		aprs_packet_deinit(item.packet);
 
@@ -3029,7 +2995,7 @@ struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprserv
 
 	if (!aprs_packet_item_set_altitude(item.packet, altitude))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_altitude, false);
+		aprservice_log_error(aprs_packet_item_set_altitude, false);
 
 		aprs_packet_deinit(item.packet);
 
@@ -3038,7 +3004,7 @@ struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprserv
 
 	if (!aprs_packet_item_set_latitude(item.packet, latitude))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_latitude, false);
+		aprservice_log_error(aprs_packet_item_set_latitude, false);
 
 		aprs_packet_deinit(item.packet);
 
@@ -3047,7 +3013,7 @@ struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprserv
 
 	if (!aprs_packet_item_set_longitude(item.packet, longitude))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_longitude, false);
+		aprservice_log_error(aprs_packet_item_set_longitude, false);
 
 		aprs_packet_deinit(item.packet);
 
@@ -3056,7 +3022,7 @@ struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprserv
 
 	if (!aprs_packet_item_set_compressed(item.packet, aprservice_is_compression_enabled(service)))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_compressed, false);
+		aprservice_log_error(aprs_packet_item_set_compressed, false);
 
 		aprs_packet_deinit(item.packet);
 
@@ -3130,7 +3096,7 @@ bool                       APRSERVICE_CALL aprservice_item_set_symbol(struct apr
 {
 	if (!aprs_packet_item_set_symbol(item->packet, table, key))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_symbol, false);
+		aprservice_log_error(aprs_packet_item_set_symbol, false);
 
 		return false;
 	}
@@ -3141,7 +3107,7 @@ bool                       APRSERVICE_CALL aprservice_item_set_comment(struct ap
 {
 	if (!aprs_packet_item_set_comment(item->packet, value))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_comment, false);
+		aprservice_log_error(aprs_packet_item_set_comment, false);
 
 		return false;
 	}
@@ -3152,35 +3118,35 @@ bool                       APRSERVICE_CALL aprservice_item_set_position(struct a
 {
 	if (!aprs_packet_item_set_speed(item->packet, speed))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_speed, false);
+		aprservice_log_error(aprs_packet_item_set_speed, false);
 
 		return false;
 	}
 
 	if (!aprs_packet_item_set_course(item->packet, course))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_course, false);
+		aprservice_log_error(aprs_packet_item_set_course, false);
 
 		return false;
 	}
 
 	if (!aprs_packet_item_set_altitude(item->packet, altitude))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_altitude, false);
+		aprservice_log_error(aprs_packet_item_set_altitude, false);
 
 		return false;
 	}
 
 	if (!aprs_packet_item_set_latitude(item->packet, latitude))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_latitude, false);
+		aprservice_log_error(aprs_packet_item_set_latitude, false);
 
 		return false;
 	}
 
 	if (!aprs_packet_item_set_longitude(item->packet, longitude))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_longitude, false);
+		aprservice_log_error(aprs_packet_item_set_longitude, false);
 
 		return false;
 	}
@@ -3189,7 +3155,14 @@ bool                       APRSERVICE_CALL aprservice_item_set_position(struct a
 }
 bool                       APRSERVICE_CALL aprservice_item_set_compressed(struct aprservice_item* item, bool value)
 {
-	return aprs_packet_item_set_compressed(item->packet, value);
+	if (!aprs_packet_item_set_compressed(item->packet, value))
+	{
+		aprservice_log_error(aprs_packet_item_set_compressed, false);
+
+		return false;
+	}
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_item_kill(struct aprservice_item* item)
 {
@@ -3198,7 +3171,7 @@ bool                       APRSERVICE_CALL aprservice_item_kill(struct aprservic
 
 	if (!aprs_packet_item_set_alive(item->packet, false))
 	{
-		aprservice_log_error_ex(aprs_packet_item_set_alive, false);
+		aprservice_log_error(aprs_packet_item_set_alive, false);
 
 		return false;
 	}
@@ -3209,7 +3182,7 @@ bool                       APRSERVICE_CALL aprservice_item_announce(struct aprse
 {
 	if (!aprservice_send(item->service, item->packet))
 	{
-		aprservice_log_error_ex(aprservice_send, false);
+		aprservice_log_error(aprservice_send, false);
 
 		return false;
 	}
@@ -3225,11 +3198,15 @@ struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprse
 	};
 
 	if (!(object.packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
+	{
+		aprservice_log_error(aprs_packet_object_init, nullptr);
+
 		return nullptr;
+	}
 
 	if (!aprs_packet_object_set_alive(object.packet, true))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_alive, false);
+		aprservice_log_error(aprs_packet_object_set_alive, false);
 
 		aprs_packet_deinit(object.packet);
 
@@ -3238,7 +3215,7 @@ struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprse
 
 	if (!aprs_packet_object_set_speed(object.packet, speed))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_speed, false);
+		aprservice_log_error(aprs_packet_object_set_speed, false);
 
 		aprs_packet_deinit(object.packet);
 
@@ -3247,7 +3224,7 @@ struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprse
 
 	if (!aprs_packet_object_set_course(object.packet, course))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_course, false);
+		aprservice_log_error(aprs_packet_object_set_course, false);
 
 		aprs_packet_deinit(object.packet);
 
@@ -3256,7 +3233,7 @@ struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprse
 
 	if (!aprs_packet_object_set_comment(object.packet, comment))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_comment, false);
+		aprservice_log_error(aprs_packet_object_set_comment, false);
 
 		aprs_packet_deinit(object.packet);
 
@@ -3265,7 +3242,7 @@ struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprse
 
 	if (!aprs_packet_object_set_altitude(object.packet, altitude))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_altitude, false);
+		aprservice_log_error(aprs_packet_object_set_altitude, false);
 
 		aprs_packet_deinit(object.packet);
 
@@ -3274,7 +3251,7 @@ struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprse
 
 	if (!aprs_packet_object_set_latitude(object.packet, latitude))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_latitude, false);
+		aprservice_log_error(aprs_packet_object_set_latitude, false);
 
 		aprs_packet_deinit(object.packet);
 
@@ -3283,7 +3260,7 @@ struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprse
 
 	if (!aprs_packet_object_set_longitude(object.packet, longitude))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_longitude, false);
+		aprservice_log_error(aprs_packet_object_set_longitude, false);
 
 		aprs_packet_deinit(object.packet);
 
@@ -3292,7 +3269,7 @@ struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprse
 
 	if (!aprs_packet_object_set_compressed(object.packet, aprservice_is_compression_enabled(service)))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_compressed, false);
+		aprservice_log_error(aprs_packet_object_set_compressed, false);
 
 		aprs_packet_deinit(object.packet);
 
@@ -3366,7 +3343,7 @@ bool                       APRSERVICE_CALL aprservice_object_set_symbol(struct a
 {
 	if (!aprs_packet_object_set_symbol(object->packet, table, key))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_symbol, false);
+		aprservice_log_error(aprs_packet_object_set_symbol, false);
 
 		return false;
 	}
@@ -3377,7 +3354,7 @@ bool                       APRSERVICE_CALL aprservice_object_set_comment(struct 
 {
 	if (!aprs_packet_object_set_comment(object->packet, value))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_comment, false);
+		aprservice_log_error(aprs_packet_object_set_comment, false);
 
 		return false;
 	}
@@ -3388,35 +3365,35 @@ bool                       APRSERVICE_CALL aprservice_object_set_position(struct
 {
 	if (!aprs_packet_object_set_speed(object->packet, speed))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_speed, false);
+		aprservice_log_error(aprs_packet_object_set_speed, false);
 
 		return false;
 	}
 
 	if (!aprs_packet_object_set_course(object->packet, course))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_course, false);
+		aprservice_log_error(aprs_packet_object_set_course, false);
 
 		return false;
 	}
 
 	if (!aprs_packet_object_set_altitude(object->packet, altitude))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_altitude, false);
+		aprservice_log_error(aprs_packet_object_set_altitude, false);
 
 		return false;
 	}
 
 	if (!aprs_packet_object_set_latitude(object->packet, latitude))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_latitude, false);
+		aprservice_log_error(aprs_packet_object_set_latitude, false);
 
 		return false;
 	}
 
 	if (!aprs_packet_object_set_longitude(object->packet, longitude))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_longitude, false);
+		aprservice_log_error(aprs_packet_object_set_longitude, false);
 
 		return false;
 	}
@@ -3425,7 +3402,14 @@ bool                       APRSERVICE_CALL aprservice_object_set_position(struct
 }
 bool                       APRSERVICE_CALL aprservice_object_set_compressed(struct aprservice_object* object, bool value)
 {
-	return aprs_packet_object_set_compressed(object->packet, value);
+	if (!aprs_packet_object_set_compressed(object->packet, value))
+	{
+		aprservice_log_error(aprs_packet_object_set_compressed, false);
+
+		return false;
+	}
+
+	return true;
 }
 bool                       APRSERVICE_CALL aprservice_object_kill(struct aprservice_object* object)
 {
@@ -3434,7 +3418,7 @@ bool                       APRSERVICE_CALL aprservice_object_kill(struct aprserv
 
 	if (!aprs_packet_object_set_alive(object->packet, false))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_alive, false);
+		aprservice_log_error(aprs_packet_object_set_alive, false);
 
 		return false;
 	}
@@ -3445,14 +3429,14 @@ bool                       APRSERVICE_CALL aprservice_object_announce(struct apr
 {
 	if (!aprs_packet_object_set_time(object->packet, aprs_time_now()))
 	{
-		aprservice_log_error_ex(aprs_packet_object_set_time, false);
+		aprservice_log_error(aprs_packet_object_set_time, false);
 
 		return false;
 	}
 
 	if (!aprservice_send(object->service, object->packet))
 	{
-		aprservice_log_error_ex(aprservice_send, false);
+		aprservice_log_error(aprservice_send, false);
 
 		return false;
 	}

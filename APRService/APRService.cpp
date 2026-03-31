@@ -1357,10 +1357,13 @@ bool                                       aprservice_connection_write_packet(ap
 							auto path_node   = aprs_path_get(value);
 							auto path_length = aprs_path_get_length(value);
 
-							for (size_t i = 0; i < path_length; ++i, offset += 7)
+							for (size_t i = 1; i <= path_length; ++i, ++path_node, offset += 7)
+							{
 								buffer_encode_station(buffer, offset, path_node->station, path_node->repeated);
 
-							buffer[offset + 6] |= 0x01;
+								if (i == path_length)
+									buffer[offset + 6] |= 0x01;
+							}
 
 							return offset;
 						};

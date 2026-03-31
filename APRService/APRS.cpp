@@ -693,8 +693,6 @@ bool               aprs_decode_latitude(float& value, std::string_view string, c
 		return false;
 	};
 
-	// TODO: 2638750
-	// TODO: 5101418
 	if (!aprs_validate_string(string, string_is_valid))
 		return false;
 

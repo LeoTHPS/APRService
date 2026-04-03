@@ -424,9 +424,9 @@ bool                                       aprservice_connection_set_blocking(ap
 				}
 
 				if (value)
-					flags |= O_NONBLOCK;
-				else
 					flags &= ~O_NONBLOCK;
+				else
+					flags |= O_NONBLOCK;
 
 				if (fcntl(connection->socket, F_SETFL, flags) == -1)
 				{
@@ -466,9 +466,9 @@ bool                                       aprservice_connection_set_blocking(ap
 				}
 
 				if (value)
-					flags |= O_NONBLOCK;
-				else
 					flags &= ~O_NONBLOCK;
+				else
+					flags |= O_NONBLOCK;
 
 				if (fcntl(connection->serial, F_SETFL, flags) == -1)
 				{
@@ -614,7 +614,7 @@ socket_connect:
 bool                                       aprservice_connection_open_serial(aprservice_connection* connection)
 {
 #if defined(APRSERVICE_UNIX)
-	if ((connection->serial = open(connection->host_or_device.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK)) == -1)
+	if ((connection->serial = open(connection->host_or_device.c_str(), O_RDWR | O_NOCTTY)) == -1)
 	{
 		auto error = errno;
 

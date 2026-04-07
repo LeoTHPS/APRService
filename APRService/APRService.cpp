@@ -1455,7 +1455,7 @@ int                                        aprservice_connection_wait_for_io(apr
 #if defined(APRSERVICE_UNIX)
 			pollfd fd = { .fd = connection->socket, .events = POLLRDNORM };
 
-			switch (poll(&fd, 1, (int)(timeout / 1000)))
+			switch (poll(&fd, 1, (int)(timeout * 1000)))
 			{
 				case 0:
 					would_block = true;
@@ -1474,7 +1474,7 @@ int                                        aprservice_connection_wait_for_io(apr
 #elif defined(APRSERVICE_WIN32)
 			WSAPOLLFD fd = { .fd = connection->socket, .events = POLLRDNORM };
 
-			switch (WSAPoll(&fd, 1, (INT)(timeout / 1000)))
+			switch (WSAPoll(&fd, 1, (INT)(timeout * 1000)))
 			{
 				case 0:
 					would_block = true;

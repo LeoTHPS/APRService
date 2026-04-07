@@ -552,7 +552,7 @@ void    demo_run(struct demo* d)
 {
 	while (aprservice_poll(d->service))
 		if (aprservice_is_connected(d->service) || demo_connect(d))
-			aprservice_wait_for_io(d->service);
+			aprservice_wait_for_io(d->service, 1);
 }
 
 int main(int argc, char* argv[])

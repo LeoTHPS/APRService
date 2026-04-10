@@ -616,7 +616,10 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 	{
 		case 'h': // HMS
 		{
-			if (!aprs_validate_string(string.substr(0, 6), string_is_valid))
+			if (string.length() != 6)
+				return false;
+
+			if (!aprs_validate_string(string, string_is_valid))
 				return false;
 
 			auto hour = string.substr(0, 2);
@@ -635,7 +638,10 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 		case 'z': // DHM
 		case '/':
 		{
-			if (!aprs_validate_string(string.substr(0, 6), string_is_valid))
+			if (string.length() != 6)
+				return false;
+
+			if (!aprs_validate_string(string, string_is_valid))
 				return false;
 
 			auto mday = string.substr(0, 2);
@@ -652,7 +658,10 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 
 		case 0: // MDHM
 		{
-			if (!aprs_validate_string(string.substr(0, 8), string_is_valid))
+			if (string.length() != 8)
+				return false;
+
+			if (!aprs_validate_string(string, string_is_valid))
 				return false;
 
 			auto mon  = string.substr(0, 2);
@@ -674,6 +683,9 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 }
 bool               aprs_decode_latitude(float& value, std::string_view string, char hemisphere)
 {
+	if (string.length() != 7)
+		return false;
+
 	static auto string_is_valid = [](size_t index, char value)->bool
 	{
 		switch (index)
@@ -714,6 +726,9 @@ bool               aprs_decode_latitude(float& value, std::string_view string, c
 }
 bool               aprs_decode_longitude(float& value, std::string_view string, char hemisphere)
 {
+	if (string.length() != 8)
+		return false;
+
 	static auto string_is_valid = [](size_t index, char value)->bool
 	{
 		switch (index)

@@ -1682,14 +1682,13 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 }
 bool               aprs_packet_decode_weather(aprs_packet* packet)
 {
-	aprs_time                       time;
-	aprs_regex_match_result         time_match;
-	static const aprs_regex_pattern time_pattern("^_([0-9]{8})c");
-
-	if (!aprs_regex_search(time_match, time_pattern, packet->content))
+	if (packet->content.length() < 10)
 		return false;
 
-	if (!aprs_decode_time(time, time_match[1].str(), 0))
+	aprs_time        time;
+	std::string_view time_string(packet->content.c_str() + 1, 8);
+
+	if (!aprs_decode_time(time, time_string, 0))
 		return false;
 
 	static auto decode_next_chunk = [](std::string_view& string, char& key, int& value)
@@ -1729,7 +1728,7 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 
 	char             key;
 	int              value;
-	std::string_view string(&packet->content[9], packet->content.length() - 9);
+	std::string_view string(packet->content.c_str() + 9, packet->content.length() - 9);
 
 	while (decode_next_chunk(string, key, value))
 		switch (key)

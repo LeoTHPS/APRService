@@ -2727,6 +2727,26 @@ struct aprs_time*                 APRSERVICE_CALL aprs_time_now()
 
 	return &time;
 }
+bool                              APRSERVICE_CALL aprs_time_is_dhm(const struct aprs_time* time)
+{
+	return time->type & APRS_TIME_DHM;
+}
+bool                              APRSERVICE_CALL aprs_time_is_hms(const struct aprs_time* time)
+{
+	return time->type & APRS_TIME_HMS;
+}
+bool                              APRSERVICE_CALL aprs_time_is_mdhm(const struct aprs_time* time)
+{
+	return time->type & APRS_TIME_MDHM;
+}
+bool                              APRSERVICE_CALL aprs_time_is_zulu(const struct aprs_time* time)
+{
+	return time->type & APRS_TIME_ZULU;
+}
+bool                              APRSERVICE_CALL aprs_time_is_local(const struct aprs_time* time)
+{
+	return time->type & APRS_TIME_LOCAL;
+}
 int                               APRSERVICE_CALL aprs_time_get_type(const struct aprs_time* time)
 {
 	return time->type;

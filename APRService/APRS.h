@@ -139,6 +139,11 @@ APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_path_to
 APRSERVICE_EXPORT void                              APRSERVICE_CALL aprs_path_add_reference(struct aprs_path* path);
 
 APRSERVICE_EXPORT struct aprs_time*                 APRSERVICE_CALL aprs_time_now();
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_is_dhm(const struct aprs_time* time);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_is_hms(const struct aprs_time* time);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_is_mdhm(const struct aprs_time* time);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_is_zulu(const struct aprs_time* time);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_is_local(const struct aprs_time* time);
 APRSERVICE_EXPORT int                               APRSERVICE_CALL aprs_time_get_type(const struct aprs_time* time);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_get_dhm(const struct aprs_time* time, uint8_t* day, uint8_t* hour, uint8_t* minute);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_get_hms(const struct aprs_time* time, uint8_t* hour, uint8_t* minute, uint8_t* second);

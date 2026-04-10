@@ -99,12 +99,6 @@ struct aprservice_event
 	void*                    handler_param;
 };
 
-struct aprservice_position
-{
-	APRSERVICE_POSITION_TYPES type;
-	aprs_packet*              packet;
-};
-
 struct aprservice_connection_auth
 {
 	APRSERVICE_AUTH_STATES state;
@@ -200,10 +194,11 @@ struct aprservice
 
 	std::string                                                                     line;
 	int64_t                                                                         time;
+	int                                                                             time_type;
 
 	aprs_path*                                                                      path;
 	const std::string                                                               station;
-	aprservice_position                                                             position;
+	aprs_packet*                                                                    position;
 	aprservice_connection*                                                          connection;
 	uint32_t                                                                        connection_timeout;
 
@@ -1581,16 +1576,16 @@ struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, 
 		.is_monitoring      = false,
 
 		.time               = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count(),
+		.time_type          = APRS_TIME_ZULU_HMS,
 
 		.path               = path,
 		.station            = station,
-		.position           = { .type = APRSERVICE_POSITION_TYPE_POSITION },
 		.connection_timeout = 2 * 60,
 
 		.command_prefix     = "."
 	};
 
-	if (!(service->position.packet = aprs_packet_position_init(station, APRSERVICE_TOCALL, path, 0, 0, 0, 0, 0, "", symbol_table, symbol_table_key)))
+	if (!(service->position = aprs_packet_position_init(station, APRSERVICE_TOCALL, path, 0, 0, 0, 0, 0, "", symbol_table, symbol_table_key, aprservice_get_time_type(service))))
 	{
 		aprservice_log_error(aprs_packet_position_init, nullptr);
 
@@ -1645,8 +1640,7 @@ void                       APRSERVICE_CALL aprservice_deinit(struct aprservice* 
 	for (auto it = service->commands.begin(); it != service->commands.end(); )
 		aprservice_command_unregister(&*it++);
 
-	aprs_packet_deinit(service->position.packet);
-
+	aprs_packet_deinit(service->position);
 	aprs_path_deinit(service->path);
 
 	delete service;
@@ -1684,14 +1678,7 @@ bool                       APRSERVICE_CALL aprservice_is_monitoring_enabled(stru
 }
 bool                       APRSERVICE_CALL aprservice_is_compression_enabled(struct aprservice* service)
 {
-	switch (service->position.type)
-	{
-		case APRSERVICE_POSITION_TYPE_MIC_E:
-		case APRSERVICE_POSITION_TYPE_POSITION_COMPRESSED:
-			return true;
-	}
-
-	return false;
+	return aprs_packet_position_is_mic_e(service->position) || aprs_packet_position_is_compressed(service->position);
 }
 struct aprs_path*          APRSERVICE_CALL aprservice_get_path(struct aprservice* service)
 {
@@ -1701,9 +1688,13 @@ uint32_t                   APRSERVICE_CALL aprservice_get_time(struct aprservice
 {
 	return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - service->time;
 }
+int                        APRSERVICE_CALL aprservice_get_time_type(struct aprservice* service)
+{
+	return service->time_type;
+}
 const char*                APRSERVICE_CALL aprservice_get_comment(struct aprservice* service)
 {
-	return aprs_packet_position_get_comment(service->position.packet);
+	return aprs_packet_position_get_comment(service->position);
 }
 const char*                APRSERVICE_CALL aprservice_get_station(struct aprservice* service)
 {
@@ -1711,23 +1702,29 @@ const char*                APRSERVICE_CALL aprservice_get_station(struct aprserv
 }
 char                       APRSERVICE_CALL aprservice_get_symbol_table(struct aprservice* service)
 {
-	return aprs_packet_position_get_symbol_table(service->position.packet);
+	return aprs_packet_position_get_symbol_table(service->position);
 }
 char                       APRSERVICE_CALL aprservice_get_symbol_table_key(struct aprservice* service)
 {
-	return aprs_packet_position_get_symbol_table_key(service->position.packet);
+	return aprs_packet_position_get_symbol_table_key(service->position);
 }
 void                       APRSERVICE_CALL aprservice_get_position(struct aprservice* service, float* latitude, float* longitude, int32_t* altitude, uint16_t* speed, uint16_t* course)
 {
-	*speed     = aprs_packet_position_get_speed(service->position.packet);
-	*course    = aprs_packet_position_get_course(service->position.packet);
-	*altitude  = aprs_packet_position_get_altitude(service->position.packet);
-	*latitude  = aprs_packet_position_get_latitude(service->position.packet);
-	*longitude = aprs_packet_position_get_longitude(service->position.packet);
+	*speed     = aprs_packet_position_get_speed(service->position);
+	*course    = aprs_packet_position_get_course(service->position);
+	*altitude  = aprs_packet_position_get_altitude(service->position);
+	*latitude  = aprs_packet_position_get_latitude(service->position);
+	*longitude = aprs_packet_position_get_longitude(service->position);
 }
 int                        APRSERVICE_CALL aprservice_get_position_type(struct aprservice* service)
 {
-	return service->position.type;
+	if (aprs_packet_position_is_mic_e(service->position))
+		return APRSERVICE_POSITION_TYPE_MIC_E;
+
+	if (aprs_packet_position_is_compressed(service->position))
+		return APRSERVICE_POSITION_TYPE_POSITION_COMPRESSED;
+
+	return APRSERVICE_POSITION_TYPE_POSITION;
 }
 const char*                APRSERVICE_CALL aprservice_get_command_prefix(struct aprservice* service)
 {
@@ -1769,9 +1766,20 @@ bool                       APRSERVICE_CALL aprservice_set_path(struct aprservice
 
 	return true;
 }
+bool                       APRSERVICE_CALL aprservice_set_time_type(struct aprservice* service, int value)
+{
+	if (!aprs_time_type_is_valid(value))
+		return false;
+
+	service->time_type = value;
+	service->objects;
+	service->position;
+
+	return true;
+}
 bool                       APRSERVICE_CALL aprservice_set_symbol(struct aprservice* service, char table, char key)
 {
-	if (!aprs_packet_position_set_symbol(service->position.packet, table, key))
+	if (!aprs_packet_position_set_symbol(service->position, table, key))
 	{
 		aprservice_log_error(aprs_packet_position_set_symbol, false);
 
@@ -1782,7 +1790,7 @@ bool                       APRSERVICE_CALL aprservice_set_symbol(struct aprservi
 }
 bool                       APRSERVICE_CALL aprservice_set_comment(struct aprservice* service, const char* value)
 {
-	if (!aprs_packet_position_set_comment(service->position.packet, value))
+	if (!aprs_packet_position_set_comment(service->position, value))
 	{
 		aprservice_log_error(aprs_packet_position_set_comment, false);
 
@@ -1793,35 +1801,35 @@ bool                       APRSERVICE_CALL aprservice_set_comment(struct aprserv
 }
 bool                       APRSERVICE_CALL aprservice_set_position(struct aprservice* service, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
 {
-	if (!aprs_packet_position_set_speed(service->position.packet, speed))
+	if (!aprs_packet_position_set_speed(service->position, speed))
 	{
 		aprservice_log_error(aprs_packet_position_set_speed, false);
 
 		return false;
 	}
 
-	if (!aprs_packet_position_set_course(service->position.packet, course))
+	if (!aprs_packet_position_set_course(service->position, course))
 	{
 		aprservice_log_error(aprs_packet_position_set_course, false);
 
 		return false;
 	}
 
-	if (!aprs_packet_position_set_altitude(service->position.packet, altitude))
+	if (!aprs_packet_position_set_altitude(service->position, altitude))
 	{
 		aprservice_log_error(aprs_packet_position_set_altitude, false);
 
 		return false;
 	}
 
-	if (!aprs_packet_position_set_latitude(service->position.packet, latitude))
+	if (!aprs_packet_position_set_latitude(service->position, latitude))
 	{
 		aprservice_log_error(aprs_packet_position_set_latitude, false);
 
 		return false;
 	}
 
-	if (!aprs_packet_position_set_longitude(service->position.packet, longitude))
+	if (!aprs_packet_position_set_longitude(service->position, longitude))
 	{
 		aprservice_log_error(aprs_packet_position_set_longitude, false);
 
@@ -1838,12 +1846,11 @@ bool                       APRSERVICE_CALL aprservice_set_position_type(struct a
 	switch (value)
 	{
 		case APRSERVICE_POSITION_TYPE_MIC_E:
-			if (auto packet = aprs_packet_position_init_mic_e(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), aprs_packet_position_get_latitude(service->position.packet), aprs_packet_position_get_longitude(service->position.packet), aprs_packet_position_get_altitude(service->position.packet), aprs_packet_position_get_speed(service->position.packet), aprs_packet_position_get_course(service->position.packet), aprs_packet_position_get_comment(service->position.packet), aprs_packet_position_get_symbol_table(service->position.packet), aprs_packet_position_get_symbol_table_key(service->position.packet), APRS_MIC_E_MESSAGE_OFF_DUTY))
+			if (auto packet = aprs_packet_position_init_mic_e(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), aprs_packet_position_get_latitude(service->position), aprs_packet_position_get_longitude(service->position), aprs_packet_position_get_altitude(service->position), aprs_packet_position_get_speed(service->position), aprs_packet_position_get_course(service->position), aprs_packet_position_get_comment(service->position), aprs_packet_position_get_symbol_table(service->position), aprs_packet_position_get_symbol_table_key(service->position), APRS_MIC_E_MESSAGE_OFF_DUTY))
 			{
-				aprs_packet_deinit(service->position.packet);
+				aprs_packet_deinit(service->position);
 
-				service->position.type   = value;
-				service->position.packet = packet;
+				service->position = packet;
 
 				return true;
 			}
@@ -1851,12 +1858,11 @@ bool                       APRSERVICE_CALL aprservice_set_position_type(struct a
 			return false;
 
 		case APRSERVICE_POSITION_TYPE_POSITION:
-			if (auto packet = aprs_packet_position_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), aprs_packet_position_get_latitude(service->position.packet), aprs_packet_position_get_longitude(service->position.packet), aprs_packet_position_get_altitude(service->position.packet), aprs_packet_position_get_speed(service->position.packet), aprs_packet_position_get_course(service->position.packet), aprs_packet_position_get_comment(service->position.packet), aprs_packet_position_get_symbol_table(service->position.packet), aprs_packet_position_get_symbol_table_key(service->position.packet)))
+			if (auto packet = aprs_packet_position_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), aprs_packet_position_get_latitude(service->position), aprs_packet_position_get_longitude(service->position), aprs_packet_position_get_altitude(service->position), aprs_packet_position_get_speed(service->position), aprs_packet_position_get_course(service->position), aprs_packet_position_get_comment(service->position), aprs_packet_position_get_symbol_table(service->position), aprs_packet_position_get_symbol_table_key(service->position), aprservice_get_time_type(service)))
 			{
-				aprs_packet_deinit(service->position.packet);
+				aprs_packet_deinit(service->position);
 
-				service->position.type   = value;
-				service->position.packet = packet;
+				service->position = packet;
 
 				return true;
 			}
@@ -1864,12 +1870,11 @@ bool                       APRSERVICE_CALL aprservice_set_position_type(struct a
 			return false;
 
 		case APRSERVICE_POSITION_TYPE_POSITION_COMPRESSED:
-			if (auto packet = aprs_packet_position_init_compressed(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), aprs_packet_position_get_latitude(service->position.packet), aprs_packet_position_get_longitude(service->position.packet), aprs_packet_position_get_altitude(service->position.packet), aprs_packet_position_get_speed(service->position.packet), aprs_packet_position_get_course(service->position.packet), aprs_packet_position_get_comment(service->position.packet), aprs_packet_position_get_symbol_table(service->position.packet), aprs_packet_position_get_symbol_table_key(service->position.packet)))
+			if (auto packet = aprs_packet_position_init_compressed(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), aprs_packet_position_get_latitude(service->position), aprs_packet_position_get_longitude(service->position), aprs_packet_position_get_altitude(service->position), aprs_packet_position_get_speed(service->position), aprs_packet_position_get_course(service->position), aprs_packet_position_get_comment(service->position), aprs_packet_position_get_symbol_table(service->position), aprs_packet_position_get_symbol_table_key(service->position), aprservice_get_time_type(service)))
 			{
-				aprs_packet_deinit(service->position.packet);
+				aprs_packet_deinit(service->position);
 
-				service->position.type   = value;
-				service->position.packet = packet;
+				service->position = packet;
 
 				return true;
 			}
@@ -2252,18 +2257,9 @@ bool                       APRSERVICE_CALL aprservice_send_object(struct aprserv
 
 	aprs_packet* packet;
 
-	if (!(packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
+	if (!(packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key, aprservice_get_time_type(service))))
 	{
 		aprservice_log_error(aprs_packet_object_init, nullptr);
-
-		return false;
-	}
-
-	if (!aprs_packet_object_set_time(packet, aprs_time_now()))
-	{
-		aprservice_log_error(aprs_packet_object_set_time, false);
-
-		aprs_packet_deinit(packet);
 
 		return false;
 	}
@@ -2370,7 +2366,18 @@ bool                       APRSERVICE_CALL aprservice_send_status(struct aprserv
 		return false;
 	}
 
-	if (!aprs_packet_status_set_time(packet, aprs_time_now()))
+	aprs_time time;
+
+	if (!aprs_time_now(&time, aprservice_get_time_type(service)))
+	{
+		aprservice_log_error(aprs_time_now, false);
+
+		aprs_packet_deinit(packet);
+
+		return false;
+	}
+
+	if (!aprs_packet_status_set_time(packet, &time))
 	{
 		aprservice_log_error(aprs_packet_status_set_time, false);
 
@@ -2549,15 +2556,6 @@ bool                       APRSERVICE_CALL aprservice_send_weather(struct aprser
 		return false;
 	}
 
-	if (!aprs_packet_weather_set_time(packet, aprs_time_now()))
-	{
-		aprservice_log_error(aprs_packet_weather_set_time, false);
-
-		aprs_packet_deinit(packet);
-
-		return false;
-	}
-
 	if (!aprs_packet_weather_set_wind_speed(packet, wind_speed))
 	{
 		aprservice_log_error(aprs_packet_weather_set_wind_speed, false);
@@ -2660,7 +2658,7 @@ bool                       APRSERVICE_CALL aprservice_send_position(struct aprse
 	if (aprservice_is_read_only(service))
 		return false;
 
-	if (!aprservice_send(service, service->position.packet))
+	if (!aprservice_send(service, service->position))
 	{
 		aprservice_log_error(aprservice_send, false);
 
@@ -2679,7 +2677,7 @@ bool                       APRSERVICE_CALL aprservice_send_position_ex(struct ap
 
 	aprs_packet* packet;
 
-	if (!(packet = aprs_packet_position_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), latitude, longitude, altitude, speed, course, comment, aprservice_get_symbol_table(service), aprservice_get_symbol_table_key(service))))
+	if (!(packet = aprs_packet_position_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), latitude, longitude, altitude, speed, course, comment, aprservice_get_symbol_table(service), aprservice_get_symbol_table_key(service), aprservice_get_time_type(service))))
 	{
 		aprservice_log_error(aprs_packet_position_init, nullptr);
 
@@ -2687,7 +2685,7 @@ bool                       APRSERVICE_CALL aprservice_send_position_ex(struct ap
 	}
 
 	aprs_packet_position_enable_messaging(packet, true);
-	aprs_packet_position_enable_compression(packet, aprs_packet_position_is_compressed(service->position.packet));
+	aprs_packet_position_enable_compression(packet, aprs_packet_position_is_compressed(service->position));
 
 	if (!aprservice_send(service, packet))
 	{
@@ -3046,9 +3044,9 @@ struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprserv
 		.service = service
 	};
 
-	if (!(item.packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
+	if (!(item.packet = aprs_packet_item_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
 	{
-		aprservice_log_error(aprs_packet_object_init, nullptr);
+		aprservice_log_error(aprs_packet_item_init, nullptr);
 
 		return nullptr;
 	}
@@ -3293,7 +3291,7 @@ struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprse
 		.service = service
 	};
 
-	if (!(object.packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key)))
+	if (!(object.packet = aprs_packet_object_init(aprservice_get_station(service), APRSERVICE_TOCALL, aprservice_get_path(service), name, symbol_table, symbol_table_key, aprservice_get_time_type(service))))
 	{
 		aprservice_log_error(aprs_packet_object_init, nullptr);
 
@@ -3523,7 +3521,16 @@ bool                       APRSERVICE_CALL aprservice_object_kill(struct aprserv
 }
 bool                       APRSERVICE_CALL aprservice_object_announce(struct aprservice_object* object)
 {
-	if (!aprs_packet_object_set_time(object->packet, aprs_time_now()))
+	aprs_time time;
+
+	if (!aprs_time_now(&time, aprservice_get_time_type(object->service)))
+	{
+		aprservice_log_error(aprs_time_now, false);
+
+		return false;
+	}
+
+	if (!aprs_packet_object_set_time(object->packet, &time))
 	{
 		aprservice_log_error(aprs_packet_object_set_time, false);
 

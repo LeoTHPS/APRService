@@ -109,6 +109,7 @@ APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_is_monit
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_is_compression_enabled(struct aprservice* service);
 APRSERVICE_EXPORT struct aprs_path*          APRSERVICE_CALL aprservice_get_path(struct aprservice* service);
 APRSERVICE_EXPORT uint32_t                   APRSERVICE_CALL aprservice_get_time(struct aprservice* service);
+APRSERVICE_EXPORT int                        APRSERVICE_CALL aprservice_get_time_type(struct aprservice* service);
 APRSERVICE_EXPORT const char*                APRSERVICE_CALL aprservice_get_comment(struct aprservice* service);
 APRSERVICE_EXPORT const char*                APRSERVICE_CALL aprservice_get_station(struct aprservice* service);
 APRSERVICE_EXPORT char                       APRSERVICE_CALL aprservice_get_symbol_table(struct aprservice* service);
@@ -120,6 +121,7 @@ APRSERVICE_EXPORT uint32_t                   APRSERVICE_CALL aprservice_get_conn
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_get_event_handler(struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler* handler, void** param);
 APRSERVICE_EXPORT void                       APRSERVICE_CALL aprservice_get_default_event_handler(struct aprservice* service, aprservice_event_handler* handler, void** param);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_set_path(struct aprservice* service, struct aprs_path* value);
+APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_set_time_type(struct aprservice* service, int value);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_set_symbol(struct aprservice* service, char table, char key);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_set_comment(struct aprservice* service, const char* value);
 APRSERVICE_EXPORT bool                       APRSERVICE_CALL aprservice_set_position(struct aprservice* service, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course);

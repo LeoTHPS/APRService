@@ -2,7 +2,6 @@
 
 #include <array>
 #include <cmath>
-#include <ctime>
 #include <regex>
 #include <ranges>
 #include <string>
@@ -13,9 +12,11 @@
 #include <iostream>
 #include <type_traits>
 
-// make sure this is never changed
-// logic depends on DHM being a subset of MDHM
 static_assert(APRS_TIME_MDHM & APRS_TIME_DHM);
+static_assert(APRS_TIME_ZULU_DHM & APRS_TIME_ZULU);   static_assert(APRS_TIME_ZULU_DHM & APRS_TIME_DHM);
+static_assert(APRS_TIME_ZULU_HMS & APRS_TIME_ZULU);   static_assert(APRS_TIME_ZULU_HMS & APRS_TIME_HMS);
+static_assert(APRS_TIME_ZULU_MDHM & APRS_TIME_ZULU);  static_assert(APRS_TIME_ZULU_MDHM & APRS_TIME_MDHM);
+static_assert(APRS_TIME_LOCAL_DHM & APRS_TIME_LOCAL); static_assert(APRS_TIME_LOCAL_DHM & APRS_TIME_DHM);
 
 constexpr double   APRS_DEG2RAD                      = 3.14159265358979323846 / 180;
 
@@ -65,12 +66,6 @@ struct aprs_path
 	std::string                   string;
 
 	size_t                        reference_count;
-};
-
-struct aprs_time
-	: public tm
-{
-	int type;
 };
 
 struct aprs_packet_data_extensions
@@ -344,35 +339,35 @@ bool               aprs_string_contains(std::string_view string, char value)
 
 bool               aprs_validate_time(const aprs_time* value)
 {
-	if (!value)
+	if (!value || !aprs_time_type_is_valid(value->type))
 		return false;
 
 	if (value->type & APRS_TIME_DHM)
 	{
-		if ((value->tm_mday < 0) || (value->tm_mday > 31))
+		if ((value->tm.tm_mday < 0) || (value->tm.tm_mday > 31))
 			return false;
 
-		if ((value->tm_hour < 0) || (value->tm_hour >= 24))
+		if ((value->tm.tm_hour < 0) || (value->tm.tm_hour >= 24))
 			return false;
 
-		if ((value->tm_min < 0) || (value->tm_min >= 60))
+		if ((value->tm.tm_min < 0) || (value->tm.tm_min >= 60))
 			return false;
 	}
 
 	if (value->type & APRS_TIME_HMS)
 	{
-		if ((value->tm_hour < 0) || (value->tm_hour >= 24))
+		if ((value->tm.tm_hour < 0) || (value->tm.tm_hour >= 24))
 			return false;
 
-		if ((value->tm_min < 0) || (value->tm_min >= 60))
+		if ((value->tm.tm_min < 0) || (value->tm.tm_min >= 60))
 			return false;
 
-		if ((value->tm_sec < 0) || (value->tm_sec > 60))
+		if ((value->tm.tm_sec < 0) || (value->tm.tm_sec > 60))
 			return false;
 	}
 
-	if (value->type & APRS_TIME_MDHM)
-		if ((value->tm_mon < 0) || (value->tm_mon > 12))
+	if ((value->type & APRS_TIME_MDHM) == APRS_TIME_MDHM)
+		if ((value->tm.tm_mon < 0) || (value->tm.tm_mon > 12))
 			return false;
 
 	return true;
@@ -603,96 +598,6 @@ bool               aprs_decode_base91(T& value, std::string_view string)
 
 	return true;
 }
-bool               aprs_decode_time(aprs_time& value, std::string_view string, char type)
-{
-	static auto string_is_valid = [](size_t index, char value)->bool
-	{
-		return isdigit(value);
-	};
-
-	tm time = {};
-
-	switch (type)
-	{
-		case 'h': // HMS
-		{
-			if (string.length() != 6)
-				return false;
-
-			if (!aprs_validate_string(string, string_is_valid))
-				return false;
-
-			auto hour = string.substr(0, 2);
-			auto min  = string.substr(2, 2);
-			auto sec  = string.substr(4, 2);
-
-			std::from_chars(hour.data(), hour.data() + hour.length(), time.tm_hour);
-			std::from_chars(min.data(), min.data() + min.length(), time.tm_min);
-			std::from_chars(sec.data(), sec.data() + sec.length(), time.tm_sec);
-
-			value = { time, APRS_TIME_HMS | APRS_TIME_ZULU };
-		}
-		// TODO: some stations appear to be using the hms format for a dhm time
-		return (value.tm_hour < 24) && (value.tm_min < 60) && (value.tm_sec < 60);
-
-		case 'z': // DHM
-		case '/':
-		{
-			if (string.length() != 6)
-				return false;
-
-			if (!aprs_validate_string(string, string_is_valid))
-				return false;
-
-			auto mday = string.substr(0, 2);
-			auto hour = string.substr(2, 2);
-			auto min  = string.substr(4, 2);
-
-			std::from_chars(mday.data(), mday.data() + mday.length(), time.tm_mday);
-			std::from_chars(hour.data(), hour.data() + hour.length(), time.tm_hour);
-			std::from_chars(min.data(), min.data() + min.length(), time.tm_min);
-
-			value = { time, APRS_TIME_DHM };
-
-			switch (type)
-			{
-				case 'z':
-					value.type |= APRS_TIME_ZULU;
-					break;
-
-				case '/':
-					value.type |= APRS_TIME_LOCAL;
-					break;
-			}
-		}
-		// TODO: other stations appear to be using the dhm format for a hms time
-		return (value.tm_mday <= 31) && (value.tm_hour < 24) && (value.tm_min < 60);
-
-		case 0: // MDHM
-		{
-			if (string.length() != 8)
-				return false;
-
-			if (!aprs_validate_string(string, string_is_valid))
-				return false;
-
-			auto mon  = string.substr(0, 2);
-			auto mday = string.substr(2, 2);
-			auto hour = string.substr(4, 2);
-			auto min  = string.substr(6, 2);
-
-			std::from_chars(mon.data(), mon.data() + mon.length(), time.tm_mon);
-			std::from_chars(mday.data(), mday.data() + mday.length(), time.tm_mday);
-			std::from_chars(hour.data(), hour.data() + hour.length(), time.tm_hour);
-			std::from_chars(min.data(), min.data() + min.length(), time.tm_min);
-
-			value = { time, APRS_TIME_MDHM | APRS_TIME_ZULU };
-		}
-		return (time.tm_mon <= 12) && (value.tm_mday <= 31) && (value.tm_hour < 24) && (value.tm_min < 60);
-	}
-
-	return false;
-}
 bool               aprs_decode_latitude(float& value, std::string_view string, char hemisphere)
 {
 	if (string.length() != 7)
@@ -779,6 +684,125 @@ bool               aprs_decode_longitude(float& value, std::string_view string, 
 		value *= -1;
 
 	return true;
+}
+
+bool               aprs_decode_time(aprs_time& value, std::string_view string, char type)
+{
+	static auto string_is_valid = [](size_t index, char value)->bool
+	{
+		return isdigit(value);
+	};
+
+	tm time = {};
+
+	switch (type)
+	{
+		case 'h': // HMS
+		{
+			if (string.length() != 6)
+				return false;
+
+			if (!aprs_validate_string(string, string_is_valid))
+				return false;
+
+			auto hour = string.substr(0, 2);
+			auto min  = string.substr(2, 2);
+			auto sec  = string.substr(4, 2);
+
+			std::from_chars(hour.data(), hour.data() + hour.length(), time.tm_hour);
+			std::from_chars(min.data(), min.data() + min.length(), time.tm_min);
+			std::from_chars(sec.data(), sec.data() + sec.length(), time.tm_sec);
+
+			value = { time, APRS_TIME_HMS | APRS_TIME_ZULU };
+		}
+		// TODO: some stations appear to be using the hms format for a dhm time
+		return (value.tm.tm_hour < 24) && (value.tm.tm_min < 60) && (value.tm.tm_sec < 60);
+
+		case 'z': // DHM
+		case '/':
+		{
+			if (string.length() != 6)
+				return false;
+
+			if (!aprs_validate_string(string, string_is_valid))
+				return false;
+
+			auto mday = string.substr(0, 2);
+			auto hour = string.substr(2, 2);
+			auto min  = string.substr(4, 2);
+
+			std::from_chars(mday.data(), mday.data() + mday.length(), time.tm_mday);
+			std::from_chars(hour.data(), hour.data() + hour.length(), time.tm_hour);
+			std::from_chars(min.data(), min.data() + min.length(), time.tm_min);
+
+			value = { time, APRS_TIME_DHM };
+
+			switch (type)
+			{
+				case 'z':
+					value.type |= APRS_TIME_ZULU;
+					break;
+
+				case '/':
+					value.type |= APRS_TIME_LOCAL;
+					break;
+			}
+		}
+		// TODO: other stations appear to be using the dhm format for a hms time
+		return (value.tm.tm_mday <= 31) && (value.tm.tm_hour < 24) && (value.tm.tm_min < 60);
+
+		case 0: // MDHM
+		{
+			if (string.length() != 8)
+				return false;
+
+			if (!aprs_validate_string(string, string_is_valid))
+				return false;
+
+			auto mon  = string.substr(0, 2);
+			auto mday = string.substr(2, 2);
+			auto hour = string.substr(4, 2);
+			auto min  = string.substr(6, 2);
+
+			std::from_chars(mon.data(), mon.data() + mon.length(), time.tm_mon);
+			std::from_chars(mday.data(), mday.data() + mday.length(), time.tm_mday);
+			std::from_chars(hour.data(), hour.data() + hour.length(), time.tm_hour);
+			std::from_chars(min.data(), min.data() + min.length(), time.tm_min);
+
+			value = { time, APRS_TIME_MDHM | APRS_TIME_ZULU };
+		}
+		return (value.tm.tm_mon <= 12) && (value.tm.tm_mday <= 31) && (value.tm.tm_hour < 24) && (value.tm.tm_min < 60);
+	}
+
+	return false;
+}
+void               aprs_encode_time(aprs_time* time, std::stringstream& ss)
+{
+	if ((time->type & APRS_TIME_ZULU_MDHM) == APRS_TIME_ZULU_MDHM)
+	{
+		ss << std::setfill('0') << std::setw(2) << time->tm.tm_mon;
+		ss << std::setfill('0') << std::setw(2) << time->tm.tm_mday;
+		ss << std::setfill('0') << std::setw(2) << time->tm.tm_hour;
+		ss << std::setfill('0') << std::setw(2) << time->tm.tm_min;
+	}
+	else if (time->type & APRS_TIME_DHM)
+	{
+		ss << std::setfill('0') << std::setw(2) << time->tm.tm_mday;
+		ss << std::setfill('0') << std::setw(2) << time->tm.tm_hour;
+		ss << std::setfill('0') << std::setw(2) << time->tm.tm_min;
+
+		if (time->type & APRS_TIME_ZULU)
+			ss << 'z';
+		else if (time->type & APRS_TIME_LOCAL)
+			ss << '/';
+	}
+	else if (time->type & APRS_TIME_ZULU_HMS)
+	{
+		ss << std::setfill('0') << std::setw(2) << time->tm.tm_hour;
+		ss << std::setfill('0') << std::setw(2) << time->tm.tm_min;
+		ss << std::setfill('0') << std::setw(2) << time->tm.tm_sec;
+		ss << 'h';
+	}
 }
 
 bool               aprs_decode_compressed_location(aprs_compressed_location& value, std::string_view string)
@@ -2090,7 +2114,7 @@ void               aprs_packet_encode_item(aprs_packet* packet, std::stringstrea
 		ss << std::setfill('0') << std::setw(2) << latitude_seconds;
 		ss << latitude_north_south << packet->item->symbol_table;
 
-		ss << std::setfill('0') << std::setw(2) << ((longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1));
+		ss << std::setfill('0') << std::setw(3) << ((longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1));
 		ss << std::setfill('0') << std::setw(2) << longitude_minutes;
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
@@ -2115,20 +2139,7 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 	ss << std::setfill(' ') << std::setw(9) << std::left << packet->object->name;
 	ss << (packet->object->is_alive ? '*' : '_');
 
-	if (packet->object->time.type & APRS_TIME_DHM)
-	{
-		ss << std::setfill('0') << std::setw(2) << packet->object->time.tm_mday;
-		ss << std::setfill('0') << std::setw(2) << packet->object->time.tm_hour;
-		ss << std::setfill('0') << std::setw(2) << packet->object->time.tm_min;
-		ss << 'z';
-	}
-	else if (packet->object->time.type & APRS_TIME_HMS)
-	{
-		ss << std::setfill('0') << std::setw(2) << packet->object->time.tm_hour;
-		ss << std::setfill('0') << std::setw(2) << packet->object->time.tm_min;
-		ss << std::setfill('0') << std::setw(2) << packet->object->time.tm_sec;
-		ss << 'h';
-	}
+	aprs_encode_time(&packet->object->time, ss);
 
 	if (packet->object->is_compressed)
 	{
@@ -2166,7 +2177,7 @@ void               aprs_packet_encode_object(aprs_packet* packet, std::stringstr
 		ss << std::setfill('0') << std::setw(2) << latitude_seconds;
 		ss << latitude_north_south << packet->object->symbol_table;
 
-		ss << std::setfill('0') << std::setw(2) << ((longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1));
+		ss << std::setfill('0') << std::setw(3) << ((longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1));
 		ss << std::setfill('0') << std::setw(2) << longitude_minutes;
 		ss << '.';
 		ss << std::setfill('0') << std::setw(2) << longitude_seconds;
@@ -2182,20 +2193,7 @@ void               aprs_packet_encode_status(aprs_packet* packet, std::stringstr
 	ss << '>';
 
 	if (packet->status->is_time_set)
-		if (packet->status->time.type & APRS_TIME_DHM)
-		{
-			ss << std::setfill('0') << std::setw(2) << packet->status->time.tm_mday;
-			ss << std::setfill('0') << std::setw(2) << packet->status->time.tm_hour;
-			ss << std::setfill('0') << std::setw(2) << packet->status->time.tm_min;
-			ss << 'z';
-		}
-		else if (packet->status->time.type & APRS_TIME_HMS)
-		{
-			ss << std::setfill('0') << std::setw(2) << packet->status->time.tm_hour;
-			ss << std::setfill('0') << std::setw(2) << packet->status->time.tm_min;
-			ss << std::setfill('0') << std::setw(2) << packet->status->time.tm_sec;
-			ss << 'h';
-		}
+		aprs_encode_time(&packet->status->time, ss);
 
 	ss << packet->status->message;
 }
@@ -2252,10 +2250,7 @@ void               aprs_packet_encode_weather(aprs_packet* packet, std::stringst
 	}
 
 	ss << '_';
-	ss << std::setfill('0') << std::setw(2) << packet->weather->time.tm_mon;
-	ss << std::setfill('0') << std::setw(2) << packet->weather->time.tm_mday;
-	ss << std::setfill('0') << std::setw(2) << packet->weather->time.tm_hour;
-	ss << std::setfill('0') << std::setw(2) << packet->weather->time.tm_min;
+	aprs_encode_time(&packet->weather->time, ss);
 	ss << 'c' << std::setfill('0') << std::setw(3) << packet->weather->wind_direction;
 	ss << 's' << std::setfill('0') << std::setw(3) << packet->weather->wind_speed;
 	ss << 'g' << std::setfill('0') << std::setw(3) << packet->weather->wind_speed_gust;
@@ -2280,20 +2275,7 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 		{
 			ss << ((packet->position->flags & APRS_POSITION_FLAG_MESSAGING_ENABLED) ? '@' : '/');
 
-			if (packet->position->time.type & APRS_TIME_DHM)
-			{
-				ss << std::setfill('0') << std::setw(2) << packet->position->time.tm_mday;
-				ss << std::setfill('0') << std::setw(2) << packet->position->time.tm_hour;
-				ss << std::setfill('0') << std::setw(2) << packet->position->time.tm_min;
-				ss << 'z';
-			}
-			else if (packet->position->time.type & APRS_TIME_HMS)
-			{
-				ss << std::setfill('0') << std::setw(2) << packet->position->time.tm_hour;
-				ss << std::setfill('0') << std::setw(2) << packet->position->time.tm_min;
-				ss << std::setfill('0') << std::setw(2) << packet->position->time.tm_sec;
-				ss << 'h';
-			}
+			aprs_encode_time(&packet->position->time, ss);
 		}
 		else
 			ss << ((packet->position->flags & APRS_POSITION_FLAG_MESSAGING_ENABLED) ? '=' : '!');
@@ -2334,7 +2316,7 @@ void               aprs_packet_encode_position(aprs_packet* packet, std::strings
 			ss << std::setfill('0') << std::setw(2) << latitude_seconds;
 			ss << latitude_north_south << packet->position->symbol_table;
 
-			ss << std::setfill('0') << std::setw(2) << ((longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1));
+			ss << std::setfill('0') << std::setw(3) << ((longitude_hours >= 0) ? longitude_hours : (longitude_hours * -1));
 			ss << std::setfill('0') << std::setw(2) << longitude_minutes;
 			ss << '.';
 			ss << std::setfill('0') << std::setw(2) << longitude_seconds;
@@ -2716,16 +2698,92 @@ void                              APRSERVICE_CALL aprs_path_add_reference(struct
 	++path->reference_count;
 }
 
-struct aprs_time*                 APRSERVICE_CALL aprs_time_now()
+bool                              APRSERVICE_CALL aprs_time_type_is_valid(int value)
 {
-	static aprs_time time;
+	if (value & APRS_TIME_ZULU)
+		return !(value & APRS_TIME_LOCAL) && ((value & APRS_TIME_DHM) || (value & APRS_TIME_HMS) || (value & APRS_TIME_MDHM));
 
+	if (value & APRS_TIME_LOCAL)
+		return !(value & APRS_TIME_ZULU) && (value & APRS_TIME_DHM) && !(value & APRS_TIME_HMS) && !(value & APRS_TIME_MDHM);
+
+	return false;
+}
+bool                              APRSERVICE_CALL aprs_time_now(struct aprs_time* time, int type)
+{
 	time_t now;
 	::time(&now);
 
-	time = { *localtime(&now), APRS_TIME_DHM | APRS_TIME_HMS | APRS_TIME_MDHM | APRS_TIME_LOCAL };
+	if (type & APRS_TIME_ZULU)
+	{
+		auto zulu = gmtime(&now);
 
-	return &time;
+		time->tm   = {};
+		time->type = APRS_TIME_ZULU;
+
+		if (type & APRS_TIME_DHM)
+		{
+			time->tm.tm_mday = zulu->tm_mday;
+			time->tm.tm_hour = zulu->tm_hour;
+			time->tm.tm_min  = zulu->tm_min;
+			time->type      |= APRS_TIME_DHM;
+		}
+		if (type & APRS_TIME_HMS)
+		{
+			time->tm.tm_hour = zulu->tm_hour;
+			time->tm.tm_min  = zulu->tm_min;
+			time->tm.tm_sec  = zulu->tm_sec;
+			time->type      |= APRS_TIME_HMS;
+		}
+		if ((type & APRS_TIME_MDHM) == APRS_TIME_MDHM)
+		{
+			time->tm.tm_mon  = zulu->tm_mon;
+			time->tm.tm_mday = zulu->tm_mday;
+			time->tm.tm_hour = zulu->tm_hour;
+			time->tm.tm_min  = zulu->tm_min;
+			time->type      |= APRS_TIME_MDHM;
+		}
+
+		return time->type != APRS_TIME_ZULU;
+	}
+
+	if (type & APRS_TIME_LOCAL)
+	{
+		auto local = localtime(&now);
+
+		time->tm   = {};
+		time->type = APRS_TIME_LOCAL;
+
+		if (type & APRS_TIME_DHM)
+		{
+			time->tm.tm_mday = local->tm_mday;
+			time->tm.tm_hour = local->tm_hour;
+			time->tm.tm_min  = local->tm_min;
+			time->type      |= APRS_TIME_DHM;
+		}
+		if (type & APRS_TIME_HMS)
+		{
+			time->tm.tm_hour = local->tm_hour;
+			time->tm.tm_min  = local->tm_min;
+			time->tm.tm_sec  = local->tm_sec;
+			time->type      |= APRS_TIME_HMS;
+		}
+		if ((type & APRS_TIME_MDHM) == APRS_TIME_MDHM)
+		{
+			time->tm.tm_mon  = local->tm_mon;
+			time->tm.tm_mday = local->tm_mday;
+			time->tm.tm_hour = local->tm_hour;
+			time->tm.tm_min  = local->tm_min;
+			time->type      |= APRS_TIME_MDHM;
+		}
+
+		return time->type != APRS_TIME_LOCAL;
+	}
+
+	return false;
+}
+void                              APRSERVICE_CALL aprs_time_deinit(struct aprs_time* time)
+{
+	delete time;
 }
 bool                              APRSERVICE_CALL aprs_time_is_dhm(const struct aprs_time* time)
 {
@@ -2737,7 +2795,7 @@ bool                              APRSERVICE_CALL aprs_time_is_hms(const struct 
 }
 bool                              APRSERVICE_CALL aprs_time_is_mdhm(const struct aprs_time* time)
 {
-	return time->type & APRS_TIME_MDHM;
+	return (time->type & APRS_TIME_MDHM) == APRS_TIME_MDHM;
 }
 bool                              APRSERVICE_CALL aprs_time_is_zulu(const struct aprs_time* time)
 {
@@ -2756,9 +2814,9 @@ bool                              APRSERVICE_CALL aprs_time_get_dhm(const struct
 	if (!(time->type & APRS_TIME_DHM))
 		return false;
 
-	*day    = time->tm_mday;
-	*hour   = time->tm_hour;
-	*minute = time->tm_min;
+	*day    = time->tm.tm_mday;
+	*hour   = time->tm.tm_hour;
+	*minute = time->tm.tm_min;
 
 	return true;
 }
@@ -2767,21 +2825,21 @@ bool                              APRSERVICE_CALL aprs_time_get_hms(const struct
 	if (!(time->type & APRS_TIME_HMS))
 		return false;
 
-	*hour   = time->tm_hour;
-	*minute = time->tm_min;
-	*second = time->tm_sec;
+	*hour   = time->tm.tm_hour;
+	*minute = time->tm.tm_min;
+	*second = time->tm.tm_sec;
 
 	return true;
 }
 bool                              APRSERVICE_CALL aprs_time_get_mdhm(const struct aprs_time* time, uint8_t* month, uint8_t* day, uint8_t* hour, uint8_t* minute)
 {
-	if (!(time->type & APRS_TIME_MDHM))
+	if ((time->type & APRS_TIME_MDHM) != APRS_TIME_MDHM)
 		return false;
 
-	*month  = time->tm_mon;
-	*day    = time->tm_mday;
-	*hour   = time->tm_hour;
-	*minute = time->tm_min;
+	*month  = time->tm.tm_mon;
+	*day    = time->tm.tm_mday;
+	*hour   = time->tm.tm_hour;
+	*minute = time->tm.tm_min;
 
 	return true;
 }
@@ -2795,24 +2853,24 @@ bool                              APRSERVICE_CALL aprs_time_compare(const struct
 
 	if (time->type & APRS_TIME_DHM)
 	{
-		if (time->tm_mday != time2->tm_mday) return false;
-		if (time->tm_min  != time2->tm_min)  return false;
-		if (time->tm_sec  != time2->tm_sec)  return false;
+		if (time->tm.tm_mday != time2->tm.tm_mday) return false;
+		if (time->tm.tm_min  != time2->tm.tm_min)  return false;
+		if (time->tm.tm_sec  != time2->tm.tm_sec)  return false;
 	}
 
 	if (time->type & APRS_TIME_HMS)
 	{
-		if (time->tm_hour != time2->tm_hour) return false;
-		if (time->tm_min  != time2->tm_min)  return false;
-		if (time->tm_sec  != time2->tm_sec)  return false;
+		if (time->tm.tm_hour != time2->tm.tm_hour) return false;
+		if (time->tm.tm_min  != time2->tm.tm_min)  return false;
+		if (time->tm.tm_sec  != time2->tm.tm_sec)  return false;
 	}
 
-	if (time->type & APRS_TIME_MDHM)
+	if ((time->type & APRS_TIME_MDHM) == APRS_TIME_MDHM)
 	{
-		if (time->tm_mon  != time2->tm_mon)  return false;
-		if (time->tm_mday != time2->tm_mday) return false;
-		if (time->tm_hour != time2->tm_hour) return false;
-		if (time->tm_min  != time2->tm_min)  return false;
+		if (time->tm.tm_mon  != time2->tm.tm_mon)  return false;
+		if (time->tm.tm_mday != time2->tm.tm_mday) return false;
+		if (time->tm.tm_hour != time2->tm.tm_hour) return false;
+		if (time->tm.tm_min  != time2->tm.tm_min)  return false;
 	}
 
 	return true;
@@ -3363,7 +3421,6 @@ bool                              APRSERVICE_CALL aprs_packet_compare(struct apr
 		case APRS_PACKET_TYPE_ITEM:
 			if (packet->item->is_alive         != packet2->item->is_alive)         return false;
 			if (packet->item->is_compressed    != packet2->item->is_compressed)    return false;
-			if (!aprs_time_compare(&packet->item->time, &packet2->item->time))     return false;
 			if (packet->item->name             != packet2->item->name)             return false;
 			if (packet->item->comment          != packet2->item->comment)          return false;
 			if (packet->item->latitude         != packet2->item->latitude)         return false;
@@ -3807,9 +3864,9 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_symbol_ta
 	return aprs_packet_item_set_symbol(packet, aprs_packet_item_get_symbol_table(packet), value);
 }
 
-struct aprs_packet*               APRSERVICE_CALL aprs_packet_object_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_object_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key, int time_type)
 {
-	if (!name)
+	if (!name || (!(time_type & APRS_TIME_DHM) && !(time_type & APRS_TIME_HMS)))
 		return nullptr;
 
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_OBJECT))
@@ -3818,12 +3875,12 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_object_init(const 
 		{
 			.is_alive      = true,
 			.is_compressed = false,
-			.time          = *aprs_time_now(),
 			.latitude      = 0,
 			.longitude     = 0
 		};
 
-		if (!aprs_packet_object_set_name(packet, name) ||
+		if (!aprs_time_now(&packet->object->time, time_type) ||
+			!aprs_packet_object_set_name(packet, name) ||
 			!aprs_packet_object_set_symbol(packet, symbol_table, symbol_table_key))
 		{
 			aprs_packet_deinit(packet);
@@ -3922,7 +3979,7 @@ char                              APRSERVICE_CALL aprs_packet_object_get_symbol_
 }
 bool                              APRSERVICE_CALL aprs_packet_object_set_time(struct aprs_packet* packet, const struct aprs_time* value)
 {
-	if (!value)
+	if (!value || (!(value->type & APRS_TIME_DHM) && !(value->type & APRS_TIME_HMS)))
 		return false;
 
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_OBJECT)
@@ -4104,6 +4161,9 @@ bool                              APRSERVICE_CALL aprs_packet_status_set_time(st
 
 		return true;
 	}
+
+	if ((value->type & APRS_TIME_ZULU_DHM) != APRS_TIME_ZULU_DHM)
+		return false;
 
 	if (aprs_validate_time(value))
 	{
@@ -4371,10 +4431,16 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_weather_init(const
 	{
 		packet->weather = new aprs_packet_weather
 		{
-			.time     = *aprs_time_now(),
 			.type     = std::string(type, type_length),
 			.software = software
 		};
+
+		if (!aprs_time_now(&packet->weather->time, APRS_TIME_ZULU_MDHM))
+		{
+			aprs_packet_deinit(packet);
+
+			return nullptr;
+		}
 
 		return packet;
 	}
@@ -4470,10 +4536,10 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_time(s
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
 
-	if (!aprs_validate_time(value))
+	if ((value->type & APRS_TIME_ZULU_MDHM) != APRS_TIME_ZULU_MDHM)
 		return false;
 
-	if (!(value->type & APRS_TIME_MDHM))
+	if (!aprs_validate_time(value))
 		return false;
 
 	packet->weather->time = *value;
@@ -4592,7 +4658,7 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_barome
 	return true;
 }
 
-aprs_packet*                                      aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, int flags, int mic_e_message)
+aprs_packet*                                      aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, int flags, int mic_e_message, int time_type)
 {
 	if (flags & APRS_POSITION_FLAG_MIC_E)
 	{
@@ -4605,17 +4671,20 @@ aprs_packet*                                      aprs_packet_position_init(cons
 		if ((mic_e_message < 0) || (mic_e_message > 7))
 			return nullptr;
 	}
+	else if (flags & APRS_POSITION_FLAG_TIME)
+		if (!(time_type & APRS_TIME_DHM) && !(time_type & APRS_TIME_HMS))
+			return nullptr;
 
 	if (auto packet = aprs_packet_init_ex(sender, tocall, path, APRS_PACKET_TYPE_POSITION))
 	{
 		packet->position = new aprs_packet_position
 		{
 			.flags         = flags,
-			.time          = *aprs_time_now(),
 			.mic_e_message = (APRS_MIC_E_MESSAGES)mic_e_message
 		};
 
-		if (!aprs_packet_position_set_speed(packet, speed) ||
+		if (((flags & APRS_POSITION_FLAG_TIME) && !aprs_time_now(&packet->position->time, time_type)) ||
+			!aprs_packet_position_set_speed(packet, speed) ||
 			!aprs_packet_position_set_course(packet, course) ||
 			(comment && !aprs_packet_position_set_comment(packet, comment)) ||
 			!aprs_packet_position_set_altitude(packet, altitude) ||
@@ -4633,17 +4702,24 @@ aprs_packet*                                      aprs_packet_position_init(cons
 
 	return nullptr;
 }
-struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, int time_type)
 {
-	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, 0, -1);
+	int flags = time_type ? APRS_POSITION_FLAG_TIME : 0;
+
+	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, flags, -1, time_type);
 }
 struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_mic_e(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, enum APRS_MIC_E_MESSAGES message)
 {
-	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, APRS_POSITION_FLAG_MIC_E, message);
+	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, APRS_POSITION_FLAG_MIC_E, message, 0);
 }
-struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_compressed(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key)
+struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_compressed(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, int time_type)
 {
-	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, APRS_POSITION_FLAG_COMPRESSED, -1);
+	int flags = APRS_POSITION_FLAG_COMPRESSED;
+
+	if (time_type)
+		flags |= APRS_POSITION_FLAG_TIME;
+
+	return aprs_packet_position_init(sender, tocall, path, latitude, longitude, altitude, speed, course, comment, symbol_table, symbol_table_key, flags, -1, time_type);
 }
 bool                              APRSERVICE_CALL aprs_packet_position_is_mic_e(struct aprs_packet* packet)
 {
@@ -4748,9 +4824,6 @@ int                               APRSERVICE_CALL aprs_packet_position_get_mic_e
 }
 bool                              APRSERVICE_CALL aprs_packet_position_set_time(struct aprs_packet* packet, const struct aprs_time* value)
 {
-	if (!value)
-		return false;
-
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;
 
@@ -4760,6 +4833,9 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_time(
 
 		return true;
 	}
+
+	if (!(value->type & APRS_TIME_DHM) && !(value->type & APRS_TIME_HMS))
+		return false;
 
 	if (aprs_validate_time(value))
 	{

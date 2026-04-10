@@ -3,17 +3,24 @@
 
 #include "api.h"
 
+#include <time.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
 enum APRS_TIME
 {
-	APRS_TIME_DHM   = 0x1,
-	APRS_TIME_HMS   = 0x2,
-	APRS_TIME_MDHM  = 0x4 | APRS_TIME_DHM,
-	APRS_TIME_ZULU  = 0x8,
-	APRS_TIME_LOCAL = 0x10
+	APRS_TIME_DHM       = 0x1,
+	APRS_TIME_HMS       = 0x2,
+	APRS_TIME_MDHM      = 0x4 | APRS_TIME_DHM,
+
+	APRS_TIME_ZULU      = 0x10,
+	APRS_TIME_ZULU_DHM  = 0x20 | APRS_TIME_ZULU | APRS_TIME_DHM,
+	APRS_TIME_ZULU_HMS  = 0x40 | APRS_TIME_ZULU | APRS_TIME_HMS,
+	APRS_TIME_ZULU_MDHM = 0x80 | APRS_TIME_ZULU | APRS_TIME_MDHM,
+
+	APRS_TIME_LOCAL     = 0x100,
+	APRS_TIME_LOCAL_DHM = 0x200 | APRS_TIME_LOCAL | APRS_TIME_DHM
 };
 
 enum APRS_DISTANCES
@@ -105,8 +112,13 @@ enum APRS_TELEMETRY_TYPES
 };
 
 struct aprs_path;
-struct aprs_time;
 struct aprs_packet;
+
+struct aprs_time
+{
+	struct tm tm;
+	int       type;
+};
 
 struct aprs_path_node
 {
@@ -138,7 +150,8 @@ APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_path_co
 APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_path_to_string(struct aprs_path* path);
 APRSERVICE_EXPORT void                              APRSERVICE_CALL aprs_path_add_reference(struct aprs_path* path);
 
-APRSERVICE_EXPORT struct aprs_time*                 APRSERVICE_CALL aprs_time_now();
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_type_is_valid(int value);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_now(struct aprs_time* time, int type);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_is_dhm(const struct aprs_time* time);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_is_hms(const struct aprs_time* time);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_time_is_mdhm(const struct aprs_time* time);
@@ -201,7 +214,7 @@ APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_item_set_symbol_table(struct aprs_packet* packet, char value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_item_set_symbol_table_key(struct aprs_packet* packet, char value);
 
-APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_object_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key);
+APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_object_init(const char* sender, const char* tocall, struct aprs_path* path, const char* name, char symbol_table, char symbol_table_key, int time_type);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_object_is_alive(struct aprs_packet* packet);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_object_is_compressed(struct aprs_packet* packet);
 APRSERVICE_EXPORT const struct aprs_time*           APRSERVICE_CALL aprs_packet_object_get_time(struct aprs_packet* packet);
@@ -271,9 +284,9 @@ APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_weather_set_temperature(struct aprs_packet* packet, int16_t value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_weather_set_barometric_pressure(struct aprs_packet* packet, uint32_t value);
 
-APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key);
+APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, int time_type);
 APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_mic_e(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, enum APRS_MIC_E_MESSAGES message);
-APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_compressed(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key);
+APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_position_init_compressed(const char* sender, const char* tocall, struct aprs_path* path, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment, char symbol_table, char symbol_table_key, int time_type);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_is_mic_e(struct aprs_packet* packet);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_is_compressed(struct aprs_packet* packet);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_is_messaging_enabled(struct aprs_packet* packet);

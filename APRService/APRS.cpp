@@ -630,7 +630,7 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 			std::from_chars(min.data(), min.data() + min.length(), time.tm_min);
 			std::from_chars(sec.data(), sec.data() + sec.length(), time.tm_sec);
 
-			value = { time, APRS_TIME_HMS };
+			value = { time, APRS_TIME_HMS | APRS_TIME_ZULU };
 		}
 		// TODO: some stations appear to be using the hms format for a dhm time
 		return (value.tm_hour < 24) && (value.tm_min < 60) && (value.tm_sec < 60);
@@ -653,7 +653,19 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 			std::from_chars(min.data(), min.data() + min.length(), time.tm_min);
 
 			value = { time, APRS_TIME_DHM };
+
+			switch (type)
+			{
+				case 'z':
+					value.type |= APRS_TIME_ZULU;
+					break;
+
+				case '/':
+					value.type |= APRS_TIME_LOCAL;
+					break;
+			}
 		}
+		// TODO: other stations appear to be using the dhm format for a hms time
 		return (value.tm_mday <= 31) && (value.tm_hour < 24) && (value.tm_min < 60);
 
 		case 0: // MDHM
@@ -674,7 +686,7 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 			std::from_chars(hour.data(), hour.data() + hour.length(), time.tm_hour);
 			std::from_chars(min.data(), min.data() + min.length(), time.tm_min);
 
-			value = { time, APRS_TIME_MDHM };
+			value = { time, APRS_TIME_MDHM | APRS_TIME_ZULU };
 		}
 		return (time.tm_mon <= 12) && (value.tm_mday <= 31) && (value.tm_hour < 24) && (value.tm_min < 60);
 	}
@@ -2711,7 +2723,7 @@ struct aprs_time*                 APRSERVICE_CALL aprs_time_now()
 	time_t now;
 	::time(&now);
 
-	time = { *localtime(&now), APRS_TIME_DHM | APRS_TIME_HMS | APRS_TIME_MDHM };
+	time = { *localtime(&now), APRS_TIME_DHM | APRS_TIME_HMS | APRS_TIME_MDHM | APRS_TIME_LOCAL };
 
 	return &time;
 }

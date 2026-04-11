@@ -1313,6 +1313,9 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 		float            longitude;
 		auto&            longitude_match = match[6];
 
+		if (auto i = name.find_last_not_of(' '); i != std::string_view::npos)
+			name = name.substr(0, i + 1);
+
 		if (!aprs_decode_latitude(latitude, std::string_view(latitude_match.first, latitude_match.length()), *match[4].first))
 			return false;
 

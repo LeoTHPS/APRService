@@ -1306,8 +1306,8 @@ bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 }
 bool               aprs_packet_decode_item(aprs_packet* packet)
 {
-	static const aprs_regex_pattern regex("^\\)([^!_]{3,9})([!_])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static const aprs_regex_pattern regex_compressed("^\\)([^!_]{3,9})([!_])(.{13})(.*)$");
+	static const aprs_regex_pattern regex("^\\)(.+?(?=[!_][0-9 .]{7}))([!_])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const aprs_regex_pattern regex_compressed("^\\)(.+?(?=[!_][0-9 .]{7}))([!_])(.{13})(.*)$");
 
 	aprs_regex_match_result match;
 
@@ -1406,8 +1406,8 @@ bool               aprs_packet_decode_query(aprs_packet* packet)
 }
 bool               aprs_packet_decode_object(aprs_packet* packet)
 {
-	static const aprs_regex_pattern regex("^;([^*_]+)([*_])(\\d{6})([zZ\\/hH])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static const aprs_regex_pattern regex_compressed("^;([^*_]+)([*_])(\\d{6})([zZ\\/hH])(.{13})(.*)$");
+	static const aprs_regex_pattern regex("^;(.+?(?=[*_]\\d{6}))([*_])(\\d{6})([zZ\\/hH])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const aprs_regex_pattern regex_compressed("^;(.+?(?=[*_]\\d{6}))([*_])(\\d{6})([zZ\\/hH])(.{13})(.*)$");
 
 	aprs_time               time;
 	aprs_regex_match_result match;

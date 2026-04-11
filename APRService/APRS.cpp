@@ -1790,19 +1790,33 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 
 	return true;
 }
+bool               aprs_packet_decode_weather_raw(aprs_packet* packet)
+{
+	// packet->type = APRS_PACKET_TYPE_WEATHER;
+
+	switch (packet->content.front())
+	{
+		case '!':
+		case '$':
+			// TODO: decode Ultimeter 2000
+			// $ULTW00A4005502C946AE----000086A00001----006503B600000067
+			// $ULTW013200C301FD646E----000086A00001----0064041A00000067
+			// $ULTW0000000002220A36276DFFF5C9B6000102DC0064035C002C0000
+			break;
+
+		case '#':
+		case '*':
+			// TODO: decode Peet Bros U-II
+			break;
+	}
+
+	return false;
+}
 bool               aprs_packet_decode_weather_space(aprs_packet* packet)
 {
 	// packet->type = APRS_PACKET_TYPE_WEATHER;
 
 	// TODO: decode space weather
-
-	return false;
-}
-bool               aprs_packet_decode_weather_peet_bros_uii(aprs_packet* packet)
-{
-	// packet->type = APRS_PACKET_TYPE_WEATHER;
-
-	// TODO: decode peet bros uii weather station
 
 	return false;
 }
@@ -2452,13 +2466,15 @@ constexpr const aprs_packet_decoder_context aprs_packet_decoders[] =
 	{ 0x1C, &aprs_packet_decode_mic_e                   }, // Current Mic-E Data
 	{ 0x1D, &aprs_packet_decode_mic_e_old               }, // Old Mic-E Data
 	{ '!',  &aprs_packet_decode_position                }, // Position without timestamp (no APRS messaging), or Ultimeter 2000 WX Station
-	{ '#',  &aprs_packet_decode_weather_peet_bros_uii   }, // Peet Bros U-II Weather Station
+	{ '!',  &aprs_packet_decode_weather_raw             }, // Ultimeter 2000 Weather Station
+	{ '#',  &aprs_packet_decode_weather_raw             }, // Peet Bros U-II Weather Station
 	{ '$',  &aprs_packet_decode_raw_gps                 }, // Raw GPS data or Ultimeter 2000 
+	{ '$',  &aprs_packet_decode_weather_raw             }, // Ultimeter 2000 Weather Station
 	{ '%',  &aprs_packet_decode_microfinder             }, // Agrelo DFJr / MicroFinder
 	{ '&',  &aprs_packet_decode_map_feature             }, // [Reserved — Map Feature]
 	{ '\'', &aprs_packet_decode_mic_e_old               }, // Old Mic-E Data (but Current data for TM-D700) 
 	{ ')',  &aprs_packet_decode_item                    }, // Item
-	{ '*',  &aprs_packet_decode_weather_peet_bros_uii   }, // Peet Bros U-II Weather Station
+	{ '*',  &aprs_packet_decode_weather_raw             }, // Peet Bros U-II Weather Station
 	{ '+',  &aprs_packet_decode_shelter_time            }, // [Reserved — Shelter data with time] 
 	{ ',',  &aprs_packet_decode_test                    }, // Invalid data or test data 
 	{ '.',  &aprs_packet_decode_weather_space           }, // [Reserved — Space weather] 
@@ -2900,7 +2916,8 @@ bool                                              aprs_packet_decode(aprs_packet
 	if (auto content = aprs_packet_get_content(packet))
 		for (auto& decoder : aprs_packet_decoders)
 			if (decoder.ident == *content)
-				return decoder.function(packet);
+				if (decoder.function(packet))
+					return true;
 
 	return false;
 }

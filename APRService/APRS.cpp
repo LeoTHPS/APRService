@@ -1322,7 +1322,7 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 		float            longitude;
 		auto&            longitude_match = match[6];
 
-		if (auto i = name.find_last_not_of(' '); i != std::string_view::npos)
+		if (auto i = name.find_last_not_of(' '); i != (name.length() - 1))
 			name = name.substr(0, i + 1);
 
 		if (!aprs_decode_latitude(latitude, std::string_view(latitude_match.first, latitude_match.length()), *match[4].first))
@@ -1331,7 +1331,7 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 		if (!aprs_decode_longitude(longitude, std::string_view(longitude_match.first, longitude_match.length()), *match[7].first))
 			return false;
 
-		if (auto i = name.find_last_not_of(' '); i != std::string_view::npos)
+		if (auto i = name.find_last_not_of(' '); i != (name.length() - 1))
 			name = name.substr(0, i + 1);
 
 		packet->type       = APRS_PACKET_TYPE_ITEM;
@@ -1361,7 +1361,7 @@ bool               aprs_packet_decode_item(aprs_packet* packet)
 		aprs_compressed_location location;
 		auto&                    location_match = match[3];
 
-		if (auto i = name.find_last_not_of(' '); i != std::string_view::npos)
+		if (auto i = name.find_last_not_of(' '); i != (name.length() - 1))
 			name = name.substr(0, i + 1);
 
 		if (!aprs_decode_compressed_location(location, std::string_view(location_match.first, location_match.length())))
@@ -1425,7 +1425,7 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 		float            longitude;
 		auto&            longitude_match = match[8];
 
-		if (auto i = name.find_last_not_of(' '); i != std::string_view::npos)
+		if (auto i = name.find_last_not_of(' '); i != (name.length() - 1))
 			name = name.substr(0, i + 1);
 
 		if (!aprs_decode_time(time, std::string_view(time_match.first, time_match.length()), *match[4].first))
@@ -1467,7 +1467,7 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 		aprs_compressed_location location;
 		auto&                    location_match = match[5];
 
-		if (auto i = name.find_last_not_of(' '); i != std::string_view::npos)
+		if (auto i = name.find_last_not_of(' '); i != (name.length() - 1))
 			name = name.substr(0, i + 1);
 
 		if (!aprs_decode_time(time, std::string_view(time_match.first, time_match.length()), *match[4].first))
@@ -1696,8 +1696,8 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 	if (!aprs_validate_name(destination))
 		return false;
 
-	if (!aprs_validate_comment(content, 67))
-		return false;
+	// if (!aprs_validate_comment(content, 67))
+	// 	return false;
 
 	packet->type    = APRS_PACKET_TYPE_MESSAGE;
 	packet->message = new aprs_packet_message
@@ -1725,7 +1725,7 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 		auto&            destination_match = match[1];
 		std::string_view destination(destination_match.first, destination_match.length());
 
-		if (auto i = destination.find_last_not_of(' '); i != std::string_view::npos)
+		if (auto i = destination.find_last_not_of(' '); i != (destination.length() - 1))
 			destination = destination.substr(0, i + 1);
 
 		packet->message->type        = APRS_MESSAGE_TYPE_BULLETIN;

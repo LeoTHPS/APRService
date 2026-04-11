@@ -134,6 +134,8 @@ struct aprs_packet_message
 };
 struct aprs_packet_weather
 {
+	bool        is_raw;
+
 	aprs_time   time;
 
 	uint16_t    wind_speed;
@@ -1795,22 +1797,15 @@ bool               aprs_packet_decode_weather(aprs_packet* packet)
 }
 bool               aprs_packet_decode_weather_raw(aprs_packet* packet)
 {
-	// packet->type = APRS_PACKET_TYPE_WEATHER;
-
 	switch (packet->content.front())
 	{
-		case '!':
-		case '$':
-			// TODO: decode Ultimeter 2000
-			// $ULTW00A4005502C946AE----000086A00001----006503B600000067
-			// $ULTW013200C301FD646E----000086A00001----0064041A00000067
-			// $ULTW0000000002220A36276DFFF5C9B6000102DC0064035C002C0000
-			break;
-
-		case '#':
-		case '*':
-			// TODO: decode Peet Bros U-II
-			break;
+		case '!': // Ultimeter 2000
+		case '$': // Ultimeter 2000
+		case '#': // Peet Bros U-II
+		case '*': // Peet Bros U-II
+			packet->type    = APRS_PACKET_TYPE_WEATHER;
+			packet->weather = new aprs_packet_weather { .is_raw = true };
+			return true;
 	}
 
 	return false;
@@ -4485,6 +4480,13 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_weather_init(const
 	}
 
 	return nullptr;
+}
+bool                              APRSERVICE_CALL aprs_packet_weather_is_raw(struct aprs_packet* packet)
+{
+	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
+		return false;
+
+	return packet->weather->is_raw;
 }
 const struct aprs_time*           APRSERVICE_CALL aprs_packet_weather_get_time(struct aprs_packet* packet)
 {

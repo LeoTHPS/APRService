@@ -180,39 +180,48 @@ void    demo_event_handler(struct aprservice* service, struct aprservice_event_i
 
 				case APRS_PACKET_TYPE_WEATHER:
 				{
-					const struct aprs_time* weather_time                    = aprs_packet_weather_get_time(packet);
-					const char*             weather_type                    = aprs_packet_weather_get_type(packet);
-					char                    weather_software                = aprs_packet_weather_get_software(packet);
-					uint16_t                weather_wind_speed              = aprs_packet_weather_get_wind_speed(packet);
-					uint16_t                weather_wind_speed_gust         = aprs_packet_weather_get_wind_speed_gust(packet);
-					uint16_t                weather_wind_direction          = aprs_packet_weather_get_wind_direction(packet);
-					uint16_t                weather_rainfall_last_hour      = aprs_packet_weather_get_rainfall_last_hour(packet);
-					uint16_t                weather_rainfall_last_24_hours  = aprs_packet_weather_get_rainfall_last_24_hours(packet);
-					uint16_t                weather_rainfall_since_midnight = aprs_packet_weather_get_rainfall_since_midnight(packet);
-					uint8_t                 weather_humidity                = aprs_packet_weather_get_humidity(packet);
-					int16_t                 weather_temperature             = aprs_packet_weather_get_temperature(packet);
-					uint32_t                weather_barometric_pressure     = aprs_packet_weather_get_barometric_pressure(packet);
-
 					printf("[Packet] [Weather] ");
 
-					if (weather_time)
+					if (aprs_packet_weather_is_raw(packet))
 					{
-						uint8_t weather_time_value[4];
+						const char* weather_content = aprs_packet_get_content(packet);
 
-						if (aprs_time_get_mdhm(weather_time, &weather_time_value[0], &weather_time_value[1], &weather_time_value[2], &weather_time_value[3]))
-						{
-							printf("[Date: %02u:%02u] ", weather_time_value[0], weather_time_value[1]);
-							printf("[Time: %02u:%02u] ", weather_time_value[2], weather_time_value[3]);
-						}
+						printf("[Raw] [From: %s] %s\n", sender, weather_content);
 					}
+					else
+					{
+						const struct aprs_time* weather_time                    = aprs_packet_weather_get_time(packet);
+						const char*             weather_type                    = aprs_packet_weather_get_type(packet);
+						char                    weather_software                = aprs_packet_weather_get_software(packet);
+						uint16_t                weather_wind_speed              = aprs_packet_weather_get_wind_speed(packet);
+						uint16_t                weather_wind_speed_gust         = aprs_packet_weather_get_wind_speed_gust(packet);
+						uint16_t                weather_wind_direction          = aprs_packet_weather_get_wind_direction(packet);
+						uint16_t                weather_rainfall_last_hour      = aprs_packet_weather_get_rainfall_last_hour(packet);
+						uint16_t                weather_rainfall_last_24_hours  = aprs_packet_weather_get_rainfall_last_24_hours(packet);
+						uint16_t                weather_rainfall_since_midnight = aprs_packet_weather_get_rainfall_since_midnight(packet);
+						uint8_t                 weather_humidity                = aprs_packet_weather_get_humidity(packet);
+						int16_t                 weather_temperature             = aprs_packet_weather_get_temperature(packet);
+						uint32_t                weather_barometric_pressure     = aprs_packet_weather_get_barometric_pressure(packet);
 
-					printf("[From: %s] [Wind: %u/%u/%u] [Rainfall: %u/%u/%u] [Humidity: %u] [Temperature: %i] [Barometric Pressure: %lu]\n",
-							sender,
-							weather_wind_speed, weather_wind_speed_gust, weather_wind_direction,
-							weather_rainfall_last_hour, weather_rainfall_last_24_hours, weather_rainfall_since_midnight,
-							weather_humidity,
-							weather_temperature,
-							weather_rainfall_last_24_hours);
+						if (weather_time)
+						{
+							uint8_t weather_time_value[4];
+
+							if (aprs_time_get_mdhm(weather_time, &weather_time_value[0], &weather_time_value[1], &weather_time_value[2], &weather_time_value[3]))
+							{
+								printf("[Date: %02u:%02u] ", weather_time_value[0], weather_time_value[1]);
+								printf("[Time: %02u:%02u] ", weather_time_value[2], weather_time_value[3]);
+							}
+						}
+
+						printf("[From: %s] [Wind: %u/%u/%u] [Rainfall: %u/%u/%u] [Humidity: %u] [Temperature: %i] [Barometric Pressure: %lu]\n",
+								sender,
+								weather_wind_speed, weather_wind_speed_gust, weather_wind_direction,
+								weather_rainfall_last_hour, weather_rainfall_last_24_hours, weather_rainfall_since_midnight,
+								weather_humidity,
+								weather_temperature,
+								weather_rainfall_last_24_hours);
+					}
 				}
 				break;
 

@@ -2251,15 +2251,34 @@ void               aprs_packet_encode_weather(aprs_packet* packet, std::stringst
 
 	ss << '_';
 	aprs_encode_time(&packet->weather->time, ss);
-	ss << 'c' << std::setfill('0') << std::setw(3) << packet->weather->wind_direction;
-	ss << 's' << std::setfill('0') << std::setw(3) << packet->weather->wind_speed;
-	ss << 'g' << std::setfill('0') << std::setw(3) << packet->weather->wind_speed_gust;
-	ss << 't' << std::setfill('0') << std::setw(3) << packet->weather->temperature;
-	ss << 'r' << std::setfill('0') << std::setw(3) << packet->weather->rainfall_last_hour;
-	ss << 'p' << std::setfill('0') << std::setw(3) << packet->weather->rainfall_last_24_hours;
-	ss << 'P' << std::setfill('0') << std::setw(3) << packet->weather->rainfall_since_midnight;
-	ss << 'h' << std::setfill('0') << std::setw(2) << humidity;
-	ss << 'b' << std::setfill('0') << std::setw(4) << packet->weather->barometric_pressure;
+
+	if (auto wind_direction = packet->weather->wind_direction)
+		ss << 'c' << std::setfill('0') << std::setw(3) << wind_direction;
+
+	if (auto wind_speed = packet->weather->wind_speed)
+		ss << 's' << std::setfill('0') << std::setw(3) << wind_speed;
+
+	if (auto wind_speed_gust = packet->weather->wind_speed_gust)
+		ss << 'g' << std::setfill('0') << std::setw(3) << wind_speed_gust;
+
+	if (auto temperature = packet->weather->temperature)
+		ss << 't' << std::setfill('0') << std::setw(3) << temperature;
+
+	if (auto rainfall_last_hour = packet->weather->rainfall_last_hour)
+		ss << 'r' << std::setfill('0') << std::setw(3) << rainfall_last_hour;
+
+	if (auto rainfall_last_24_hours = packet->weather->rainfall_last_24_hours)
+		ss << 'p' << std::setfill('0') << std::setw(3) << rainfall_last_24_hours;
+
+	if (auto rainfall_since_midnight = packet->weather->rainfall_since_midnight)
+		ss << 'P' << std::setfill('0') << std::setw(3) << rainfall_since_midnight;
+
+	if (humidity)
+		ss << 'h' << std::setfill('0') << std::setw(2) << humidity;
+
+	if (auto barometric_pressure = packet->weather->barometric_pressure)
+		ss << 'b' << std::setfill('0') << std::setw(4) << barometric_pressure;
+
 	ss << packet->weather->software;
 	ss << packet->weather->type;
 }

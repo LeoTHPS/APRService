@@ -1670,7 +1670,7 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 	static const aprs_regex_pattern regex("^:([^ :]+) *:(.+?)(\\{(.+))?$");
 	static const aprs_regex_pattern regex_ack("^ack(\\S{1,5})$");
 	static const aprs_regex_pattern regex_rej("^rej(\\S{1,5})$");
-	static const aprs_regex_pattern regex_bln("^BLN(\\S{1,6})");
+	static const aprs_regex_pattern regex_bln("^BLN([^:]+)");
 	static const aprs_regex_pattern regex_telemetry("^:([^:]+):(PARM|UNIT|EQNS|BITS).(.*)$");
 
 	aprs_regex_match_result match;
@@ -1722,8 +1722,14 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 	}
 	else if (aprs_regex_search(match, regex_bln, packet->message->destination))
 	{
+		auto&            destination_match = match[1];
+		std::string_view destination(destination_match.first, destination_match.length());
+
+		if (auto i = destination.find_last_not_of(' '); i != std::string_view::npos)
+			destination = destination.substr(0, i + 1);
+
 		packet->message->type        = APRS_MESSAGE_TYPE_BULLETIN;
-		packet->message->destination = match[1].str();
+		packet->message->destination = destination;
 	}
 
 	return true;

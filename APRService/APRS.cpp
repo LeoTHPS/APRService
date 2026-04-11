@@ -1307,7 +1307,7 @@ bool               aprs_packet_decode_raw_gps(aprs_packet* packet)
 bool               aprs_packet_decode_item(aprs_packet* packet)
 {
 	static const aprs_regex_pattern regex("^\\)(.+?(?=[!_][0-9 .]{7}))([!_])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static const aprs_regex_pattern regex_compressed("^\\)(.+?(?=[!_][0-9 .]{7}))([!_])(.{13})(.*)$");
+	static const aprs_regex_pattern regex_compressed("^\\)(.+?(?=[!_].{13}))([!_])(.{13})(.*)");
 
 	aprs_regex_match_result match;
 

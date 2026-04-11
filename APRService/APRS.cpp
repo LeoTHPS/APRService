@@ -2704,7 +2704,7 @@ bool                              APRSERVICE_CALL aprs_time_type_is_valid(int va
 		return !(value & APRS_TIME_LOCAL) && ((value & APRS_TIME_DHM) || (value & APRS_TIME_HMS) || (value & APRS_TIME_MDHM));
 
 	if (value & APRS_TIME_LOCAL)
-		return !(value & APRS_TIME_ZULU) && (value & APRS_TIME_DHM) && !(value & APRS_TIME_HMS) && !(value & APRS_TIME_MDHM);
+		return !(value & APRS_TIME_ZULU) && (value & APRS_TIME_DHM) && !(value & APRS_TIME_HMS) && ((value & APRS_TIME_MDHM) != APRS_TIME_MDHM);
 
 	return false;
 }

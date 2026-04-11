@@ -1670,7 +1670,7 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 	static const aprs_regex_pattern regex("^:([^ :]+) *:(.+?)(\\{(.+))?$");
 	static const aprs_regex_pattern regex_ack("^ack(\\S{1,5})$");
 	static const aprs_regex_pattern regex_rej("^rej(\\S{1,5})$");
-	static const aprs_regex_pattern regex_bln("^BLN(\\S{1,6})$");
+	static const aprs_regex_pattern regex_bln("^BLN(\\S{1,6})");
 	static const aprs_regex_pattern regex_telemetry("^:([^:]+):(PARM|UNIT|EQNS|BITS).(.*)$");
 
 	aprs_regex_match_result match;
@@ -1720,7 +1720,7 @@ bool               aprs_packet_decode_message(aprs_packet* packet)
 		packet->message->id   = match[1].str();
 		packet->message->content.clear();
 	}
-	else if (aprs_regex_match(match, regex_bln, packet->message->destination))
+	else if (aprs_regex_search(match, regex_bln, packet->message->destination))
 	{
 		packet->message->type        = APRS_MESSAGE_TYPE_BULLETIN;
 		packet->message->destination = match[1].str();

@@ -698,6 +698,7 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 	switch (type)
 	{
 		case 'h': // HMS
+		case 'H':
 		{
 			if (string.length() != 6)
 				return false;
@@ -721,6 +722,7 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 		return true;
 
 		case 'z': // DHM
+		case 'Z':
 		case '/':
 		{
 			if (string.length() != 6)
@@ -743,6 +745,7 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 			switch (type)
 			{
 				case 'z':
+				case 'Z':
 					value.type |= APRS_TIME_ZULU;
 					break;
 
@@ -1403,8 +1406,8 @@ bool               aprs_packet_decode_query(aprs_packet* packet)
 }
 bool               aprs_packet_decode_object(aprs_packet* packet)
 {
-	static const aprs_regex_pattern regex("^;(.{9})([*_])(\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static const aprs_regex_pattern regex_compressed("^;(.{9})([*_])(\\d{6})([z\\/h])(.{13})(.*)$");
+	static const aprs_regex_pattern regex("^;([^*_]+)([*_])(\\d{6})([zZ\\/hH])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const aprs_regex_pattern regex_compressed("^;([^*_]+)([*_])(\\d{6})([zZ\\/hH])(.{13})(.*)$");
 
 	aprs_time               time;
 	aprs_regex_match_result match;
@@ -1498,7 +1501,7 @@ bool               aprs_packet_decode_object(aprs_packet* packet)
 bool               aprs_packet_decode_status(aprs_packet* packet)
 {
 	static const aprs_regex_pattern regex("^>(.*)$");
-	static const aprs_regex_pattern regex_time("^>(\\d{6})([z\\/h])(.*)$");
+	static const aprs_regex_pattern regex_time("^>(\\d{6})([zZ\\/hH])(.*)$");
 
 	aprs_time               time;
 	aprs_regex_match_result match;
@@ -1825,7 +1828,7 @@ bool               aprs_packet_decode_weather_space(aprs_packet* packet)
 bool               aprs_packet_decode_position(aprs_packet* packet, int flags)
 {
 	static const aprs_regex_pattern regex("^[!=]([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
-	static const aprs_regex_pattern regex_time("^[\\/@](\\d{6})([z\\/h])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
+	static const aprs_regex_pattern regex_time("^[\\/@](\\d{6})([zZ\\/hH])([0-9 .]{7})([NS])(.)([0-9 .]{8})([EW])(.)(.*)$");
 	static const aprs_regex_pattern regex_compressed("^[!=\\/@](.{13})(.*)$");
 
 	aprs_regex_match_result match;
@@ -1945,7 +1948,7 @@ bool               aprs_packet_decode_position_messaging(aprs_packet* packet)
 }
 bool               aprs_packet_decode_telemetry(aprs_packet* packet)
 {
-	static const aprs_regex_pattern regex("^T#(\\d+)(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(-?\\d*\\.?\\d*))(,(\\d{1,8}))(.*)$");
+	static const aprs_regex_pattern regex("^T#(\\d+),((\\d+\\.?\\d*),?)?((\\d+\\.?\\d*),?)?((\\d+\\.?\\d*),?)?((\\d+\\.?\\d*),?)?((\\d+\\.?\\d*)?)?,?(\\d{1,8})?(.*)$");
 
 	aprs_regex_match_result match;
 
@@ -3195,7 +3198,7 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_string(c
 	if (!string)
 		return nullptr;
 
-	static const aprs_regex_pattern regex("^([^>]{3,9})>([^,]+),([^:]+):(.*)$");
+	static const aprs_regex_pattern regex("^([^>]+)>([^,]+),([^:]+)?:(.*)$");
 	static const aprs_regex_pattern regex_path_is("^(.*?),?(qA\\w),(\\S+)$");
 
 	aprs_regex_match_result match;

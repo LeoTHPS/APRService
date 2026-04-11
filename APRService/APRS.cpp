@@ -695,8 +695,6 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 		return isdigit(value);
 	};
 
-	tm time = {};
-
 	switch (type)
 	{
 		case 'h': // HMS
@@ -707,6 +705,7 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 			if (!aprs_validate_string(string, string_is_valid))
 				return false;
 
+			tm   time = {};
 			auto hour = string.substr(0, 2);
 			auto min  = string.substr(2, 2);
 			auto sec  = string.substr(4, 2);
@@ -718,7 +717,8 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 			value = { time, APRS_TIME_HMS | APRS_TIME_ZULU };
 		}
 		// TODO: some stations appear to be using the hms format for a dhm time
-		return (value.tm.tm_hour < 24) && (value.tm.tm_min < 60) && (value.tm.tm_sec < 60);
+		// return (value.tm.tm_hour < 24) && (value.tm.tm_min < 60) && (value.tm.tm_sec < 60);
+		return true;
 
 		case 'z': // DHM
 		case '/':
@@ -729,6 +729,7 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 			if (!aprs_validate_string(string, string_is_valid))
 				return false;
 
+			tm   time = {};
 			auto mday = string.substr(0, 2);
 			auto hour = string.substr(2, 2);
 			auto min  = string.substr(4, 2);
@@ -751,7 +752,8 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 			}
 		}
 		// TODO: other stations appear to be using the dhm format for a hms time
-		return (value.tm.tm_mday <= 31) && (value.tm.tm_hour < 24) && (value.tm.tm_min < 60);
+		// return (value.tm.tm_mday <= 31) && (value.tm.tm_hour < 24) && (value.tm.tm_min < 60);
+		return true;
 
 		case 0: // MDHM
 		{
@@ -765,6 +767,7 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 			auto mday = string.substr(2, 2);
 			auto hour = string.substr(4, 2);
 			auto min  = string.substr(6, 2);
+			tm   time = {};
 
 			std::from_chars(mon.data(), mon.data() + mon.length(), time.tm_mon);
 			std::from_chars(mday.data(), mday.data() + mday.length(), time.tm_mday);
@@ -773,7 +776,8 @@ bool               aprs_decode_time(aprs_time& value, std::string_view string, c
 
 			value = { time, APRS_TIME_MDHM | APRS_TIME_ZULU };
 		}
-		return (value.tm.tm_mon <= 12) && (value.tm.tm_mday <= 31) && (value.tm.tm_hour < 24) && (value.tm.tm_min < 60);
+		// return (value.tm.tm_mon <= 12) && (value.tm.tm_mday <= 31) && (value.tm.tm_hour < 24) && (value.tm.tm_min < 60);
+		return true;
 	}
 
 	return false;

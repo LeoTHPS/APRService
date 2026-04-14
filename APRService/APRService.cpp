@@ -37,6 +37,7 @@
 #elif defined(APRSERVICE_WIN32)
 	#include <WS2tcpip.h>
 	#include <MSWSock.h>
+	#include <Windows.h>
 #endif
 
 enum KISS_TNC_COMMANDS : uint8_t

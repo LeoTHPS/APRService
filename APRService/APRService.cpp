@@ -2038,7 +2038,7 @@ bool                                       aprservice_poll_connection(struct apr
 
 						bool command_handled = false;
 
-						if (std::string_view packet_message_content_view(packet_message_content); packet_message_content_view.starts_with(service->command_prefix))
+						if (std::string_view packet_message_content_view(packet_message_content); service->command_prefix.empty() || packet_message_content_view.starts_with(service->command_prefix))
 						{
 							std::string_view command_name = packet_message_content_view.substr(service->command_prefix.length());
 							std::string_view command_args;

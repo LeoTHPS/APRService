@@ -2036,6 +2036,8 @@ bool                                       aprservice_poll_connection(struct apr
 						if (packet_message_id)
 							aprservice_send_message_ack(service, packet_sender, packet_message_id);
 
+						bool command_handled = false;
+
 						if (std::string_view packet_message_content_view(packet_message_content); packet_message_content_view.starts_with(service->command_prefix))
 						{
 							std::string_view command_name = packet_message_content_view.substr(service->command_prefix.length());
@@ -2049,9 +2051,11 @@ bool                                       aprservice_poll_connection(struct apr
 									command_args = packet_message_content_view.substr(i);
 							}
 
-							if (!command_name.empty() || !aprservice_execute_command(service, packet, packet_sender, command_name.data(), command_args.data()))
-								aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .id = packet_message_id, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
+							command_handled = !command_name.empty() && aprservice_execute_command(service, packet, packet_sender, command_name.data(), command_args.data());
 						}
+
+						if (!command_handled)
+							aprservice_event_execute(service, APRSERVICE_EVENT_RECEIVE_MESSAGE, { .packet = packet, .id = packet_message_id, .sender = packet_sender, .content = packet_message_content, .destination = packet_message_destination });
 					}
 					break;
 			}

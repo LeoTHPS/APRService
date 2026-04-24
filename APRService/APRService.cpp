@@ -2961,7 +2961,7 @@ void                       APRSERVICE_CALL aprservice_disconnect(struct aprservi
 int                        APRSERVICE_CALL aprservice_wait_for_io(struct aprservice* service, uint32_t timeout)
 {
 	if (!aprservice_is_connected(service))
-		return 0;
+		return -2;
 
 	switch (aprservice_connection_wait_for_io(service->connection, timeout))
 	{

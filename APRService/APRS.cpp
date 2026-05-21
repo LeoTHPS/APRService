@@ -1,4 +1,7 @@
-#include "APRS.hpp"
+extern "C"
+{
+	#include "APRS.h"
+}
 
 #include <array>
 #include <cmath>
@@ -2740,7 +2743,7 @@ const char*                       APRSERVICE_CALL aprs_path_to_string(struct apr
 		}
 	}
 
-	path->string = ss.str();
+	((aprs_path*)path)->string = ss.str();
 
 	return path->string.c_str();
 }
@@ -3610,14 +3613,14 @@ const char*                       APRSERVICE_CALL aprs_packet_to_string(struct a
 		if (!aprs_packet_encode(packet, ss))
 			return nullptr;
 
-		packet->content = ss.str();
+		((aprs_packet*)packet)->content = ss.str();
 	}
 
 	{
 		std::stringstream ss;
 		ss << aprs_packet_get_sender(packet) << '>' << aprs_packet_get_tocall(packet) << ',' << aprs_path_to_string(packet->path) << ':' << packet->content;
 
-		packet->string = ss.str();
+		((aprs_packet*)packet)->string = ss.str();
 	}
 
 	return packet->string.c_str();
@@ -4031,7 +4034,7 @@ char                              APRSERVICE_CALL aprs_packet_object_get_symbol_
 
 	return packet->object->symbol_table_key;
 }
-bool                              APRSERVICE_CALL aprs_packet_object_set_time(struct aprs_packet* packet, const struct aprs_time* value)
+bool                              APRSERVICE_CALL aprs_packet_object_set_time(struct aprs_packet* packet, struct aprs_time* value)
 {
 	if (!value || (!(value->type & APRS_TIME_DHM) && !(value->type & APRS_TIME_HMS)))
 		return false;
@@ -4187,7 +4190,7 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_status_init(const 
 
 	return nullptr;
 }
-struct aprs_time*                 APRSERVICE_CALL aprs_packet_status_get_time(struct aprs_packet* packet)
+const struct aprs_time*           APRSERVICE_CALL aprs_packet_status_get_time(struct aprs_packet* packet)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_STATUS)
 		return nullptr;
@@ -4592,7 +4595,7 @@ uint32_t                          APRSERVICE_CALL aprs_packet_weather_get_barome
 
 	return packet->weather->barometric_pressure;
 }
-bool                              APRSERVICE_CALL aprs_packet_weather_set_time(struct aprs_packet* packet, const struct aprs_time* value)
+bool                              APRSERVICE_CALL aprs_packet_weather_set_time(struct aprs_packet* packet, struct aprs_time* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_WEATHER)
 		return false;
@@ -4883,7 +4886,7 @@ int                               APRSERVICE_CALL aprs_packet_position_get_mic_e
 
 	return packet->position->mic_e_message;
 }
-bool                              APRSERVICE_CALL aprs_packet_position_set_time(struct aprs_packet* packet, const struct aprs_time* value)
+bool                              APRSERVICE_CALL aprs_packet_position_set_time(struct aprs_packet* packet, struct aprs_time* value)
 {
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_POSITION)
 		return false;

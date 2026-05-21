@@ -2,3 +2,6 @@
 /.vscode/
 
 build/
+
+*.exe
+*.dll

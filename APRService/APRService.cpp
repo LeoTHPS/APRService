@@ -1,4 +1,7 @@
-#include "APRService.hpp"
+extern "C"
+{
+	#include "APRService.h"
+}
 
 #include <map>
 #include <list>
@@ -251,10 +254,10 @@ struct aprservice_get_event_information<APRSERVICE_EVENT_RECEIVE_SERVER_MESSAGE>
 	typedef aprservice_event_information_receive_server_message type;
 };
 
-#define                                    aprservice_log_error(function, error) std::cerr << #function " returned " << error << std::endl
+#define                                        aprservice_log_error(function, error) std::cerr << #function " returned " << error << std::endl
 
 template<typename T>
-T                                          aprservice_parse_uint(const char* string)
+T                                              aprservice_parse_uint(const char* string)
 {
 	T value = 0;
 
@@ -264,7 +267,7 @@ T                                          aprservice_parse_uint(const char* str
 	return value;
 }
 template<typename T>
-T                                          aprservice_parse_uint(const char* string, size_t length)
+T                                              aprservice_parse_uint(const char* string, size_t length)
 {
 	T value = 0;
 
@@ -275,7 +278,7 @@ T                                          aprservice_parse_uint(const char* str
 }
 
 template<APRSERVICE_EVENTS EVENT>
-constexpr bool                             aprservice_event_execute(aprservice* service, typename aprservice_get_event_information<EVENT>::type&& event)
+constexpr bool                                 aprservice_event_execute(aprservice* service, typename aprservice_get_event_information<EVENT>::type&& event)
 {
 	if (EVENT >= APRSERVICE_EVENTS_COUNT)
 		return false;
@@ -289,9 +292,9 @@ constexpr bool                             aprservice_event_execute(aprservice* 
 
 	return true;
 }
-#define                                    aprservice_event_execute(service, event, ...) aprservice_event_execute<event>(service, __VA_ARGS__)
+#define                                        aprservice_event_execute(service, event, ...) aprservice_event_execute<event>(service, __VA_ARGS__)
 
-bool                                       aprservice_regex_match(std::cmatch& match, const std::regex& regex, const char* string)
+bool                                           aprservice_regex_match(std::cmatch& match, const std::regex& regex, const char* string)
 {
 	try
 	{
@@ -308,7 +311,7 @@ bool                                       aprservice_regex_match(std::cmatch& m
 	return true;
 }
 
-bool                                       aprservice_connection_auth_from_string(aprservice_connection_auth* auth, const char* string, bool is_verified)
+bool                                           aprservice_connection_auth_from_string(aprservice_connection_auth* auth, const char* string, bool is_verified)
 {
 	static const std::regex regex("^logresp ([^ ]+) ([^ ,]+)[^ ]* ?(.*)$");
 
@@ -327,26 +330,26 @@ bool                                       aprservice_connection_auth_from_strin
 	return true;
 }
 
-aprservice_connection*                     aprservice_connection_init(aprservice* service, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode);
-void                                       aprservice_connection_deinit(aprservice_connection* connection);
-bool                                       aprservice_connection_is_open(aprservice_connection* connection);
-bool                                       aprservice_connection_open(aprservice_connection* connection);
-void                                       aprservice_connection_close(aprservice_connection* connection);
+aprservice_connection*                         aprservice_connection_init(aprservice* service, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode);
+void                                           aprservice_connection_deinit(aprservice_connection* connection);
+bool                                           aprservice_connection_is_open(const aprservice_connection* connection);
+bool                                           aprservice_connection_open(aprservice_connection* connection);
+void                                           aprservice_connection_close(aprservice_connection* connection);
 // @return false on connection closed
-bool                                       aprservice_connection_poll(aprservice_connection* connection);
+bool                                           aprservice_connection_poll(aprservice_connection* connection);
 // @return 0 on disconnect
 // @return -1 on would block
-int                                        aprservice_connection_read(aprservice_connection* connection, void* buffer, size_t size, size_t* number_of_bytes_received);
+int                                            aprservice_connection_read(aprservice_connection* connection, void* buffer, size_t size, size_t* number_of_bytes_received);
 // @return 0 on disconnect
 // @return -1 on would block
-int                                        aprservice_connection_write(aprservice_connection* connection, const void* buffer, size_t size, size_t* number_of_bytes_sent);
-bool                                       aprservice_connection_read_string(aprservice_connection* connection, std::string& value);
+int                                            aprservice_connection_write(aprservice_connection* connection, const void* buffer, size_t size, size_t* number_of_bytes_sent);
+bool                                           aprservice_connection_read_string(aprservice_connection* connection, std::string& value);
 // @return false on connection closed
-bool                                       aprservice_connection_write_packet(aprservice_connection* connection, aprs_packet* value);
+bool                                           aprservice_connection_write_packet(aprservice_connection* connection, aprs_packet* value);
 // @return false on connection closed
-bool                                       aprservice_connection_write_aprs_is(aprservice_connection* connection, std::string&& value);
+bool                                           aprservice_connection_write_aprs_is(aprservice_connection* connection, std::string&& value);
 
-aprservice_connection*                     aprservice_connection_init(aprservice* service, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode)
+aprservice_connection*                         aprservice_connection_init(aprservice* service, int type, const char* host_or_device, uint16_t port, uint32_t speed, uint16_t passcode)
 {
 	auto connection = new aprservice_connection
 	{
@@ -377,7 +380,7 @@ aprservice_connection*                     aprservice_connection_init(aprservice
 
 	return connection;
 }
-void                                       aprservice_connection_deinit(aprservice_connection* connection)
+void                                           aprservice_connection_deinit(aprservice_connection* connection)
 {
 	if (aprservice_connection_is_open(connection))
 		aprservice_connection_close(connection);
@@ -388,11 +391,11 @@ void                                       aprservice_connection_deinit(aprservi
 
 	delete connection;
 }
-bool                                       aprservice_connection_is_open(aprservice_connection* connection)
+bool                                           aprservice_connection_is_open(const aprservice_connection* connection)
 {
 	return connection->is_open;
 }
-bool                                       aprservice_connection_open_tcp(aprservice_connection* connection)
+bool                                           aprservice_connection_open_tcp(aprservice_connection* connection)
 {
 resolve_host:
 	addrinfo  dns_hint = { .ai_family = AF_UNSPEC };
@@ -535,7 +538,7 @@ socket_connect:
 
 	return true;
 }
-bool                                       aprservice_connection_open_serial(aprservice_connection* connection)
+bool                                           aprservice_connection_open_serial(aprservice_connection* connection)
 {
 #if defined(APRSERVICE_UNIX)
 	if ((connection->serial = open(connection->host_or_device.c_str(), O_RDWR | O_NOCTTY)) == -1)
@@ -673,7 +676,7 @@ bool                                       aprservice_connection_open_serial(apr
 
 	return true;
 }
-bool                                       aprservice_connection_open(aprservice_connection* connection)
+bool                                           aprservice_connection_open(aprservice_connection* connection)
 {
 	if (aprservice_connection_is_open(connection))
 		return false;
@@ -740,7 +743,7 @@ bool                                       aprservice_connection_open(aprservice
 
 	return true;
 }
-void                                       aprservice_connection_close(aprservice_connection* connection)
+void                                           aprservice_connection_close(aprservice_connection* connection)
 {
 	if (aprservice_connection_is_open(connection))
 	{
@@ -780,7 +783,7 @@ void                                       aprservice_connection_close(aprservic
 	}
 }
 // @return false on connection closed
-bool                                       aprservice_connection_poll_aprs_is(aprservice_connection* connection)
+bool                                           aprservice_connection_poll_aprs_is(aprservice_connection* connection)
 {
 	size_t number_of_bytes_received;
 
@@ -807,7 +810,7 @@ read_once:
 	return true;
 }
 // @return false on connection closed
-bool                                       aprservice_connection_poll_kiss_tnc(aprservice_connection* connection)
+bool                                           aprservice_connection_poll_kiss_tnc(aprservice_connection* connection)
 {
 	size_t number_of_bytes_received;
 
@@ -954,7 +957,7 @@ read_once:
 
 	return true;
 }
-bool                                       aprservice_connection_poll(aprservice_connection* connection)
+bool                                           aprservice_connection_poll(aprservice_connection* connection)
 {
 	if (!aprservice_connection_is_open(connection))
 		return false;
@@ -998,7 +1001,7 @@ bool                                       aprservice_connection_poll(aprservice
 
 	return true;
 }
-int                                        aprservice_connection_read(aprservice_connection* connection, void* buffer, size_t size, size_t* number_of_bytes_received)
+int                                            aprservice_connection_read(aprservice_connection* connection, void* buffer, size_t size, size_t* number_of_bytes_received)
 {
 	if (!aprservice_connection_is_open(connection))
 		return 0;
@@ -1127,7 +1130,7 @@ int                                        aprservice_connection_read(aprservice
 
 	return 1;
 }
-int                                        aprservice_connection_write(aprservice_connection* connection, const void* buffer, size_t size, size_t* number_of_bytes_sent)
+int                                            aprservice_connection_write(aprservice_connection* connection, const void* buffer, size_t size, size_t* number_of_bytes_sent)
 {
 	if (!aprservice_connection_is_open(connection))
 		return 0;
@@ -1245,7 +1248,7 @@ int                                        aprservice_connection_write(aprservic
 
 	return 1;
 }
-bool                                       aprservice_connection_read_string(aprservice_connection* connection, std::string& value)
+bool                                           aprservice_connection_read_string(aprservice_connection* connection, std::string& value)
 {
 	if (!aprservice_connection_is_open(connection))
 		return false;
@@ -1259,7 +1262,7 @@ bool                                       aprservice_connection_read_string(apr
 
 	return true;
 }
-bool                                       aprservice_connection_write_packet(aprservice_connection* connection, aprs_packet* value)
+bool                                           aprservice_connection_write_packet(aprservice_connection* connection, aprs_packet* value)
 {
 	if (aprservice_connection_is_open(connection))
 		switch (connection->type)
@@ -1394,7 +1397,7 @@ bool                                       aprservice_connection_write_packet(ap
 
 	return false;
 }
-bool                                       aprservice_connection_write_aprs_is(aprservice_connection* connection, std::string&& value)
+bool                                           aprservice_connection_write_aprs_is(aprservice_connection* connection, std::string&& value)
 {
 	if (!aprservice_connection_is_open(connection))
 		return false;
@@ -1407,7 +1410,7 @@ bool                                       aprservice_connection_write_aprs_is(a
 // @return 0 on error
 // @return -1 on timeout
 // @return -2 on connection closed
-int                                        aprservice_connection_wait_for_io(aprservice_connection* connection, uint32_t timeout)
+int                                            aprservice_connection_wait_for_io(aprservice_connection* connection, uint32_t timeout)
 {
 	if (!aprservice_connection_is_open(connection))
 		return -2;
@@ -1560,14 +1563,14 @@ int                                        aprservice_connection_wait_for_io(apr
 	return would_block ? -1 : 1;
 }
 
-void                                       aprservice_poll_tasks(struct aprservice* service);
-void                                       aprservice_poll_messages(struct aprservice* service);
-bool                                       aprservice_poll_connection(struct aprservice* service);
-bool                                       aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id);
-bool                                       aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id);
-bool                                       aprservice_execute_command(struct aprservice* service, struct aprs_packet* packet, const char* sender, std::string_view name, const char* args);
+void                                           aprservice_poll_tasks(struct aprservice* service);
+void                                           aprservice_poll_messages(struct aprservice* service);
+bool                                           aprservice_poll_connection(struct aprservice* service);
+bool                                           aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id);
+bool                                           aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id);
+bool                                           aprservice_execute_command(struct aprservice* service, struct aprs_packet* packet, const char* sender, std::string_view name, const char* args);
 
-struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, struct aprs_path* path, char symbol_table, char symbol_table_key)
+struct aprservice*             APRSERVICE_CALL aprservice_init(const char* station, struct aprs_path* path, char symbol_table, char symbol_table_key)
 {
 	if (!station || !path)
 		return nullptr;
@@ -1599,7 +1602,7 @@ struct aprservice*         APRSERVICE_CALL aprservice_init(const char* station, 
 
 	return service;
 }
-void                       APRSERVICE_CALL aprservice_deinit(struct aprservice* service)
+void                           APRSERVICE_CALL aprservice_deinit(struct aprservice* service)
 {
 	if (aprservice_is_connected(service))
 		aprservice_disconnect(service);
@@ -1646,7 +1649,7 @@ void                       APRSERVICE_CALL aprservice_deinit(struct aprservice* 
 
 	delete service;
 }
-bool                       APRSERVICE_CALL aprservice_is_read_only(struct aprservice* service)
+bool                           APRSERVICE_CALL aprservice_is_read_only(const struct aprservice* service)
 {
 	if (aprservice_is_connected(service))
 		if (auto auth = &service->connection->auth; auth->state == APRSERVICE_AUTH_STATE_RECEIVED)
@@ -1654,11 +1657,11 @@ bool                       APRSERVICE_CALL aprservice_is_read_only(struct aprser
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_is_connected(struct aprservice* service)
+bool                           APRSERVICE_CALL aprservice_is_connected(const struct aprservice* service)
 {
 	return service->connection != nullptr;
 }
-bool                       APRSERVICE_CALL aprservice_is_authenticated(struct aprservice* service)
+bool                           APRSERVICE_CALL aprservice_is_authenticated(const struct aprservice* service)
 {
 	if (aprservice_is_connected(service))
 		if (auto auth = &service->connection->auth; auth->state == APRSERVICE_AUTH_STATE_RECEIVED)
@@ -1666,50 +1669,50 @@ bool                       APRSERVICE_CALL aprservice_is_authenticated(struct ap
 
 	return false;
 }
-bool                       APRSERVICE_CALL aprservice_is_authenticating(struct aprservice* service)
+bool                           APRSERVICE_CALL aprservice_is_authenticating(const struct aprservice* service)
 {
 	if (aprservice_is_connected(service))
 		return service->connection->auth.state == APRSERVICE_AUTH_STATE_SENT;
 
 	return false;
 }
-bool                       APRSERVICE_CALL aprservice_is_monitoring_enabled(struct aprservice* service)
+bool                           APRSERVICE_CALL aprservice_is_monitoring_enabled(const struct aprservice* service)
 {
 	return service->is_monitoring;
 }
-bool                       APRSERVICE_CALL aprservice_is_compression_enabled(struct aprservice* service)
+bool                           APRSERVICE_CALL aprservice_is_compression_enabled(const struct aprservice* service)
 {
 	return aprs_packet_position_is_mic_e(service->position) || aprs_packet_position_is_compressed(service->position);
 }
-struct aprs_path*          APRSERVICE_CALL aprservice_get_path(struct aprservice* service)
+struct aprs_path*              APRSERVICE_CALL aprservice_get_path(const struct aprservice* service)
 {
 	return service->path;
 }
-uint32_t                   APRSERVICE_CALL aprservice_get_time(struct aprservice* service)
+uint32_t                       APRSERVICE_CALL aprservice_get_time(const struct aprservice* service)
 {
 	return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - service->time;
 }
-int                        APRSERVICE_CALL aprservice_get_time_type(struct aprservice* service)
+int                            APRSERVICE_CALL aprservice_get_time_type(const struct aprservice* service)
 {
 	return service->time_type;
 }
-const char*                APRSERVICE_CALL aprservice_get_comment(struct aprservice* service)
+const char*                    APRSERVICE_CALL aprservice_get_comment(const struct aprservice* service)
 {
 	return aprs_packet_position_get_comment(service->position);
 }
-const char*                APRSERVICE_CALL aprservice_get_station(struct aprservice* service)
+const char*                    APRSERVICE_CALL aprservice_get_station(const struct aprservice* service)
 {
 	return service->station.c_str();
 }
-char                       APRSERVICE_CALL aprservice_get_symbol_table(struct aprservice* service)
+char                           APRSERVICE_CALL aprservice_get_symbol_table(const struct aprservice* service)
 {
 	return aprs_packet_position_get_symbol_table(service->position);
 }
-char                       APRSERVICE_CALL aprservice_get_symbol_table_key(struct aprservice* service)
+char                           APRSERVICE_CALL aprservice_get_symbol_table_key(const struct aprservice* service)
 {
 	return aprs_packet_position_get_symbol_table_key(service->position);
 }
-void                       APRSERVICE_CALL aprservice_get_position(struct aprservice* service, float* latitude, float* longitude, int32_t* altitude, uint16_t* speed, uint16_t* course)
+void                           APRSERVICE_CALL aprservice_get_position(const struct aprservice* service, float* latitude, float* longitude, int32_t* altitude, uint16_t* speed, uint16_t* course)
 {
 	*speed     = aprs_packet_position_get_speed(service->position);
 	*course    = aprs_packet_position_get_course(service->position);
@@ -1717,7 +1720,7 @@ void                       APRSERVICE_CALL aprservice_get_position(struct aprser
 	*latitude  = aprs_packet_position_get_latitude(service->position);
 	*longitude = aprs_packet_position_get_longitude(service->position);
 }
-int                        APRSERVICE_CALL aprservice_get_position_type(struct aprservice* service)
+enum APRSERVICE_POSITION_TYPES APRSERVICE_CALL aprservice_get_position_type(const struct aprservice* service)
 {
 	if (aprs_packet_position_is_mic_e(service->position))
 		return APRSERVICE_POSITION_TYPE_MIC_E;
@@ -1727,15 +1730,15 @@ int                        APRSERVICE_CALL aprservice_get_position_type(struct a
 
 	return APRSERVICE_POSITION_TYPE_POSITION;
 }
-const char*                APRSERVICE_CALL aprservice_get_command_prefix(struct aprservice* service)
+const char*                    APRSERVICE_CALL aprservice_get_command_prefix(const struct aprservice* service)
 {
 	return service->command_prefix.c_str();
 }
-uint32_t                   APRSERVICE_CALL aprservice_get_connection_timeout(struct aprservice* service)
+uint32_t                       APRSERVICE_CALL aprservice_get_connection_timeout(const struct aprservice* service)
 {
 	return service->connection_timeout;
 }
-bool                       APRSERVICE_CALL aprservice_get_event_handler(struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler* handler, void** param)
+bool                           APRSERVICE_CALL aprservice_get_event_handler(const struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler* handler, void** param)
 {
 	if (event >= APRSERVICE_EVENTS_COUNT)
 		return false;
@@ -1747,14 +1750,14 @@ bool                       APRSERVICE_CALL aprservice_get_event_handler(struct a
 
 	return true;
 }
-void                       APRSERVICE_CALL aprservice_get_default_event_handler(struct aprservice* service, aprservice_event_handler* handler, void** param)
+void                           APRSERVICE_CALL aprservice_get_default_event_handler(const struct aprservice* service, aprservice_event_handler* handler, void** param)
 {
 	auto context = &service->events[APRSERVICE_EVENTS_COUNT];
 
 	*handler = context->handler;
 	*param   = context->handler_param;
 }
-bool                       APRSERVICE_CALL aprservice_set_path(struct aprservice* service, struct aprs_path* value)
+bool                           APRSERVICE_CALL aprservice_set_path(struct aprservice* service, struct aprs_path* value)
 {
 	if (!value)
 		return false;
@@ -1767,7 +1770,7 @@ bool                       APRSERVICE_CALL aprservice_set_path(struct aprservice
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_set_time_type(struct aprservice* service, int value)
+bool                           APRSERVICE_CALL aprservice_set_time_type(struct aprservice* service, int value)
 {
 	if (!aprs_time_type_is_valid(value))
 		return false;
@@ -1778,7 +1781,7 @@ bool                       APRSERVICE_CALL aprservice_set_time_type(struct aprse
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_set_symbol(struct aprservice* service, char table, char key)
+bool                           APRSERVICE_CALL aprservice_set_symbol(struct aprservice* service, char table, char key)
 {
 	if (!aprs_packet_position_set_symbol(service->position, table, key))
 	{
@@ -1789,7 +1792,7 @@ bool                       APRSERVICE_CALL aprservice_set_symbol(struct aprservi
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_set_comment(struct aprservice* service, const char* value)
+bool                           APRSERVICE_CALL aprservice_set_comment(struct aprservice* service, const char* value)
 {
 	if (!aprs_packet_position_set_comment(service->position, value))
 	{
@@ -1800,7 +1803,7 @@ bool                       APRSERVICE_CALL aprservice_set_comment(struct aprserv
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_set_position(struct aprservice* service, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
+bool                           APRSERVICE_CALL aprservice_set_position(struct aprservice* service, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
 {
 	if (!aprs_packet_position_set_speed(service->position, speed))
 	{
@@ -1839,7 +1842,7 @@ bool                       APRSERVICE_CALL aprservice_set_position(struct aprser
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_set_position_type(struct aprservice* service, enum APRSERVICE_POSITION_TYPES value)
+bool                           APRSERVICE_CALL aprservice_set_position_type(struct aprservice* service, enum APRSERVICE_POSITION_TYPES value)
 {
 	if (value >= APRSERVICE_POSITION_TYPES_COUNT)
 		return false;
@@ -1885,7 +1888,7 @@ bool                       APRSERVICE_CALL aprservice_set_position_type(struct a
 
 	return false;
 }
-bool                       APRSERVICE_CALL aprservice_set_event_handler(struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler handler, void* param)
+bool                           APRSERVICE_CALL aprservice_set_event_handler(struct aprservice* service, enum APRSERVICE_EVENTS event, aprservice_event_handler handler, void* param)
 {
 	if (event >= APRSERVICE_EVENTS_COUNT)
 		return false;
@@ -1894,26 +1897,26 @@ bool                       APRSERVICE_CALL aprservice_set_event_handler(struct a
 
 	return true;
 }
-void                       APRSERVICE_CALL aprservice_set_default_event_handler(struct aprservice* service, aprservice_event_handler handler, void* param)
+void                           APRSERVICE_CALL aprservice_set_default_event_handler(struct aprservice* service, aprservice_event_handler handler, void* param)
 {
 	service->events[APRSERVICE_EVENTS_COUNT] = { .handler = handler, .handler_param = param };
 }
-void                       APRSERVICE_CALL aprservice_set_command_prefix(struct aprservice* service, const char* value)
+void                           APRSERVICE_CALL aprservice_set_command_prefix(struct aprservice* service, const char* value)
 {
 	if (!value)
 		service->command_prefix.clear();
 	else
 		service->command_prefix = value;
 }
-void                       APRSERVICE_CALL aprservice_set_connection_timeout(struct aprservice* service, uint32_t seconds)
+void                           APRSERVICE_CALL aprservice_set_connection_timeout(struct aprservice* service, uint32_t seconds)
 {
 	service->connection_timeout = seconds;
 }
-void                       APRSERVICE_CALL aprservice_enable_monitoring(struct aprservice* service, bool value)
+void                           APRSERVICE_CALL aprservice_enable_monitoring(struct aprservice* service, bool value)
 {
 	service->is_monitoring = value;
 }
-bool                       APRSERVICE_CALL aprservice_poll(struct aprservice* service)
+bool                           APRSERVICE_CALL aprservice_poll(struct aprservice* service)
 {
 	aprservice_poll_tasks(service);
 	aprservice_poll_messages(service);
@@ -1923,7 +1926,7 @@ bool                       APRSERVICE_CALL aprservice_poll(struct aprservice* se
 
 	return true;
 }
-void                                       aprservice_poll_tasks(struct aprservice* service)
+void                                           aprservice_poll_tasks(struct aprservice* service)
 {
 	for (auto it = service->tasks.begin(); it != service->tasks.end(); )
 	{
@@ -1954,7 +1957,7 @@ void                                       aprservice_poll_tasks(struct aprservi
 		service->tasks.erase(it++);
 	}
 }
-void                                       aprservice_poll_messages(struct aprservice* service)
+void                                           aprservice_poll_messages(struct aprservice* service)
 {
 	service->message_callbacks.remove_if([service](aprservice_message_callback_context* context) {
 		if (context->timeout < aprservice_get_time(service))
@@ -1981,7 +1984,7 @@ void                                       aprservice_poll_messages(struct aprse
 		return true;
 	});
 }
-bool                                       aprservice_poll_connection(struct aprservice* service)
+bool                                           aprservice_poll_connection(struct aprservice* service)
 {
 	static auto on_receive_packet = [](aprservice* service, aprs_packet* packet, aprservice_connection* connection)
 	{
@@ -2109,7 +2112,7 @@ bool                                       aprservice_poll_connection(struct apr
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send(struct aprservice* service, struct aprs_packet* packet)
+bool                           APRSERVICE_CALL aprservice_send(struct aprservice* service, struct aprs_packet* packet)
 {
 	if (!aprservice_connection_write_packet(service->connection, packet))
 	{
@@ -2120,7 +2123,7 @@ bool                       APRSERVICE_CALL aprservice_send(struct aprservice* se
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_raw(struct aprservice* service, const char* content)
+bool                           APRSERVICE_CALL aprservice_send_raw(struct aprservice* service, const char* content)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2150,7 +2153,7 @@ bool                       APRSERVICE_CALL aprservice_send_raw(struct aprservice
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_item(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live)
+bool                           APRSERVICE_CALL aprservice_send_item(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2252,7 +2255,7 @@ bool                       APRSERVICE_CALL aprservice_send_item(struct aprservic
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_object(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live)
+bool                           APRSERVICE_CALL aprservice_send_object(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, bool live)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2354,7 +2357,7 @@ bool                       APRSERVICE_CALL aprservice_send_object(struct aprserv
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_status(struct aprservice* service, const char* message)
+bool                           APRSERVICE_CALL aprservice_send_status(struct aprservice* service, const char* message)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2404,7 +2407,7 @@ bool                       APRSERVICE_CALL aprservice_send_status(struct aprserv
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_message(struct aprservice* service, const char* destination, const char* content, uint32_t timeout, aprservice_message_callback callback, void* param)
+bool                           APRSERVICE_CALL aprservice_send_message(struct aprservice* service, const char* destination, const char* content, uint32_t timeout, aprservice_message_callback callback, void* param)
 {
 	char id[6] = {};
 
@@ -2436,7 +2439,7 @@ bool                       APRSERVICE_CALL aprservice_send_message(struct aprser
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_message_ex(struct aprservice* service, const char* destination, const char* content, const char* id, uint32_t timeout, aprservice_message_callback callback, void* param)
+bool                           APRSERVICE_CALL aprservice_send_message_ex(struct aprservice* service, const char* destination, const char* content, const char* id, uint32_t timeout, aprservice_message_callback callback, void* param)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2484,7 +2487,7 @@ bool                       APRSERVICE_CALL aprservice_send_message_ex(struct apr
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id)
+bool                           APRSERVICE_CALL aprservice_send_message_ack(struct aprservice* service, const char* destination, const char* id)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2514,7 +2517,7 @@ bool                       APRSERVICE_CALL aprservice_send_message_ack(struct ap
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id)
+bool                           APRSERVICE_CALL aprservice_send_message_reject(struct aprservice* service, const char* destination, const char* id)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2544,7 +2547,7 @@ bool                       APRSERVICE_CALL aprservice_send_message_reject(struct
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_weather(struct aprservice* service, uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const char* type, char software)
+bool                           APRSERVICE_CALL aprservice_send_weather(struct aprservice* service, uint16_t wind_speed, uint16_t wind_speed_gust, uint16_t wind_direction, uint16_t rainfall_last_hour, uint16_t rainfall_last_24_hours, uint16_t rainfall_since_midnight, uint8_t humidity, int16_t temperature, uint32_t barometric_pressure, const char* type, char software)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2655,7 +2658,7 @@ bool                       APRSERVICE_CALL aprservice_send_weather(struct aprser
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_position(struct aprservice* service)
+bool                           APRSERVICE_CALL aprservice_send_position(struct aprservice* service)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2672,7 +2675,7 @@ bool                       APRSERVICE_CALL aprservice_send_position(struct aprse
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_position_ex(struct aprservice* service, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment)
+bool                           APRSERVICE_CALL aprservice_send_position_ex(struct aprservice* service, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course, const char* comment)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2705,14 +2708,14 @@ bool                       APRSERVICE_CALL aprservice_send_position_ex(struct ap
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_telemetry(struct aprservice* service, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital)
+bool                           APRSERVICE_CALL aprservice_send_telemetry(struct aprservice* service, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital)
 {
 	if (service->telemetry_count++ == 999)
 		service->telemetry_count = 0;
 
 	return aprservice_send_telemetry_ex(service, a1, a2, a3, a4, a5, digital, aprservice_get_comment(service), service->telemetry_count);
 }
-bool                       APRSERVICE_CALL aprservice_send_telemetry_ex(struct aprservice* service, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital, const char* comment, uint16_t sequence)
+bool                           APRSERVICE_CALL aprservice_send_telemetry_ex(struct aprservice* service, uint8_t a1, uint8_t a2, uint8_t a3, uint8_t a4, uint8_t a5, uint8_t digital, const char* comment, uint16_t sequence)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2751,14 +2754,14 @@ bool                       APRSERVICE_CALL aprservice_send_telemetry_ex(struct a
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_telemetry_float(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital)
+bool                           APRSERVICE_CALL aprservice_send_telemetry_float(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital)
 {
 	if (service->telemetry_count++ == 999)
 		service->telemetry_count = 0;
 
 	return aprservice_send_telemetry_float_ex(service, a1, a2, a3, a4, a5, digital, aprservice_get_comment(service), service->telemetry_count);
 }
-bool                       APRSERVICE_CALL aprservice_send_telemetry_float_ex(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital, const char* comment, uint16_t sequence)
+bool                           APRSERVICE_CALL aprservice_send_telemetry_float_ex(struct aprservice* service, float a1, float a2, float a3, float a4, float a5, uint8_t digital, const char* comment, uint16_t sequence)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2797,7 +2800,7 @@ bool                       APRSERVICE_CALL aprservice_send_telemetry_float_ex(st
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_user_defined(struct aprservice* service, char id, char type, const char* data)
+bool                           APRSERVICE_CALL aprservice_send_user_defined(struct aprservice* service, char id, char type, const char* data)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2827,7 +2830,7 @@ bool                       APRSERVICE_CALL aprservice_send_user_defined(struct a
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_send_third_party(struct aprservice* service, const char* content)
+bool                           APRSERVICE_CALL aprservice_send_third_party(struct aprservice* service, const char* content)
 {
 	if (!aprservice_is_connected(service))
 		return false;
@@ -2866,7 +2869,7 @@ bool                       APRSERVICE_CALL aprservice_send_third_party(struct ap
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_connect_aprs_is(struct aprservice* service, const char* hostname, uint16_t port, uint16_t passcode)
+bool                           APRSERVICE_CALL aprservice_connect_aprs_is(struct aprservice* service, const char* hostname, uint16_t port, uint16_t passcode)
 {
 	if (aprservice_is_connected(service))
 		return false;
@@ -2891,7 +2894,7 @@ bool                       APRSERVICE_CALL aprservice_connect_aprs_is(struct apr
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc_tcp(struct aprservice* service, const char* hostname, uint16_t port)
+bool                           APRSERVICE_CALL aprservice_connect_kiss_tnc_tcp(struct aprservice* service, const char* hostname, uint16_t port)
 {
 	if (aprservice_is_connected(service))
 		return false;
@@ -2916,7 +2919,7 @@ bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc_tcp(struc
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc_serial(struct aprservice* service, const char* device, uint32_t speed)
+bool                           APRSERVICE_CALL aprservice_connect_kiss_tnc_serial(struct aprservice* service, const char* device, uint32_t speed)
 {
 	if (aprservice_is_connected(service))
 		return false;
@@ -2941,7 +2944,7 @@ bool                       APRSERVICE_CALL aprservice_connect_kiss_tnc_serial(st
 
 	return true;
 }
-void                       APRSERVICE_CALL aprservice_disconnect(struct aprservice* service)
+void                           APRSERVICE_CALL aprservice_disconnect(struct aprservice* service)
 {
 	if (aprservice_is_connected(service))
 	{
@@ -2958,7 +2961,7 @@ void                       APRSERVICE_CALL aprservice_disconnect(struct aprservi
 	}
 }
 
-int                        APRSERVICE_CALL aprservice_wait_for_io(struct aprservice* service, uint32_t timeout)
+int                            APRSERVICE_CALL aprservice_wait_for_io(struct aprservice* service, uint32_t timeout)
 {
 	if (!aprservice_is_connected(service))
 		return -2;
@@ -2980,7 +2983,7 @@ int                        APRSERVICE_CALL aprservice_wait_for_io(struct aprserv
 	return 1;
 }
 
-bool                                       aprservice_execute_command(struct aprservice* service, struct aprs_packet* packet, const char* sender, std::string_view name, const char* args)
+bool                                           aprservice_execute_command(struct aprservice* service, struct aprs_packet* packet, const char* sender, std::string_view name, const char* args)
 {
 	for (auto& command : service->commands)
 		if (!command.name.compare(name))
@@ -2994,7 +2997,7 @@ bool                                       aprservice_execute_command(struct apr
 	return false;
 }
 
-struct aprservice_task*    APRSERVICE_CALL aprservice_task_schedule(struct aprservice* service, uint32_t seconds, aprservice_task_handler handler, void* param)
+struct aprservice_task*        APRSERVICE_CALL aprservice_task_schedule(struct aprservice* service, uint32_t seconds, aprservice_task_handler handler, void* param)
 {
 	auto task = new aprservice_task
 	{
@@ -3009,7 +3012,7 @@ struct aprservice_task*    APRSERVICE_CALL aprservice_task_schedule(struct aprse
 
 	return task;
 }
-void                       APRSERVICE_CALL aprservice_task_cancel(struct aprservice_task* task)
+void                           APRSERVICE_CALL aprservice_task_cancel(struct aprservice_task* task)
 {
 	if (auto service = aprservice_task_get_service(task))
 	{
@@ -3032,17 +3035,17 @@ void                       APRSERVICE_CALL aprservice_task_cancel(struct aprserv
 		}
 	}
 }
-void                       APRSERVICE_CALL aprservice_task_get_handler(struct aprservice_task* task, aprservice_task_handler* handler, void** param)
+void                           APRSERVICE_CALL aprservice_task_get_handler(const struct aprservice_task* task, aprservice_task_handler* handler, void** param)
 {
 	*param   = task->handler_param;
 	*handler = task->handler;
 }
-struct aprservice*         APRSERVICE_CALL aprservice_task_get_service(struct aprservice_task* task)
+struct aprservice*             APRSERVICE_CALL aprservice_task_get_service(const struct aprservice_task* task)
 {
 	return task->service;
 }
 
-struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
+struct aprservice_item*        APRSERVICE_CALL aprservice_item_create(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
 {
 	aprservice_item item =
 	{
@@ -3130,7 +3133,7 @@ struct aprservice_item*    APRSERVICE_CALL aprservice_item_create(struct aprserv
 
 	return &service->items.emplace_back(std::move(item));
 }
-void                       APRSERVICE_CALL aprservice_item_destroy(struct aprservice_item* item)
+void                           APRSERVICE_CALL aprservice_item_destroy(struct aprservice_item* item)
 {
 	if (auto service = aprservice_item_get_service(item))
 		for (auto it = service->items.begin(); it != service->items.end(); ++it)
@@ -3143,55 +3146,55 @@ void                       APRSERVICE_CALL aprservice_item_destroy(struct aprser
 				break;
 			}
 }
-bool                       APRSERVICE_CALL aprservice_item_is_alive(struct aprservice_item* item)
+bool                           APRSERVICE_CALL aprservice_item_is_alive(const struct aprservice_item* item)
 {
 	return aprs_packet_item_is_alive(item->packet);
 }
-bool                       APRSERVICE_CALL aprservice_item_is_compressed(struct aprservice_item* item)
+bool                           APRSERVICE_CALL aprservice_item_is_compressed(const struct aprservice_item* item)
 {
 	return aprs_packet_item_is_compressed(item->packet);
 }
-struct aprservice*         APRSERVICE_CALL aprservice_item_get_service(struct aprservice_item* item)
+struct aprservice*             APRSERVICE_CALL aprservice_item_get_service(const struct aprservice_item* item)
 {
 	return item->service;
 }
-const char*                APRSERVICE_CALL aprservice_item_get_name(struct aprservice_item* item)
+const char*                    APRSERVICE_CALL aprservice_item_get_name(const struct aprservice_item* item)
 {
 	return aprs_packet_item_get_name(item->packet);
 }
-const char*                APRSERVICE_CALL aprservice_item_get_comment(struct aprservice_item* item)
+const char*                    APRSERVICE_CALL aprservice_item_get_comment(const struct aprservice_item* item)
 {
 	return aprs_packet_item_get_comment(item->packet);
 }
-uint16_t                   APRSERVICE_CALL aprservice_item_get_speed(struct aprservice_item* item)
+uint16_t                       APRSERVICE_CALL aprservice_item_get_speed(const struct aprservice_item* item)
 {
 	return aprs_packet_item_get_speed(item->packet);
 }
-uint16_t                   APRSERVICE_CALL aprservice_item_get_course(struct aprservice_item* item)
+uint16_t                       APRSERVICE_CALL aprservice_item_get_course(const struct aprservice_item* item)
 {
 	return aprs_packet_item_get_course(item->packet);
 }
-int32_t                    APRSERVICE_CALL aprservice_item_get_altitude(struct aprservice_item* item)
+int32_t                        APRSERVICE_CALL aprservice_item_get_altitude(const struct aprservice_item* item)
 {
 	return aprs_packet_item_get_altitude(item->packet);
 }
-float                      APRSERVICE_CALL aprservice_item_get_latitude(struct aprservice_item* item)
+float                          APRSERVICE_CALL aprservice_item_get_latitude(const struct aprservice_item* item)
 {
 	return aprs_packet_item_get_latitude(item->packet);
 }
-float                      APRSERVICE_CALL aprservice_item_get_longitude(struct aprservice_item* item)
+float                          APRSERVICE_CALL aprservice_item_get_longitude(const struct aprservice_item* item)
 {
 	return aprs_packet_item_get_longitude(item->packet);
 }
-char                       APRSERVICE_CALL aprservice_item_get_symbol_table(struct aprservice_item* item)
+char                           APRSERVICE_CALL aprservice_item_get_symbol_table(const struct aprservice_item* item)
 {
 	return aprs_packet_item_get_symbol_table(item->packet);
 }
-char                       APRSERVICE_CALL aprservice_item_get_symbol_table_key(struct aprservice_item* item)
+char                           APRSERVICE_CALL aprservice_item_get_symbol_table_key(const struct aprservice_item* item)
 {
 	return aprs_packet_item_get_symbol_table_key(item->packet);
 }
-bool                       APRSERVICE_CALL aprservice_item_set_symbol(struct aprservice_item* item, char table, char key)
+bool                           APRSERVICE_CALL aprservice_item_set_symbol(struct aprservice_item* item, char table, char key)
 {
 	if (!aprs_packet_item_set_symbol(item->packet, table, key))
 	{
@@ -3202,7 +3205,7 @@ bool                       APRSERVICE_CALL aprservice_item_set_symbol(struct apr
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_item_set_comment(struct aprservice_item* item, const char* value)
+bool                           APRSERVICE_CALL aprservice_item_set_comment(struct aprservice_item* item, const char* value)
 {
 	if (!aprs_packet_item_set_comment(item->packet, value))
 	{
@@ -3213,7 +3216,7 @@ bool                       APRSERVICE_CALL aprservice_item_set_comment(struct ap
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_item_set_position(struct aprservice_item* item, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
+bool                           APRSERVICE_CALL aprservice_item_set_position(struct aprservice_item* item, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
 {
 	if (!aprs_packet_item_set_speed(item->packet, speed))
 	{
@@ -3252,7 +3255,7 @@ bool                       APRSERVICE_CALL aprservice_item_set_position(struct a
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_item_set_compressed(struct aprservice_item* item, bool value)
+bool                           APRSERVICE_CALL aprservice_item_set_compressed(struct aprservice_item* item, bool value)
 {
 	if (!aprs_packet_item_set_compressed(item->packet, value))
 	{
@@ -3263,7 +3266,7 @@ bool                       APRSERVICE_CALL aprservice_item_set_compressed(struct
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_item_kill(struct aprservice_item* item)
+bool                           APRSERVICE_CALL aprservice_item_kill(struct aprservice_item* item)
 {
 	if (!aprs_packet_item_is_alive(item->packet))
 		return true;
@@ -3277,7 +3280,7 @@ bool                       APRSERVICE_CALL aprservice_item_kill(struct aprservic
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_item_announce(struct aprservice_item* item)
+bool                           APRSERVICE_CALL aprservice_item_announce(struct aprservice_item* item)
 {
 	if (!aprservice_send(item->service, item->packet))
 	{
@@ -3289,7 +3292,7 @@ bool                       APRSERVICE_CALL aprservice_item_announce(struct aprse
 	return true;
 }
 
-struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
+struct aprservice_object*      APRSERVICE_CALL aprservice_object_create(struct aprservice* service, const char* name, const char* comment, char symbol_table, char symbol_table_key, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
 {
 	aprservice_object object =
 	{
@@ -3377,7 +3380,7 @@ struct aprservice_object*  APRSERVICE_CALL aprservice_object_create(struct aprse
 
 	return &service->objects.emplace_back(std::move(object));
 }
-void                       APRSERVICE_CALL aprservice_object_destroy(struct aprservice_object* object)
+void                           APRSERVICE_CALL aprservice_object_destroy(struct aprservice_object* object)
 {
 	if (auto service = aprservice_object_get_service(object))
 		for (auto it = service->objects.begin(); it != service->objects.end(); ++it)
@@ -3390,55 +3393,55 @@ void                       APRSERVICE_CALL aprservice_object_destroy(struct aprs
 				break;
 			}
 }
-bool                       APRSERVICE_CALL aprservice_object_is_alive(struct aprservice_object* object)
+bool                           APRSERVICE_CALL aprservice_object_is_alive(const struct aprservice_object* object)
 {
 	return aprs_packet_object_is_alive(object->packet);
 }
-bool                       APRSERVICE_CALL aprservice_object_is_compressed(struct aprservice_object* object)
+bool                           APRSERVICE_CALL aprservice_object_is_compressed(const struct aprservice_object* object)
 {
 	return aprs_packet_object_is_compressed(object->packet);
 }
-struct aprservice*         APRSERVICE_CALL aprservice_object_get_service(struct aprservice_object* object)
+struct aprservice*             APRSERVICE_CALL aprservice_object_get_service(const struct aprservice_object* object)
 {
 	return object->service;
 }
-const char*                APRSERVICE_CALL aprservice_object_get_name(struct aprservice_object* object)
+const char*                    APRSERVICE_CALL aprservice_object_get_name(const struct aprservice_object* object)
 {
 	return aprs_packet_object_get_name(object->packet);
 }
-const char*                APRSERVICE_CALL aprservice_object_get_comment(struct aprservice_object* object)
+const char*                    APRSERVICE_CALL aprservice_object_get_comment(const struct aprservice_object* object)
 {
 	return aprs_packet_object_get_comment(object->packet);
 }
-uint16_t                   APRSERVICE_CALL aprservice_object_get_speed(struct aprservice_object* object)
+uint16_t                       APRSERVICE_CALL aprservice_object_get_speed(const struct aprservice_object* object)
 {
 	return aprs_packet_object_get_speed(object->packet);
 }
-uint16_t                   APRSERVICE_CALL aprservice_object_get_course(struct aprservice_object* object)
+uint16_t                       APRSERVICE_CALL aprservice_object_get_course(const struct aprservice_object* object)
 {
 	return aprs_packet_object_get_course(object->packet);
 }
-int32_t                    APRSERVICE_CALL aprservice_object_get_altitude(struct aprservice_object* object)
+int32_t                        APRSERVICE_CALL aprservice_object_get_altitude(const struct aprservice_object* object)
 {
 	return aprs_packet_object_get_altitude(object->packet);
 }
-float                      APRSERVICE_CALL aprservice_object_get_latitude(struct aprservice_object* object)
+float                          APRSERVICE_CALL aprservice_object_get_latitude(const struct aprservice_object* object)
 {
 	return aprs_packet_object_get_latitude(object->packet);
 }
-float                      APRSERVICE_CALL aprservice_object_get_longitude(struct aprservice_object* object)
+float                          APRSERVICE_CALL aprservice_object_get_longitude(const struct aprservice_object* object)
 {
 	return aprs_packet_object_get_longitude(object->packet);
 }
-char                       APRSERVICE_CALL aprservice_object_get_symbol_table(struct aprservice_object* object)
+char                           APRSERVICE_CALL aprservice_object_get_symbol_table(const struct aprservice_object* object)
 {
 	return aprs_packet_object_get_symbol_table(object->packet);
 }
-char                       APRSERVICE_CALL aprservice_object_get_symbol_table_key(struct aprservice_object* object)
+char                           APRSERVICE_CALL aprservice_object_get_symbol_table_key(const struct aprservice_object* object)
 {
 	return aprs_packet_object_get_symbol_table_key(object->packet);
 }
-bool                       APRSERVICE_CALL aprservice_object_set_symbol(struct aprservice_object* object, char table, char key)
+bool                           APRSERVICE_CALL aprservice_object_set_symbol(struct aprservice_object* object, char table, char key)
 {
 	if (!aprs_packet_object_set_symbol(object->packet, table, key))
 	{
@@ -3449,7 +3452,7 @@ bool                       APRSERVICE_CALL aprservice_object_set_symbol(struct a
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_object_set_comment(struct aprservice_object* object, const char* value)
+bool                           APRSERVICE_CALL aprservice_object_set_comment(struct aprservice_object* object, const char* value)
 {
 	if (!aprs_packet_object_set_comment(object->packet, value))
 	{
@@ -3460,7 +3463,7 @@ bool                       APRSERVICE_CALL aprservice_object_set_comment(struct 
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_object_set_position(struct aprservice_object* object, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
+bool                           APRSERVICE_CALL aprservice_object_set_position(struct aprservice_object* object, float latitude, float longitude, int32_t altitude, uint16_t speed, uint16_t course)
 {
 	if (!aprs_packet_object_set_speed(object->packet, speed))
 	{
@@ -3499,7 +3502,7 @@ bool                       APRSERVICE_CALL aprservice_object_set_position(struct
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_object_set_compressed(struct aprservice_object* object, bool value)
+bool                           APRSERVICE_CALL aprservice_object_set_compressed(struct aprservice_object* object, bool value)
 {
 	if (!aprs_packet_object_set_compressed(object->packet, value))
 	{
@@ -3510,7 +3513,7 @@ bool                       APRSERVICE_CALL aprservice_object_set_compressed(stru
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_object_kill(struct aprservice_object* object)
+bool                           APRSERVICE_CALL aprservice_object_kill(struct aprservice_object* object)
 {
 	if (!aprs_packet_object_is_alive(object->packet))
 		return true;
@@ -3524,7 +3527,7 @@ bool                       APRSERVICE_CALL aprservice_object_kill(struct aprserv
 
 	return true;
 }
-bool                       APRSERVICE_CALL aprservice_object_announce(struct aprservice_object* object)
+bool                           APRSERVICE_CALL aprservice_object_announce(struct aprservice_object* object)
 {
 	aprs_time time;
 
@@ -3552,7 +3555,7 @@ bool                       APRSERVICE_CALL aprservice_object_announce(struct apr
 	return true;
 }
 
-struct aprservice_command* APRSERVICE_CALL aprservice_command_register(struct aprservice* service, const char* name, const char* help, aprservice_command_handler handler, void* param)
+struct aprservice_command*     APRSERVICE_CALL aprservice_command_register(struct aprservice* service, const char* name, const char* help, aprservice_command_handler handler, void* param)
 {
 	if (!name || !handler)
 		return nullptr;
@@ -3578,7 +3581,7 @@ struct aprservice_command* APRSERVICE_CALL aprservice_command_register(struct ap
 		.handler_param = param
 	});
 }
-void                       APRSERVICE_CALL aprservice_command_unregister(struct aprservice_command* command)
+void                           APRSERVICE_CALL aprservice_command_unregister(struct aprservice_command* command)
 {
 	if (auto service = aprservice_command_get_service(command))
 		for (auto it = service->commands.begin(); it != service->commands.end(); ++it)
@@ -3589,32 +3592,32 @@ void                       APRSERVICE_CALL aprservice_command_unregister(struct 
 				break;
 			}
 }
-const char*                APRSERVICE_CALL aprservice_command_get_help(struct aprservice_command* command)
+const char*                    APRSERVICE_CALL aprservice_command_get_help(const struct aprservice_command* command)
 {
 	return command->help.c_str();
 }
-void                       APRSERVICE_CALL aprservice_command_get_filter(struct aprservice_command* command, aprservice_command_filter_handler* handler, void** param)
+void                           APRSERVICE_CALL aprservice_command_get_filter(const struct aprservice_command* command, aprservice_command_filter_handler* handler, void** param)
 {
 	*param   = command->filter_param;
 	*handler = command->filter;
 }
-void                       APRSERVICE_CALL aprservice_command_get_handler(struct aprservice_command* command, aprservice_command_handler* handler, void** param)
+void                           APRSERVICE_CALL aprservice_command_get_handler(const struct aprservice_command* command, aprservice_command_handler* handler, void** param)
 {
 	*param   = command->handler_param;
 	*handler = command->handler;
 }
-struct aprservice*         APRSERVICE_CALL aprservice_command_get_service(struct aprservice_command* command)
+struct aprservice*             APRSERVICE_CALL aprservice_command_get_service(const struct aprservice_command* command)
 {
 	return command->service;
 }
-void                       APRSERVICE_CALL aprservice_command_set_help(struct aprservice_command* command, const char* value)
+void                           APRSERVICE_CALL aprservice_command_set_help(struct aprservice_command* command, const char* value)
 {
 	if (!value)
 		command->help.clear();
 	else
 		command->help = value;
 }
-void                       APRSERVICE_CALL aprservice_command_set_filter(struct aprservice_command* command, aprservice_command_filter_handler handler, void* param)
+void                           APRSERVICE_CALL aprservice_command_set_filter(struct aprservice_command* command, aprservice_command_filter_handler handler, void* param)
 {
 	command->filter       = handler;
 	command->filter_param = param;

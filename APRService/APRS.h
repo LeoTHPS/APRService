@@ -227,7 +227,7 @@ APRSERVICE_EXPORT float                             APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT float                             APRSERVICE_CALL aprs_packet_object_get_longitude(struct aprs_packet* packet);
 APRSERVICE_EXPORT char                              APRSERVICE_CALL aprs_packet_object_get_symbol_table(struct aprs_packet* packet);
 APRSERVICE_EXPORT char                              APRSERVICE_CALL aprs_packet_object_get_symbol_table_key(struct aprs_packet* packet);
-APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_object_set_time(struct aprs_packet* packet, const struct aprs_time* value);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_object_set_time(struct aprs_packet* packet, struct aprs_time* value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_object_set_alive(struct aprs_packet* packet, bool value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_object_set_compressed(struct aprs_packet* packet, bool value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_object_set_name(struct aprs_packet* packet, const char* value);
@@ -242,7 +242,7 @@ APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_object_set_symbol_table_key(struct aprs_packet* packet, char value);
 
 APRSERVICE_EXPORT struct aprs_packet*               APRSERVICE_CALL aprs_packet_status_init(const char* sender, const char* tocall, struct aprs_path* path, const char* message);
-APRSERVICE_EXPORT struct aprs_time*                 APRSERVICE_CALL aprs_packet_status_get_time(struct aprs_packet* packet);
+APRSERVICE_EXPORT const struct aprs_time*           APRSERVICE_CALL aprs_packet_status_get_time(struct aprs_packet* packet);
 APRSERVICE_EXPORT const char*                       APRSERVICE_CALL aprs_packet_status_get_message(struct aprs_packet* packet);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_status_set_time(struct aprs_packet* packet, struct aprs_time* value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_status_set_message(struct aprs_packet* packet, const char* value);
@@ -274,7 +274,7 @@ APRSERVICE_EXPORT uint16_t                          APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT uint8_t                           APRSERVICE_CALL aprs_packet_weather_get_humidity(struct aprs_packet* packet);
 APRSERVICE_EXPORT int16_t                           APRSERVICE_CALL aprs_packet_weather_get_temperature(struct aprs_packet* packet);
 APRSERVICE_EXPORT uint32_t                          APRSERVICE_CALL aprs_packet_weather_get_barometric_pressure(struct aprs_packet* packet);
-APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_weather_set_time(struct aprs_packet* packet, const struct aprs_time* value);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_weather_set_time(struct aprs_packet* packet, struct aprs_time* value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_weather_set_wind_speed(struct aprs_packet* packet, uint16_t value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_weather_set_wind_speed_gust(struct aprs_packet* packet, uint16_t value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_weather_set_wind_direction(struct aprs_packet* packet, uint16_t value);
@@ -302,7 +302,7 @@ APRSERVICE_EXPORT float                             APRSERVICE_CALL aprs_packet_
 APRSERVICE_EXPORT char                              APRSERVICE_CALL aprs_packet_position_get_symbol_table(struct aprs_packet* packet);
 APRSERVICE_EXPORT char                              APRSERVICE_CALL aprs_packet_position_get_symbol_table_key(struct aprs_packet* packet);
 APRSERVICE_EXPORT int                               APRSERVICE_CALL aprs_packet_position_get_mic_e_message(struct aprs_packet* packet);
-APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_set_time(struct aprs_packet* packet, const struct aprs_time* value);
+APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_set_time(struct aprs_packet* packet, struct aprs_time* value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_set_comment(struct aprs_packet* packet, const char* value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_set_speed(struct aprs_packet* packet, uint16_t value);
 APRSERVICE_EXPORT bool                              APRSERVICE_CALL aprs_packet_position_set_course(struct aprs_packet* packet, uint16_t value);

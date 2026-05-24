@@ -8,12 +8,9 @@ extern "C"
 #include <regex>
 #include <ranges>
 #include <string>
-#include <cstring>
 #include <iomanip>
-#include <sstream>
 #include <charconv>
 #include <iostream>
-#include <type_traits>
 
 static_assert(APRS_TIME_MDHM & APRS_TIME_DHM);
 static_assert(APRS_TIME_ZULU_DHM & APRS_TIME_ZULU);   static_assert(APRS_TIME_ZULU_DHM & APRS_TIME_DHM);

@@ -64,6 +64,8 @@ struct aprs_path
 	std::array<std::string, 8>    chunks_stations;
 
 	std::string                   string;
+	size_t                        string_hash;
+	bool                          string_is_valid;
 
 	size_t                        reference_count;
 };
@@ -207,18 +209,21 @@ struct aprs_packet_third_party
 };
 struct aprs_packet
 {
-	APRS_PACKET_TYPES           type;
-	aprs_path*                  path;
-	std::string                 igate;
-	std::string                 tocall;
-	std::string                 sender;
-	std::string                 content;
-	std::string                 qconstruct;
-	aprs_packet_data_extensions extensions;
+	APRS_PACKET_TYPES                type;
+	aprs_path*                       path;
+	std::string                      igate;
+	std::string                      tocall;
+	std::string                      sender;
+	std::string                      content;
+	std::string                      qconstruct;
+	aprs_packet_data_extensions      extensions;
 
-	std::string                 string;
+	decltype(aprs_path::string_hash) path_hash;
 
-	size_t                      reference_count;
+	std::string                      string;
+	bool                             string_is_valid;
+
+	size_t                           reference_count;
 
 	union
 	{
@@ -265,6 +270,34 @@ struct aprs_packet_decoder_context
 
 typedef std::regex  aprs_regex_pattern;
 typedef std::cmatch aprs_regex_match_result;
+
+size_t             fnv_hash(const void* buffer, size_t size)
+{
+	if constexpr (sizeof(size_t) == sizeof(uint32_t))
+	{
+		size_t hash = 0x811C9DC5;
+
+		for (size_t i = 0; i < size; ++i)
+		{
+			hash ^= (size_t)((const uint8_t*)buffer)[i];
+			hash *= 0x1000193;
+		}
+
+		return hash;
+	}
+	else if constexpr (sizeof(size_t) == sizeof(uint64_t))
+	{
+		size_t hash = 0xCBF29CE484222325;
+
+		for (size_t i = 0; i < size; ++i)
+		{
+			hash ^= (size_t)((const uint8_t*)buffer)[i];
+			hash *= 0x100000001B3;
+		}
+
+		return hash;
+	}
+}
 
 template<typename T>
 constexpr T        aprs_from_float(float value, float& fraction)
@@ -2553,6 +2586,9 @@ struct aprs_path*                 APRSERVICE_CALL aprs_path_init()
 	{
 		.size            = 0,
 
+		.string_hash     = fnv_hash(nullptr, 0),
+		.string_is_valid = true,
+
 		.reference_count = 1
 	};
 
@@ -2566,6 +2602,7 @@ struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_copy(struc
 		.chunks_stations = path->chunks_stations,
 
 		.string          = path->string,
+		.string_is_valid = path->string_is_valid,
 
 		.reference_count = 1
 	};
@@ -2580,6 +2617,10 @@ struct aprs_path*                                 aprs_path_init_from_string(std
 	auto path = new aprs_path
 	{
 		.size            = 0,
+
+		.string          = std::string(string),
+		.string_hash     = fnv_hash(string.data(), string.length()),
+		.string_is_valid = true,
 
 		.reference_count = 1
 	};
@@ -2656,6 +2697,7 @@ bool                              APRSERVICE_CALL aprs_path_set(struct aprs_path
 	path->chunks_stations[index].assign(station);
 	path->chunks[index].station  = path->chunks_stations[index].c_str();
 	path->chunks[index].repeated = repeated;
+	path->string_is_valid        = false;
 
 	return true;
 }
@@ -2667,6 +2709,7 @@ bool                              APRSERVICE_CALL aprs_path_pop(struct aprs_path
 	path->chunks_stations[path->size].clear();
 	path->chunks[path->size].station  = nullptr;
 	path->chunks[path->size].repeated = false;
+	path->string_is_valid             = false;
 
 	--path->size;
 
@@ -2686,6 +2729,7 @@ bool                              APRSERVICE_CALL aprs_path_push(struct aprs_pat
 	path->chunks_stations[path->size].assign(station);
 	path->chunks[path->size].station  = path->chunks_stations[path->size].c_str();
 	path->chunks[path->size].repeated = repeated;
+	path->string_is_valid             = false;
 
 	++path->size;
 
@@ -2699,7 +2743,8 @@ void                              APRSERVICE_CALL aprs_path_clear(struct aprs_pa
 		path->chunks[i].repeated = false;
 	}
 
-	path->size = 0;
+	path->size            = 0;
+	path->string_is_valid = false;
 }
 bool                              APRSERVICE_CALL aprs_path_compare(struct aprs_path* path, struct aprs_path* path2)
 {
@@ -2722,25 +2767,33 @@ bool                              APRSERVICE_CALL aprs_path_compare(struct aprs_
 }
 const char*                       APRSERVICE_CALL aprs_path_to_string(struct aprs_path* path)
 {
-	std::stringstream ss;
-
-	if (path->size)
+	if (!path->string_is_valid)
 	{
-		ss << path->chunks[0].station;
-
-		if (path->chunks[0].repeated)
-			ss << '*';
-
-		for (size_t i = 1; i < path->size; ++i)
+		if (!path->size)
+			path->string.clear();
+		else
 		{
-			ss << ',' << path->chunks[i].station;
+			std::stringstream ss;
 
-			if (path->chunks[i].repeated)
+			ss << path->chunks[0].station;
+
+			if (path->chunks[0].repeated)
 				ss << '*';
-		}
-	}
 
-	((aprs_path*)path)->string = ss.str();
+			for (size_t i = 1; i < path->size; ++i)
+			{
+				ss << ',' << path->chunks[i].station;
+
+				if (path->chunks[i].repeated)
+					ss << '*';
+			}
+
+			((aprs_path*)path)->string = ss.str();
+		}
+
+		path->string_hash     = fnv_hash(path->string.data(), path->string.length());
+		path->string_is_valid = true;
+	}
 
 	return path->string.c_str();
 }
@@ -2963,6 +3016,8 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init(const char* s
 		.path            = path,
 		.tocall          = tocall,
 		.sender          = sender,
+		.path_hash       = path->string_hash,
+		.string_is_valid = false,
 		.reference_count = 1
 	};
 
@@ -2981,6 +3036,8 @@ struct aprs_packet*                               aprs_packet_init_ex(const char
 		.path            = path,
 		.tocall          = tocall,
 		.sender          = sender,
+		.path_hash       = path->string_hash,
+		.string_is_valid = false,
 		.reference_count = 1
 	};
 
@@ -3001,7 +3058,10 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_copy(str
 		.qconstruct      = packet->qconstruct,
 		.extensions      = packet->extensions,
 
+		.path_hash       = packet->path_hash,
+
 		.string          = packet->string,
+		.string_is_valid = packet->string_is_valid,
 
 		.reference_count = 1
 	};
@@ -3244,6 +3304,9 @@ struct aprs_packet*               APRSERVICE_CALL aprs_packet_init_from_string(c
 		.sender          = match[1].str(),
 		.content         = match[4].str(),
 		.qconstruct      = std::move(path_q_igate[0]),
+		.path_hash       = path->string_hash,
+		.string          = std::string(string),
+		.string_is_valid = true,
 		.reference_count = 1
 	};
 
@@ -3387,7 +3450,8 @@ bool                              APRSERVICE_CALL aprs_packet_set_path(struct ap
 
 	aprs_path_deinit(packet->path);
 
-	packet->path = value;
+	packet->path            = value;
+	packet->string_is_valid = false;
 
 	aprs_path_add_reference(value);
 
@@ -3402,6 +3466,7 @@ bool                              APRSERVICE_CALL aprs_packet_set_tocall(struct 
 		return false;
 
 	packet->tocall.assign(value);
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -3414,6 +3479,7 @@ bool                              APRSERVICE_CALL aprs_packet_set_sender(struct 
 		return false;
 
 	packet->sender.assign(value);
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -3428,6 +3494,7 @@ bool                              APRSERVICE_CALL aprs_packet_set_content(struct
 	if (auto length = aprs_string_length(value); length && (length <= 256))
 	{
 		packet->content.assign(value, length);
+		packet->string_is_valid = false;
 
 		return true;
 	}
@@ -3604,20 +3671,25 @@ bool                              APRSERVICE_CALL aprs_packet_compare(struct apr
 }
 const char*                       APRSERVICE_CALL aprs_packet_to_string(struct aprs_packet* packet)
 {
+	if (!packet->string_is_valid || (packet->path_hash != packet->path->string_hash))
 	{
-		std::stringstream ss;
+		{
+			std::stringstream ss;
 
-		if (!aprs_packet_encode(packet, ss))
-			return nullptr;
+			if (!aprs_packet_encode(packet, ss))
+				return nullptr;
 
-		((aprs_packet*)packet)->content = ss.str();
-	}
+			((aprs_packet*)packet)->content = ss.str();
+		}
 
-	{
-		std::stringstream ss;
-		ss << aprs_packet_get_sender(packet) << '>' << aprs_packet_get_tocall(packet) << ',' << aprs_path_to_string(packet->path) << ':' << packet->content;
+		{
+			std::stringstream ss;
+			ss << aprs_packet_get_sender(packet) << '>' << aprs_packet_get_tocall(packet) << ',' << aprs_path_to_string(packet->path) << ':' << packet->content;
 
-		((aprs_packet*)packet)->string = ss.str();
+			((aprs_packet*)packet)->string = ss.str();
+		}
+
+		packet->string_is_valid = true;
 	}
 
 	return packet->string.c_str();
@@ -3675,6 +3747,8 @@ bool                              APRSERVICE_CALL aprs_packet_gps_set_nmea(struc
 	else
 		packet->gps->nmea = value;
 
+	packet->string_is_valid = false;
+
 	return true;
 }
 bool                              APRSERVICE_CALL aprs_packet_gps_set_comment(struct aprs_packet* packet, const char* value)
@@ -3686,6 +3760,8 @@ bool                              APRSERVICE_CALL aprs_packet_gps_set_comment(st
 		packet->gps->comment.clear();
 	else
 		packet->gps->comment = value;
+
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -3800,7 +3876,8 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_alive(str
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	packet->item->is_alive = value;
+	packet->item->is_alive  = value;
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -3810,6 +3887,7 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_compresse
 		return false;
 
 	packet->item->is_compressed = value;
+	packet->string_is_valid     = false;
 
 	return true;
 }
@@ -3825,6 +3903,7 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_name(stru
 		return false;
 
 	packet->item->name.assign(value);
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -3836,12 +3915,14 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_comment(s
 	if (!value)
 	{
 		packet->item->comment.clear();
+		packet->string_is_valid = false;
 
 		return true;
 	}
 	else if (aprs_validate_comment(value, 36))
 	{
 		packet->item->comment.assign(value);
+		packet->string_is_valid = false;
 
 		return true;
 	}
@@ -3854,6 +3935,7 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_speed(str
 		return false;
 
 	packet->extensions.speed = value;
+	packet->string_is_valid  = false;
 
 	return true;
 }
@@ -3866,6 +3948,7 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_course(st
 		return false;
 
 	packet->extensions.course = value;
+	packet->string_is_valid   = false;
 
 	return true;
 }
@@ -3875,6 +3958,7 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_altitude(
 		return false;
 
 	packet->extensions.altitude = value;
+	packet->string_is_valid     = false;
 
 	return true;
 }
@@ -3883,7 +3967,8 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_latitude(
 	if (aprs_packet_get_type(packet) != APRS_PACKET_TYPE_ITEM)
 		return false;
 
-	packet->item->latitude = value;
+	packet->item->latitude  = value;
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -3893,6 +3978,7 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_longitude
 		return false;
 
 	packet->item->longitude = value;
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -3906,6 +3992,7 @@ bool                              APRSERVICE_CALL aprs_packet_item_set_symbol(st
 
 	packet->item->symbol_table     = table;
 	packet->item->symbol_table_key = key;
+	packet->string_is_valid        = false;
 
 	return true;
 }
@@ -4042,7 +4129,8 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_time(st
 	if (!aprs_validate_time(value))
 		return false;
 
-	packet->object->time = *value;
+	packet->object->time    = *value;
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -4052,6 +4140,7 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_alive(s
 		return false;
 
 	packet->object->is_alive = value;
+	packet->string_is_valid  = false;
 
 	return true;
 }
@@ -4061,6 +4150,7 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_compres
 		return false;
 
 	packet->object->is_compressed = value;
+	packet->string_is_valid       = false;
 
 	return true;
 }
@@ -4076,6 +4166,7 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_name(st
 		return false;
 
 	packet->object->name.assign(value);
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -4087,12 +4178,14 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_comment
 	if (!value)
 	{
 		packet->object->comment.clear();
+		packet->string_is_valid = false;
 
 		return true;
 	}
 	else if (aprs_validate_comment(value, 36))
 	{
 		packet->object->comment.assign(value);
+		packet->string_is_valid = false;
 
 		return true;
 	}
@@ -4105,6 +4198,7 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_speed(s
 		return false;
 
 	packet->extensions.speed = value;
+	packet->string_is_valid  = false;
 
 	return true;
 }
@@ -4117,6 +4211,7 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_course(
 		return false;
 
 	packet->extensions.course = value;
+	packet->string_is_valid   = false;
 
 	return true;
 }
@@ -4126,6 +4221,7 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_altitud
 		return false;
 
 	packet->extensions.altitude = value;
+	packet->string_is_valid     = false;
 
 	return true;
 }
@@ -4135,6 +4231,7 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_latitud
 		return false;
 
 	packet->object->latitude = value;
+	packet->string_is_valid  = false;
 
 	return true;
 }
@@ -4144,6 +4241,7 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_longitu
 		return false;
 
 	packet->object->longitude = value;
+	packet->string_is_valid   = false;
 
 	return true;
 }
@@ -4157,6 +4255,7 @@ bool                              APRSERVICE_CALL aprs_packet_object_set_symbol(
 
 	packet->object->symbol_table     = table;
 	packet->object->symbol_table_key = key;
+	packet->string_is_valid          = false;
 
 	return true;
 }
@@ -4212,6 +4311,7 @@ bool                              APRSERVICE_CALL aprs_packet_status_set_time(st
 	if (!value)
 	{
 		packet->status->is_time_set = false;
+		packet->string_is_valid     = false;
 
 		return true;
 	}
@@ -4223,6 +4323,7 @@ bool                              APRSERVICE_CALL aprs_packet_status_set_time(st
 	{
 		packet->status->is_time_set = true;
 		packet->status->time        = *value;
+		packet->string_is_valid     = false;
 
 		return true;
 	}
@@ -4241,6 +4342,8 @@ bool                              APRSERVICE_CALL aprs_packet_status_set_message
 		packet->status->message.clear();
 	else
 		packet->status->message = value;
+
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -4381,6 +4484,7 @@ bool                              APRSERVICE_CALL aprs_packet_message_set_id(str
 			return false;
 
 		packet->message->id.clear();
+		packet->string_is_valid = false;
 
 		return true;
 	}
@@ -4395,6 +4499,7 @@ bool                              APRSERVICE_CALL aprs_packet_message_set_id(str
 			return false;
 
 		packet->message->id.assign(value, length);
+		packet->string_is_valid = false;
 
 		return true;
 	}
@@ -4413,12 +4518,14 @@ bool                              APRSERVICE_CALL aprs_packet_message_set_type(s
 			if (!aprs_packet_message_get_id(packet))
 				aprs_packet_message_set_id(packet, "0");
 		case APRS_MESSAGE_TYPE_MESSAGE:
-			packet->message->type = value;
+			packet->message->type   = value;
+			packet->string_is_valid = false;
 			return true;
 
 		case APRS_MESSAGE_TYPE_BULLETIN:
 			packet->message->id.clear();
-			packet->message->type = value;
+			packet->message->type   = value;
+			packet->string_is_valid = false;
 			return true;
 	}
 
@@ -4442,6 +4549,7 @@ bool                              APRSERVICE_CALL aprs_packet_message_set_conten
 	if (!value)
 	{
 		packet->message->content.clear();
+		packet->string_is_valid = false;
 
 		return true;
 	}
@@ -4449,6 +4557,7 @@ bool                              APRSERVICE_CALL aprs_packet_message_set_conten
 	{
 		packet->message->type = APRS_MESSAGE_TYPE_MESSAGE;
 		packet->message->content.assign(value, length);
+		packet->string_is_valid = false;
 
 		return true;
 	}
@@ -4467,6 +4576,7 @@ bool                              APRSERVICE_CALL aprs_packet_message_set_destin
 		return false;
 
 	packet->message->destination.assign(value);
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -4603,7 +4713,8 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_time(s
 	if (!aprs_validate_time(value))
 		return false;
 
-	packet->weather->time = *value;
+	packet->weather->time   = *value;
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -4616,6 +4727,7 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_wind_s
 		return false;
 
 	packet->weather->wind_speed = value;
+	packet->string_is_valid     = false;
 
 	return true;
 }
@@ -4628,6 +4740,7 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_wind_s
 		return false;
 
 	packet->weather->wind_speed_gust = value;
+	packet->string_is_valid          = false;
 
 	return true;
 }
@@ -4640,6 +4753,7 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_wind_d
 		return false;
 
 	packet->weather->wind_direction = value;
+	packet->string_is_valid         = false;
 
 	return true;
 }
@@ -4652,6 +4766,7 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_rainfa
 		return false;
 
 	packet->weather->rainfall_last_hour = value;
+	packet->string_is_valid             = false;
 
 	return true;
 }
@@ -4664,6 +4779,7 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_rainfa
 		return false;
 
 	packet->weather->rainfall_last_24_hours = value;
+	packet->string_is_valid                 = false;
 
 	return true;
 }
@@ -4676,6 +4792,7 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_rainfa
 		return false;
 
 	packet->weather->rainfall_since_midnight = value;
+	packet->string_is_valid                  = false;
 
 	return true;
 }
@@ -4688,6 +4805,7 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_humidi
 		return false;
 
 	packet->weather->humidity = value;
+	packet->string_is_valid   = false;
 
 	return true;
 }
@@ -4703,6 +4821,7 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_temper
 		return false;
 
 	packet->weather->temperature = value;
+	packet->string_is_valid      = false;
 
 	return true;
 }
@@ -4715,6 +4834,7 @@ bool                              APRSERVICE_CALL aprs_packet_weather_set_barome
 		return false;
 
 	packet->weather->barometric_pressure = value;
+	packet->string_is_valid              = false;
 
 	return true;
 }
@@ -4891,6 +5011,7 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_time(
 	if (!value)
 	{
 		packet->position->flags &= ~APRS_POSITION_FLAG_TIME;
+		packet->string_is_valid  = false;
 
 		return true;
 	}
@@ -4902,6 +5023,7 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_time(
 	{
 		packet->position->time   = *value;
 		packet->position->flags |= APRS_POSITION_FLAG_TIME;
+		packet->string_is_valid  = false;
 
 		return true;
 	}
@@ -4916,12 +5038,14 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_comme
 	if (!value)
 	{
 		packet->position->comment.clear();
+		packet->string_is_valid = false;
 
 		return true;
 	}
 	else if (aprs_validate_comment(value, 36))
 	{
 		packet->position->comment.assign(value);
+		packet->string_is_valid = false;
 
 		return true;
 	}
@@ -4934,6 +5058,7 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_speed
 		return false;
 
 	packet->extensions.speed = value;
+	packet->string_is_valid  = false;
 
 	return true;
 }
@@ -4946,6 +5071,7 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_cours
 		return false;
 
 	packet->extensions.course = value;
+	packet->string_is_valid   = false;
 
 	return true;
 }
@@ -4955,6 +5081,7 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_altit
 		return false;
 
 	packet->extensions.altitude = value;
+	packet->string_is_valid     = false;
 
 	return true;
 }
@@ -4964,6 +5091,7 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_latit
 		return false;
 
 	packet->position->latitude = value;
+	packet->string_is_valid    = false;
 
 	return true;
 }
@@ -4973,6 +5101,7 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_longi
 		return false;
 
 	packet->position->longitude = value;
+	packet->string_is_valid     = false;
 
 	return true;
 }
@@ -4986,6 +5115,7 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_symbo
 
 	packet->position->symbol_table     = table;
 	packet->position->symbol_table_key = key;
+	packet->string_is_valid            = false;
 
 	return true;
 }
@@ -5006,6 +5136,7 @@ bool                              APRSERVICE_CALL aprs_packet_position_set_mic_e
 		return false;
 
 	packet->position->mic_e_message = value;
+	packet->string_is_valid         = false;
 
 	return true;
 }
@@ -5300,6 +5431,7 @@ bool                              APRSERVICE_CALL aprs_packet_telemetry_set_bits
 		return false;
 
 	packet->telemetry->digital = value;
+	packet->string_is_valid    = false;
 
 	return true;
 }
@@ -5315,6 +5447,7 @@ bool                              APRSERVICE_CALL aprs_packet_telemetry_set_anal
 		return false;
 
 	packet->telemetry->analog_u8[index] = value;
+	packet->string_is_valid             = false;
 
 	return true;
 }
@@ -5330,6 +5463,7 @@ bool                              APRSERVICE_CALL aprs_packet_telemetry_set_anal
 		return false;
 
 	packet->telemetry->analog_float[index] = value;
+	packet->string_is_valid                = false;
 
 	return true;
 }
@@ -5343,6 +5477,7 @@ bool                              APRSERVICE_CALL aprs_packet_telemetry_set_digi
 		case APRS_TELEMETRY_TYPE_U8:
 		case APRS_TELEMETRY_TYPE_FLOAT:
 			packet->telemetry->digital = value;
+			packet->string_is_valid    = false;
 			return true;
 	}
 
@@ -5361,6 +5496,7 @@ bool                              APRSERVICE_CALL aprs_packet_telemetry_set_sequ
 		case APRS_TELEMETRY_TYPE_U8:
 		case APRS_TELEMETRY_TYPE_FLOAT:
 			packet->telemetry->sequence = value;
+			packet->string_is_valid     = false;
 			return true;
 	}
 
@@ -5379,12 +5515,14 @@ bool                              APRSERVICE_CALL aprs_packet_telemetry_set_comm
 			if (!value)
 			{
 				packet->telemetry->comment.clear();
+				packet->string_is_valid = false;
 
 				return true;
 			}
 			else if (aprs_validate_comment(value, 67))
 			{
 				packet->telemetry->comment.assign(value);
+				packet->string_is_valid = false;
 
 				return true;
 			}
@@ -5447,6 +5585,7 @@ bool                              APRSERVICE_CALL aprs_packet_user_defined_set_i
 		return false;
 
 	packet->user_defined->id = value;
+	packet->string_is_valid  = false;
 
 	return true;
 }
@@ -5459,6 +5598,7 @@ bool                              APRSERVICE_CALL aprs_packet_user_defined_set_t
 		return false;
 
 	packet->user_defined->type = value;
+	packet->string_is_valid    = false;
 
 	return true;
 }
@@ -5474,6 +5614,7 @@ bool                              APRSERVICE_CALL aprs_packet_user_defined_set_d
 		return false;
 
 	packet->user_defined->data.assign(value);
+	packet->string_is_valid = false;
 
 	return true;
 }
@@ -5505,6 +5646,8 @@ bool                              APRSERVICE_CALL aprs_packet_third_party_set_co
 		packet->third_party->content.clear();
 	else
 		packet->third_party->content = value;
+
+	packet->string_is_valid = false;
 
 	return true;
 }

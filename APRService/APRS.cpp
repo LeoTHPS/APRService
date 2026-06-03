@@ -2646,6 +2646,15 @@ struct aprs_path*                                 aprs_path_init_from_string(std
 		++path->size;
 	}
 
+	for (size_t i = path->size; i--; )
+		if (path->chunks[i].repeated)
+		{
+			while (i--)
+				path->chunks[i].repeated = true;
+
+			break;
+		}
+
 	return path;
 }
 struct aprs_path*                 APRSERVICE_CALL aprs_path_init_from_string(const char* string)
@@ -2774,17 +2783,26 @@ const char*                       APRSERVICE_CALL aprs_path_to_string(struct apr
 		else
 		{
 			std::stringstream ss;
+			int               irp = -1;
 
-			ss << path->chunks[0].station;
-
-			if (path->chunks[0].repeated)
-				ss << '*';
-
-			for (size_t i = 1; i < path->size; ++i)
+			for (size_t i = path->size; --i; )
 			{
-				ss << ',' << path->chunks[i].station;
-
 				if (path->chunks[i].repeated)
+				{
+					irp = i;
+
+					break;
+				}
+			}
+
+			for (size_t i = 0; i < path->size; ++i)
+			{
+				if (i)
+					ss << ',';
+
+				ss << path->chunks_stations[i];
+
+				if (i == irp)
 					ss << '*';
 			}
 

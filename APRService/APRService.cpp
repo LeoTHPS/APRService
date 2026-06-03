@@ -1277,10 +1277,10 @@ bool                                           aprservice_connection_write_packe
 				{
 					static auto packet_to_ax25   = [](aprs_packet* value)
 					{
-						auto        path         = aprs_packet_get_path(value);
-						auto        path_size    = aprs_path_get_length(path);
-						std::string content      = aprs_packet_get_content(value);
-						auto        content_size = content.length();
+						auto             path         = aprs_packet_get_path(value);
+						auto             path_size    = aprs_path_get_length(path);
+						std::string_view content      = aprs_packet_get_content(value);
+						auto             content_size = content.length();
 
 						std::vector<uint8_t> buffer(14 + (path_size * 7) + 2 + content_size, 0);
 						static auto          buffer_encode_station = [](std::vector<uint8_t>& buffer, size_t offset, const char* station, bool repeated)
@@ -1348,7 +1348,7 @@ bool                                           aprservice_connection_write_packe
 						auto offset      = buffer_encode_path(buffer, 14, path);
 						buffer[offset++] = 0x03;
 						buffer[offset++] = 0xF0;
-						memcpy(&buffer[offset], content.c_str(), content_size);
+						memcpy(&buffer[offset], content.data(), content_size);
 
 						return buffer;
 					};
